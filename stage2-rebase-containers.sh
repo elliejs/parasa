@@ -16,5 +16,5 @@ done
 # Return to trunk when done 
 git checkout "${TRUNK}"
 
-cd ~-
+cd --
 zfs set mountpoint=none zshemot/sinai
