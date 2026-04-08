@@ -1,6 +1,9 @@
 #! /bin/bash
 set -euo pipefail
 
+MISHKAN_SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
+. "${MISHKAN_SCRIPT_DIR}/helpers.sh"
+
 zfs set mountpoint=/zshemot/sinai zshemot/sinai
 cd /zshemot/sinai
 
