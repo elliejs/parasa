@@ -106,7 +106,8 @@ apply-mtree() {
 	[ -d "${TREE}/etc/mtree" ] || error "no etc/mtree directory within ${TREE}\n";
 	# `-i` == set schg etc bits
 	# `-u` == update
-	mtree -f "${TREE}/etc/mtree/sinai.dist" -iu -p "${TREE}" 
+	# Duh, the spec is not going to match, that's why we run this?
+	mtree -f "${TREE}/etc/mtree/sinai.dist" -iu -p "${TREE}" || true
 }
 
 clear-mtree() {
