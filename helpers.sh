@@ -17,7 +17,7 @@ confirm() {
 
 	while true; do
 		# Use printf for the prompt to keep the cursor on the same line
-		printf "${PROMPT} [y/n]: " 
+		printf "${PROMPT} [Y/n]: " 
 
 		# Read user input from standard input
 		if [ -z "${RESPONSE}" ]; then
