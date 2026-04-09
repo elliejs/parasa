@@ -157,11 +157,11 @@ yesish "${DRY_RUN}" || generate-mtree . "${ignore_file}"
 zunmount zshemot/minhagim
 
 yesish "${DRY_RUN}" || {
-	[ -n "${TORAH_IGNORE_FILE}" ] || TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM}.torahignore"
+	[ -n "${TORAH_IGNORE_FILE}" ] || TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM_NAME}.torahignore"
 	if [ -f "${TORAH_IGNORE_FILE}" ]; then
 		ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
 	else
-		echo "No .torahignore file found for ${SYSTEM}."
+		echo "No .torahignore file found for ${SYSTEM_NAME}."
 	fi
 	# And add everything to the git
 	git add .
