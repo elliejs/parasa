@@ -145,9 +145,8 @@ get-artifact-name() {
 ignore-but-keep-torah() {
 	local REPO="${1:-}"
 	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n";
-	shift
 	local GIT_IGNORE_FILE="${REPO}/.gitignore"
-	local TORAH_IGNORE_FILE="${2}"
+	local TORAH_IGNORE_FILE="${2:-}"
 	while read -r _location || [ -n "${_location}" ]; do
 		local FULL_PATH="${REPO}/${_location}"
 
