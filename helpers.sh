@@ -91,11 +91,11 @@ zunmount() {
 # TODO: SINAI hardcode is mixing metaphors
 generate-mtree() {
 	local TREE="${1:-}"
-	local IGNOREFILE="${2:-}"
+	local GIT_IGNORE_FILE="${2:-}"
 	[ -n "${TREE}" ] || error "no dir for mtree provided\n";
 	[ -d "${TREE}/etc/mtree" ] || error "no etc/mtree directory within ${TREE}\n";
-	[ -f "${GIT_IGNOREFILE}" ] || echo "${GIT_IGNOREFILE} not supplied or does not exist. I hope this is what you wanted";
-	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE}" -X "${GIT_IGNOREFILE}" > "${TREE}/etc/mtree/sinai.dist"
+	[ -f "${GIT_IGNORE_FILE}" ] || echo "${GIT_IGNORE_FILE} not supplied or does not exist. I hope this is what you wanted";
+	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE}" -X "${GIT_IGNORE_FILE}" > "${TREE}/etc/mtree/sinai.dist"
 }
 
 # TODO: hardlinks
