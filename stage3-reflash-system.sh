@@ -15,10 +15,10 @@ cleanup() {
 	zunmount zshemot/torah || true
 	cd --
 }
-trap cleanup EXIT
+# trap cleanup EXIT
 
-system_name="${1:-}"
-if [ -z "${system_name}" ]; then
+SYSTEM_NAME="${1:-}"
+if [ -z "${SYSTEM_NAME}" ]; then
 	error "No system name provided\n" || exit
 fi
 
@@ -29,41 +29,46 @@ zpool create zannanim "${MD_DEV}"
 zfs create zannanim/akeida
 
 zmount zshemot/sinai
+confirm "Cloning zshemot/sinai to zannanim/akeida"
 git clone /zshemot/sinai /zannanim/akeida
 zunmount zshemot/sinai
 
 cd /zannanim/akeida
-git checkout "systems/${system_name}"
+confirm "Checking out branch systems/${SYSTEM_NAME}"
+git checkout "systems/${SYSTEM_NAME}"
+confirm "Applying mtree"
 apply-mtree .
 cd --
 
-confirm "Created zannanim, setting kenv" 
+confirm "Created zannanim, setting kenv and mountpoints"
 kenv vfs.root.mountfrom='zfs:zannanim/akeida'
-zfs set -u mountpoint=/ zannanim/${system_name}
-SYSTEM="zbereshit/systems/${system_name}"
+zfs set -u mountpoint=/ zannanim/${SYSTEM_NAME}
+SYSTEM_DATASET="zbereshit/systems/${SYSTEM_NAME}"
 zfs set -u mountpoint="/${SYSTEM}" "${SYSTEM}"
 
 reboot_msg="Reboot?\n"
 reboot_msg="${reboot_msg}\tvfs.root.mountfrom=$(kenv vfs.root.mountfrom)\n"
-reboot_msg="${reboot_msg}\tzannanim mountpoint:$(zfs get mountpoint zannanim${system_name})\n"
-reboot_msg="${reboot_msg}\tzbereshit/systems/${system_name} mountpoint:$(zfs get mountpoint zbereshit/systems/${system_name})\n"
+reboot_msg="${reboot_msg}\tzannanim mountpoint:$(zfs get mountpoint zannanim${SYSTEM_NAME})\n"
+reboot_msg="${reboot_msg}\t${SYSTEM_DATASET} mountpoint:$(zfs get mountpoint ${SYSTEM_DATASET})\n"
+confirm "${reboot_msg}"
 reboot -r
+# TODO: how do we get back here?
 
 # TODO: zunmount the rest of zbereshit so they don't mount on top of zannanim
 
 # Step 2: fast-forward zbereshit/system
 # TODO: Warn if last looks like new (commit-hash)
-cd "/${SYSTEM}"
+cd "/${SYSTEM_DATASET}"
 zfs set mountpoint=/zshemot/sinai zshemot/sinai
 clear-mtree .
 git pull
 apply-mtree .
-zfs snapshot "${SYSTEM}@${NEW_SNAPSHOT}"
+zfs snapshot "${SYSTEM_DATASET}@${NEW_SNAPSHOT}"
 cd --
 
 # Step 3: final reboot
 kenv vfs.root.mountfrom='zfs:${SYSTEM}'
-zpool set bootfs="${SYSTEM}" zbereshit
+zpool set bootfs="${SYSTEM_DATASET}" zbereshit
 
 reboot
 
