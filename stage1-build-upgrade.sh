@@ -15,18 +15,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
+print_help() {
+
+}
+
 NEW_GIT="No"
 DRY_RUN="No"
 QUIET="No"
 SYSTEM_NAME=""
-while getopts ":nxqs:" opt; do
+CRON_MODE="No"
+while getopts ":ndqchs:x:" opt; do
 	case "${opt}" in
 		n) NEW_GIT="Yes" ;;
-		x) DRY_RUN="Yes" ;;
+		d) DRY_RUN="Yes" ;;
 		q) QUIET="Yes"   ;;
+		c)
+			QUIET="Yes"
+			CRON_MODE="Yes"
+			;;
+		h)
+			print_help
+			;;
 		s)
 			SYSTEM_NAME="${OPTARG}"
 			;;
+		x)
+
 		\?)
 			printf "Error: -%s is an unrecognized flag.\n" "${OPTARG}" >&2
 			exit 1
@@ -40,6 +54,8 @@ while getopts ":nxqs:" opt; do
 			exit 1
 	esac
 done
+
+shift $((OPTIND - 1))
 
 if [ -z "${SYSTEM_NAME}" ]; then
 	error "No system name provided\n" || exit
@@ -86,6 +102,7 @@ zmount zshemot/torah
 cd /zshemot/torah || exit 1
 if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
 	yesish "${DRY_RUN}" || git pull
+	# TODO: Abort if no new changes
 else
 	if yesish "${NEW_GIT}" ; then
 		# TODO: choose branch
@@ -137,7 +154,7 @@ yesish "${DRY_RUN}" || generate-mtree . "${ignore_file}"
 zunmount zshemot/minhagim
 
 yesish "${DRY_RUN}" || {
-	ignore-but-keep-torah "var/" "tmp/" "usr/local/" "entropy"
+	ignore-but-keep-torah "/zshemot/sinai" "var/" "tmp/" "usr/local/" "entropy"
 	# And add everything to the git
 	git add .
 	yesish "${QUIET}" || confirm "Committing ${artifact_name} to sinai"
