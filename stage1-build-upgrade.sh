@@ -153,9 +153,6 @@ if [ ! -f "${ignore_file}" ]; then
 fi
 yesish "${DRY_RUN}" || generate-mtree . "${ignore_file}"
 
-# We're done with minhagim now that we've built the config
-zunmount zshemot/minhagim
-
 yesish "${DRY_RUN}" || {
 	[ -n "${TORAH_IGNORE_FILE}" ] || TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM_NAME}.torahignore"
 	if [ -f "${TORAH_IGNORE_FILE}" ]; then
@@ -168,6 +165,9 @@ yesish "${DRY_RUN}" || {
 	yesish "${QUIET}" || confirm "Committing ${artifact_name} to sinai"
 	git commit -m "${artifact_name}"
 }
+
+zunmount zshemot/minhagim
+
 cd --
 zunmount zshemot/sinai
 yesish "${QUIET}" || confirm "Done!"
