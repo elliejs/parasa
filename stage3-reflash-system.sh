@@ -42,13 +42,13 @@ cd --
 
 confirm "Created zannanim, setting kenv and mountpoints"
 kenv vfs.root.mountfrom='zfs:zannanim/akeida'
-zfs set -u mountpoint=/ zannanim/${SYSTEM_NAME}
+zfs set -u mountpoint=/ zannanim/akeida
 SYSTEM_DATASET="zbereshit/systems/${SYSTEM_NAME}"
 zfs set -u mountpoint="/${SYSTEM}" "${SYSTEM}"
 
 reboot_msg="Reboot?\n"
 reboot_msg="${reboot_msg}\tvfs.root.mountfrom=$(kenv vfs.root.mountfrom)\n"
-reboot_msg="${reboot_msg}\tzannanim mountpoint:$(zfs get mountpoint zannanim${SYSTEM_NAME})\n"
+reboot_msg="${reboot_msg}\tzannanim mountpoint:$(zfs get mountpoint zannanim/akeida)\n"
 reboot_msg="${reboot_msg}\t${SYSTEM_DATASET} mountpoint:$(zfs get mountpoint ${SYSTEM_DATASET})\n"
 confirm "${reboot_msg}"
 reboot -r
