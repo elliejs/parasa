@@ -24,7 +24,7 @@ fi
 
 confirm "Jumping to zannanim"
 # Step 1: Jump to a ramdrive
-MD_DEV=$(mdconfig -a -t swap -s 6g)
+MD_DEV=$(mdconfig -a -t swap -s 12g)
 zpool create zannanim "${MD_DEV}"
 zfs create zannanim/akeida
 
