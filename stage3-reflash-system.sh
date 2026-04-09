@@ -44,7 +44,7 @@ confirm "Created zannanim, setting kenv and mountpoints"
 kenv vfs.root.mountfrom='zfs:zannanim/akeida'
 zfs set -u mountpoint=/ zannanim/akeida
 SYSTEM_DATASET="zbereshit/systems/${SYSTEM_NAME}"
-zfs set -u mountpoint="/${SYSTEM}" "${SYSTEM}"
+zfs set -u mountpoint="/${SYSTEM_DATASET}" "${SYSTEM_DATASET}"
 
 reboot_msg="Reboot?\n"
 reboot_msg="${reboot_msg}\tvfs.root.mountfrom=$(kenv vfs.root.mountfrom)\n"
