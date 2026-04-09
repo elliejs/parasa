@@ -35,7 +35,7 @@ zunmount zshemot/sinai
 
 cd /zannanim/akeida
 confirm "Checking out branch systems/${SYSTEM_NAME}"
-git checkout "systems/${SYSTEM_NAME}"
+git switch "systems/${SYSTEM_NAME}"
 confirm "Applying mtree"
 apply-mtree .
 cd --
