@@ -31,11 +31,11 @@ zfs create zannanim/akeida
 zmount zshemot/sinai
 confirm "Cloning zshemot/sinai to zannanim/akeida"
 git clone /zshemot/sinai /zannanim/akeida
-zunmount zshemot/sinai
 
 cd /zannanim/akeida
 confirm "Checking out branch systems/${SYSTEM_NAME}"
 git switch "systems/${SYSTEM_NAME}"
+zunmount zshemot/sinai
 confirm "Applying mtree"
 apply-mtree .
 cd --
@@ -59,7 +59,7 @@ reboot -r
 # Step 2: fast-forward zbereshit/system
 # TODO: Warn if last looks like new (commit-hash)
 cd "/${SYSTEM_DATASET}"
-zfs set mountpoint=/zshemot/sinai zshemot/sinai
+zmount zshemot/sinai
 clear-mtree .
 git pull
 apply-mtree .
