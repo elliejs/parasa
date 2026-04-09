@@ -94,8 +94,8 @@ generate-mtree() {
 	local IGNOREFILE="${2:-}"
 	[ -n "${TREE}" ] || error "no dir for mtree provided\n";
 	[ -d "${TREE}/etc/mtree" ] || error "no etc/mtree directory within ${TREE}\n";
-	[ -f "${IGNOREFILE}" ] || echo "${IGNOREFILE} not supplied or does not exist. I hope this is what you wanted";
-	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE}" -X "${IGNOREFILE}" > "${TREE}/etc/mtree/sinai.dist"
+	[ -f "${GIT_IGNOREFILE}" ] || echo "${GIT_IGNOREFILE} not supplied or does not exist. I hope this is what you wanted";
+	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE}" -X "${GIT_IGNOREFILE}" > "${TREE}/etc/mtree/sinai.dist"
 }
 
 # TODO: hardlinks
@@ -146,9 +146,9 @@ ignore-but-keep-torah() {
 	local REPO="${1:-}"
 	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n";
 	shift
-	local IGNORE_FILE="${REPO}/.gitignore"
-	
-	for _location in "$@"; do
+	local GIT_IGNORE_FILE="${REPO}/.gitignore"
+	local TORAH_IGNORE_FILE="${2}"
+	while read -r _location || [ -n "${_location}" ]; do
 		local FULL_PATH="${REPO}/${_location}"
 
 		# If a file exists AND a directory exists with the same name
@@ -156,8 +156,8 @@ ignore-but-keep-torah() {
 			printf "Notice: Collision detected. Both file and directory named '%s' exist.\n" "${_location}"
 			printf "        Applying negation rule '!%s/' to .gitignore to protect the directory.\n" "${_location}"
     
-			if ! grep -qxF "!${_location}/" "${IGNORE_FILE}" 2>/dev/null; then
-				printf "!%s/\n" "${_location}" >> "${IGNORE_FILE}"
+			if ! grep -qxF "!${_location}/" "${GIT_IGNORE_FILE}" 2>/dev/null; then
+				printf "!%s/\n" "${_location}" >> "${GIT_IGNORE_FILE}"
 			fi
     			# We do NOT auto-fix the slash here because we want to target the FILE specifically
 		
@@ -173,9 +173,9 @@ ignore-but-keep-torah() {
 		fi
 
 		# -q: quiet, -x: exact, -F: fixed string
-		if ! grep -qxF "${_location}" "${IGNORE_FILE}" 2>/dev/null; then
-			[ -f "${IGNORE_FILE}" ] && [ -n "$(tail -c 1 "${IGNORE_FILE}" 2>/dev/null)" ] && printf "\n" >> "${IGNORE_FILE}"
-			printf "%s\n" "${_location}" >> "${IGNORE_FILE}"
+		if ! grep -qxF "${_location}" "${GIT_IGNORE_FILE}" 2>/dev/null; then
+			[ -f "${GIT_IGNORE_FILE}" ] && [ -n "$(tail -c 1 "${GIT_IGNORE_FILE}" 2>/dev/null)" ] && printf "\n" >> "${GIT_IGNORE_FILE}"
+			printf "%s\n" "${_location}" >> "${GIT_IGNORE_FILE}"
 			echo "Excluding ${_location}..."
 		fi
 
@@ -186,7 +186,7 @@ ignore-but-keep-torah() {
 				echo "Tracking existing files therein..."
 			)
 		fi
-	done
+	done < "${TORAH_IGNORE_FILE}"
 }
 
 sysgit() {

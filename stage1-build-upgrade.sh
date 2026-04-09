@@ -24,7 +24,8 @@ DRY_RUN="No"
 QUIET="No"
 SYSTEM_NAME=""
 CRON_MODE="No"
-while getopts ":ndqchs:x:" opt; do
+TORAH_IGNORE_FILE=""
+while getopts ":ndqchx:s:" opt; do
 	case "${opt}" in
 		n) NEW_GIT="Yes" ;;
 		d) DRY_RUN="Yes" ;;
@@ -36,11 +37,11 @@ while getopts ":ndqchs:x:" opt; do
 		h)
 			print_help
 			;;
+		x)
+			TORAH_IGNORE_FILE="${OPTARG}"
 		s)
 			SYSTEM_NAME="${OPTARG}"
 			;;
-		x)
-
 		\?)
 			printf "Error: -%s is an unrecognized flag.\n" "${OPTARG}" >&2
 			exit 1
@@ -154,7 +155,12 @@ yesish "${DRY_RUN}" || generate-mtree . "${ignore_file}"
 zunmount zshemot/minhagim
 
 yesish "${DRY_RUN}" || {
-	ignore-but-keep-torah "/zshemot/sinai" "var/" "tmp/" "usr/local/" "entropy"
+	[ -n "${TORAH_IGNORE_FILE}" ] || TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM}.torahignore"
+	if [ -f "${TORAH_IGNORE_FILE}" ]; then
+		ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
+	else
+		echo "No .torahignore file found for ${SYSTEM}."
+	fi
 	# And add everything to the git
 	git add .
 	yesish "${QUIET}" || confirm "Committing ${artifact_name} to sinai"
