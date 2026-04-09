@@ -1,4 +1,5 @@
 #!/bin/sh
+
 set -eu
 
 MISHKAN_SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
@@ -39,6 +40,7 @@ while getopts ":ndqchx:s:" opt; do
 			;;
 		x)
 			TORAH_IGNORE_FILE="${OPTARG}"
+			;;
 		s)
 			SYSTEM_NAME="${OPTARG}"
 			;;
