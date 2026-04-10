@@ -1,5 +1,6 @@
 #!/bin/sh
 error() {
+	set -- "ERROR: $1" "${@:2}"
 	printf "$@" >&2
 	return 1
 }
@@ -7,10 +8,10 @@ error() {
 root-only() {
 	# Ensure the script is being run as root
 	if [ "$(id -u)" -ne 0 ]; then
-		echo "Error: This script must be run as root." >&2
-		exit 1
+		error "This script must be run as root.\n" || return
 	fi
 }
+
 confirm() {
 	local PROMPT="${1:-Are you sure?}"
 	local RESPONSE="${2:-}"
@@ -35,7 +36,7 @@ confirm() {
 		elif noish "${RESPONSE}"; then
 			return 1
 		else
-			printf "Invalid input '%s'. Please enter y or n.\n" "${RESPONSE}" >&2
+			error "Invalid input '%s'. Please enter y or n.\n" "${RESPONSE}" || true
 			RESPONSE=""
 		fi
     done
@@ -57,10 +58,7 @@ noish() {
 
 zmount() {
 	local DATASET="${1:-}"
-	[ -n "${DATASET}" ] || {
-		echo "no dataset to zmount"
-		return
-	}
+	[ -n "${DATASET}" ] || error "No dataset to zmount\n" || return
 	local DEST="${2:-}"
 	if [ -z "${DEST}" ]; then
 		DEST="/${DATASET}"
@@ -70,10 +68,7 @@ zmount() {
 
 zunmount() {
 	local DATASET="${1:-}"
-	[ -n "${DATASET}" ] || {
-		echo "no dataset to zunmount"
-		return
-	}
+	[ -n "${DATASET}" ] || error "No dataset to zunmount\n" || return
 	sync
 	zfs unmount ${DATASET}
 	zfs set mountpoint=none ${DATASET}
@@ -84,41 +79,52 @@ zunmount() {
 # so why cache it, flags are used by zfs to let us know there's
 # a snapshot and we can't control that on the git-clone side,
 # and because time modified is not something I care about tracking.
-# Use `-K` to add the sha512 hash to the file to determine file
-# integrity. Finally, use `-c` to print a config.
+# User -x to not descend below mountpoints. Use `-K` to add the
+# sha512 hash to the file to determine file integrity. Finally,
+# use `-c` to print a config.
 
 # TODO: hardlinks
-# TODO: SINAI hardcode is mixing metaphors
 generate-mtree() {
-	local TREE="${1:-}"
-	local GIT_IGNORE_FILE="${2:-}"
-	[ -n "${TREE}" ] || error "no dir for mtree provided\n";
-	[ -d "${TREE}/etc/mtree" ] || error "no etc/mtree directory within ${TREE}\n";
-	[ -f "${GIT_IGNORE_FILE}" ] || echo "${GIT_IGNORE_FILE} not supplied or does not exist. I hope this is what you wanted";
-	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE}" -X "${GIT_IGNORE_FILE}" > "${TREE}/etc/mtree/sinai.dist"
+	local SYSTEM_NAME="${1:-}"
+	local TREE_PATH="${2:-}"
+	local MTREE_IGNORE_FILE="${3:-}"
+	[ -n "${SYSTEM_NAME}" ] || error "no system name for mtree provided\n" || return
+	[ -n "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
+	[ -d "${TREE_PATH}/etc/mtree" ] || {
+		error "no etc/mtree directory within ${TREE_PATH}\n" || return
+	}
+	[ -f "${MTREE_IGNORE_FILE}" ] || {
+		confirm "WARNING: .mtreeignore '%s' does not exist. Continue?" "${MTREE_IGNORE_FILE}" || return
+	}
+	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE_PATH}" \
+		-X "${MTREE_IGNORE_FILE}" > "${TREE_PATH}/etc/mtree/${SYSTEM_NAME}.dist"
 }
 
 # TODO: hardlinks
-# TODO: SINAI hardcode is mixing metaphors
 apply-mtree() {
-	local TREE="${1:-}"
-	[ -n "${TREE}" ] || error "no dir for mtree provided\n";
-	[ -d "${TREE}/etc/mtree" ] || error "no etc/mtree directory within ${TREE}\n";
+	local SYSTEM_NAME="${1:-}"
+	local TREE_PATH="${2:-}"
+	[ -n "${SYSTEM_NAME}" ] || error "no system name for mtree provided\n" || return
+	[ -n "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
+	local MTREE_FILE_PATH="${TREE_PATH}/etc/mtree/${SYSTEM_NAME}.dist"
+	[ -f "${MTREE_FILE_PATH}" ] || {
+		error "mtree file: '%s' does not exist. Cannot apply.\n" "${MTREE_FILE_PATH}" || return
+	}
 	# `-i` == set schg etc bits
 	# `-u` == update
-	# Duh, the spec is not going to match, that's why we run this?
-	mtree -f "${TREE}/etc/mtree/sinai.dist" -iu -p "${TREE}" || true
+	# || true == Duh, the spec is not going to match, that's why we run this
+	mtree -f "${TREE_FILE_PATH}" -iu -p "${TREE_PATH}" || true
 }
 
 clear-mtree() {
-	local TREE="${1:-}"
-	[ -n "${TREE}" ] || error "no dir for mtree provided\n";
-	chflags -R noschg "${TREE}"
+	local TREE_PATH="${1:-}"
+	[ -d "${TREE_PATH}" ] || error "Dir: '%s' does not exist\n" "${TREE_PATH}" || return
+	chflags -R noschg "${TREE_PATH}"
 }
 
 get-artifact-name() {
 	local REPO="${1:-}"
-	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n";
+	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n" || return
 	local ARTIFACT_NAME="$(git -C "${REPO}" rev-parse --abbrev-ref HEAD)"
 	ARTIFACT_NAME="${ARTIFACT_NAME}-$(date -I)"
 	ARTIFACT_NAME="${ARTIFACT_NAME}-$(git -C "${REPO}" rev-parse --short HEAD)"
@@ -143,9 +149,10 @@ get-artifact-name() {
 # 	echo "${snapshot}"
 # }
 
+# TODO: de-AI-weirdness this function
 ignore-but-keep-torah() {
 	local REPO="${1:-}"
-	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n";
+	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n" || return
 	local GIT_IGNORE_FILE="${REPO}/.gitignore"
 	local TORAH_IGNORE_FILE="${2:-}"
 	while read -r _location || [ -n "${_location}" ]; do
@@ -155,7 +162,7 @@ ignore-but-keep-torah() {
 		if [ -f "${FULL_PATH}" ] && [ -d "${FULL_PATH}" ]; then
 			printf "Notice: Collision detected. Both file and directory named '%s' exist.\n" "${_location}"
 			printf "        Applying negation rule '!%s/' to .gitignore to protect the directory.\n" "${_location}"
-    
+
 			if ! grep -qxF "!${_location}/" "${GIT_IGNORE_FILE}" 2>/dev/null; then
 				printf "!%s/\n" "${_location}" >> "${GIT_IGNORE_FILE}"
 			fi

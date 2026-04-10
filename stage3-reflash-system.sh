@@ -37,7 +37,7 @@ confirm "Checking out branch systems/${SYSTEM_NAME}"
 git switch "systems/${SYSTEM_NAME}"
 zunmount zshemot/sinai
 confirm "Applying mtree"
-apply-mtree .
+apply-mtree "${SYSTEM_NAME}" .
 cd --
 
 confirm "Created zannanim, setting kenv and mountpoints"
@@ -62,13 +62,13 @@ cd "/${SYSTEM_DATASET}"
 zmount zshemot/sinai
 clear-mtree .
 git pull
-apply-mtree .
+apply-mtree "${SYSTEM_NAME}" .
 zfs snapshot "${SYSTEM_DATASET}@${NEW_SNAPSHOT}"
 cd --
 
 # Step 3: final reboot
-kenv vfs.root.mountfrom='zfs:${SYSTEM}'
+kenv vfs.root.mountfrom='zfs:${SYSTEM_DATASET}'
 zpool set bootfs="${SYSTEM_DATASET}" zbereshit
-
+zfs set -u mountpoint=/ ${SYSTEM_DATASET}
 reboot
 
