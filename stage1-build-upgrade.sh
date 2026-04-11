@@ -104,8 +104,11 @@ zmount zshemot/torah
 # Build the git repo, or refresh it
 cd /zshemot/torah || exit 1
 if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-	yesish "${DRY_RUN}" || git pull
-	# TODO: Abort if no new changes
+	if noish "${DRY_RUN}"; then
+		if git pull 2>&1 | grep -q "Already up to date." && yesish "${CRON_MODE}"; then
+			exit 0
+		fi
+	fi
 else
 	if yesish "${NEW_GIT}" ; then
 		# TODO: choose branch
