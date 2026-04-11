@@ -202,6 +202,9 @@ sysgit() {
 
 clone-sinai() {
 	BRANCH_NAME="${1:-trunk}"
+	if [ "${BRANCH_NAME}" = "-h" ]; then
+		echo "clone-sinai [branch] [dir/location]"
+	fi
 	TREE="${2:-.}"
 	zmount zshemot/sinai
 	(
