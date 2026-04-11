@@ -199,3 +199,18 @@ sysgit() {
 	mount -p | awk '$2 != "/" { print $2 "/" }' > /.git/info/exclude
 	git "$@"
 }
+
+clone-sinai() {
+	BRANCH_NAME="${1:-trunk}"
+	TREE="${2:-.}"
+	zmount zshemot/sinai
+	(
+		cd "${TREE}"
+		git init
+		# TODO: ssh sinai so jails can hit it
+		git remote add origin /zshemot/sinai
+		git fetch
+		git reset --hard "origin/${BRANCH_NAME}"
+	)
+	zunmount zshemot/sinai
+}
