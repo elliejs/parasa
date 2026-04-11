@@ -153,7 +153,7 @@ if [ ! -f "${MTREE_IGNORE_FILE}" ]; then
 		error "Fallback file ${MTREE_IGNORE_FILE} missing!\n" || exit
 	fi
 fi
-yesish "${DRY_RUN}" || generate-mtree "${SYSTEM_NAME}" . "${MTREE_IGNORE_FILE}"
+yesish "${DRY_RUN}" || generate-mtree . "${MTREE_IGNORE_FILE}"
 
 yesish "${DRY_RUN}" || {
 	# TODO:

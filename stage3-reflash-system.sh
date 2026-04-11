@@ -37,7 +37,7 @@ confirm "Checking out branch systems/${SYSTEM_NAME}"
 git switch "systems/${SYSTEM_NAME}"
 zunmount zshemot/sinai
 confirm "Applying mtree"
-apply-mtree "${SYSTEM_NAME}" .
+apply-mtree .
 cd --
 
 confirm "Created zannanim, setting kenv and mountpoints"

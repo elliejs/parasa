@@ -85,10 +85,8 @@ zunmount() {
 
 # TODO: hardlinks
 generate-mtree() {
-	local SYSTEM_NAME="${1:-}"
-	local TREE_PATH="${2:-}"
-	local MTREE_IGNORE_FILE="${3:-}"
-	[ -n "${SYSTEM_NAME}" ] || error "no system name for mtree provided\n" || return
+	local TREE_PATH="${1:-}"
+	local MTREE_IGNORE_FILE="${2:-}"
 	[ -n "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
 	[ -d "${TREE_PATH}/etc/mtree" ] || {
 		error "no etc/mtree directory within ${TREE_PATH}\n" || return
@@ -97,26 +95,24 @@ generate-mtree() {
 		confirm "WARNING: .mtreeignore '%s' does not exist. Continue?" "${MTREE_IGNORE_FILE}" || return
 	}
 	mtree -c -x -R time,nlink,flags -K sha512 -p "${TREE_PATH}" \
-		-X "${MTREE_IGNORE_FILE}" > "${TREE_PATH}/etc/mtree/${SYSTEM_NAME}.dist"
+		-X "${MTREE_IGNORE_FILE}" > "${TREE_PATH}/etc/mtree/sinai.dist"
 }
 
 # TODO: hardlinks
 apply-mtree() {
-	local SYSTEM_NAME="${1:-}"
-	if [ "${SYSTEM_NAME}" = "-h" ]; then
-		echo "apply-mtree [system-name] [tree-path]"
+	local TREE_PATH="${1:-}"
+	if [ "${TREE_PATH}" = "-h" ]; then
+		echo "apply-mtree [tree-path]"
 	fi
-	local TREE_PATH="${2:-}"
-	[ -n "${SYSTEM_NAME}" ] || error "no system name for mtree provided\n" || return
-	[ -n "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
-	local MTREE_FILE_PATH="${TREE_PATH}/etc/mtree/${SYSTEM_NAME}.dist"
+	[ -d "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
+	local MTREE_FILE_PATH="${TREE_PATH}/etc/mtree/sinai.dist"
 	[ -f "${MTREE_FILE_PATH}" ] || {
 		error "mtree file: '%s' does not exist. Cannot apply.\n" "${MTREE_FILE_PATH}" || return
 	}
 	# `-i` == set schg etc bits
 	# `-u` == update
 	# || true == Duh, the spec is not going to match, that's why we run this
-	mtree -f "${TREE_FILE_PATH}" -iu -p "${TREE_PATH}" || true
+	mtree -f "${MTREE_FILE_PATH}" -iu -p "${TREE_PATH}" || true
 }
 
 clear-mtree() {
