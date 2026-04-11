@@ -103,6 +103,9 @@ generate-mtree() {
 # TODO: hardlinks
 apply-mtree() {
 	local SYSTEM_NAME="${1:-}"
+	if [[ "${SYSTEM_NAME}" == "-h" ]]; then
+		echo "apply-mtree [system-name] [tree-path]"
+	fi
 	local TREE_PATH="${2:-}"
 	[ -n "${SYSTEM_NAME}" ] || error "no system name for mtree provided\n" || return
 	[ -n "${TREE_PATH}" ] || error "no path for mtree to scan provided\n" || return
