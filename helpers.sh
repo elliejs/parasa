@@ -196,16 +196,18 @@ ignore-but-keep-torah() {
 }
 
 sysgit() {
-	mount -p | awk '$2 != "/" { print $2 "/" }' > /.git/info/exclude
+	mount -p | awk -v root="$(git rev-parse --show-toplevel)/" \
+		'$2 ~ "^"root { sub(root, "", $2); print $2 }' \
+		> "$(git rev-parse --git-dir)/info/exclude"
 	git "$@"
 }
 
 clone-sinai() {
-	BRANCH_NAME="${1:-trunk}"
-	if [ "${BRANCH_NAME}" = "-h" ]; then
-		echo "clone-sinai [branch] [dir/location]"
+	TREE="${1:-.}"
+	if [ "${TREE}" = "-h" ]; then
+		echo "clone-sinai [dir/location] [branch]"
 	fi
-	TREE="${2:-.}"
+	BRANCH_NAME="${2:-trunk}"
 	zmount zshemot/sinai
 	(
 		cd "${TREE}"
