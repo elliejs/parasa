@@ -18,7 +18,7 @@ confirm() {
 
 	while true; do
 		# Use printf for the prompt to keep the cursor on the same line
-		printf "${PROMPT} [Y/n]: " 
+		printf "${PROMPT} [Y/n]: "
 
 		# Read user input from standard input
 		if [ -z "${RESPONSE}" ]; then
@@ -199,6 +199,8 @@ sysgit() {
 	mount -p | awk -v root="$(git rev-parse --show-toplevel)/" \
 		'$2 ~ "^"root { sub(root, "", $2); print $2 }' \
 		> "$(git rev-parse --git-dir)/info/exclude"
+
+	
 	git "$@"
 }
 
