@@ -3,11 +3,12 @@
 set -eu
 
 . /home/miri/project-mishkan/helpers.sh
+confirm "Generate mtree for this commit?" && {
+	REPO_ROOT="$(git rev-parse --show-toplevel)/"
+	root-only
+	zmount zshemot/minhagim
+	generate-mtree "${REPO_ROOT}" /zshemot/minhagim/sinai.mtreeignore
 
-REPO_ROOT="$(git rev-parse --show-toplevel)/"
-root-only
-zmount zshemot/minhagim
-generate-mtree "${REPO_ROOT}" /zshemot/minhagim/sinai.mtreeignore
-
-git add "${REPO_ROOT}/etc/mtree/sinai.dist"
-zunmount zshemot/minhagim
+	git add "${REPO_ROOT}/etc/mtree/sinai.dist"
+	zunmount zshemot/minhagim
+}
