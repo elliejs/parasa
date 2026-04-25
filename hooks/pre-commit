@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -eu
-
+exec < /dev/tty
 . /home/miri/project-mishkan/helpers.sh
 confirm "Generate mtree for this commit?" && {
 	REPO_ROOT="$(git rev-parse --show-toplevel)/"
@@ -12,3 +12,4 @@ confirm "Generate mtree for this commit?" && {
 	git add "${REPO_ROOT}/etc/mtree/sinai.dist"
 	zunmount zshemot/minhagim
 }
+exec < /dev/null
