@@ -1,0 +1,3 @@
+fix KLD newer than file... `kldxref /boot/kernel`
+
+git config core.hooksPath /home/miri/project-mishkan/hooks
