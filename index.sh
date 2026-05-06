@@ -11,3 +11,7 @@ stage2-rebase-containers() {
 stage3-reflash-system() {
 	sh "${MISHKAN_SCRIPT_DIR}/stage3-reflash-system.sh" "$@"
 }
+
+composer1-run-compose() {
+	sh "${MISHKAN_SCRIPT_DIR}/composer/1-run-composition.sh" "$@"
+}
