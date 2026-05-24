@@ -124,29 +124,29 @@ clear-mtree() {
 get-artifact-name() {
 	local REPO="${1:-}"
 	[ -d "${REPO}/.git" ] || error "${REPO} doesn't look like a git repo\n" || return
-	local ARTIFACT_NAME="$(git -C "${REPO}" rev-parse --abbrev-ref HEAD)"
-	ARTIFACT_NAME="${ARTIFACT_NAME}-$(date -I)"
-	ARTIFACT_NAME="${ARTIFACT_NAME}-$(git -C "${REPO}" rev-parse --short HEAD)"
+	local ARTIFACT_NAME="$(git -C "${REPO}" rev-parse --abbrev-ref HEAD | tr '/' '-')"
+	ARTIFACT_NAME="${ARTIFACT_NAME}_$(date -I)"
+	ARTIFACT_NAME="${ARTIFACT_NAME}_$(git -C "${REPO}" rev-parse --short HEAD)"
 	echo "${ARTIFACT_NAME}"
 }
 
-# get-current-artifact() {
-#	local dataset="${1:-}"
-#	[ -n "${dataset}" ] || error "no dataset provided"
-#	if ! zfs get name "${dataset}" > /dev/null 2>&1; then
-#		error "dataset: ${dataset} does not exist\n"
-#		return 1
-#	fi
-# 	snapshot=$(zfs list -H -t snapshot -r "${dataset}" -o name -S creation -d 1 \
-# 	| head -n 1 | cut -d '@' -f 2)
-# 	[ -n "${snapshot}" ] || {
-# 		error "dataset has no snapshots\n"
-# 		return "MISSINGNO"
-# 	}
-# 	# TODO: test if there's written since snapshot
-# 	# zfs get -o written "${dataset}"
-# 	echo "${snapshot}"
-# }
+get-current-artifact() {
+	local dataset="${1:-}"
+	[ -n "${dataset}" ] || error "no dataset provided"
+	if ! zfs get name "${dataset}" > /dev/null 2>&1; then
+		error "dataset: ${dataset} does not exist\n"
+		return 1
+	fi
+	snapshot=$(zfs list -H -t snapshot -r "${dataset}" -o name -S creation -d 1 \
+	| head -n 1 | cut -d '@' -f 2)
+	[ -n "${snapshot}" ] || {
+		error "dataset has no snapshots\n"
+		return 2
+	}
+	# TODO: test if there's written since snapshot
+	# zfs get -o written "${dataset}"
+	echo "${snapshot}"
+}
 
 # TODO: de-AI-weirdness this function
 ignore-but-keep-torah() {
@@ -220,4 +220,61 @@ clone-sinai() {
 		git reset --hard "origin/${BRANCH_NAME}"
 	)
 	zunmount zshemot/sinai
+}
+
+# Safely create a ZFS dataset if it does not already exist
+ztouch() {
+    local dataset="$1"
+    local options="$2" # Optional properties like -o mountpoint=none
+
+    if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+        echo "Creating dataset: $dataset"
+        zfs create $options "$dataset"
+    fi
+}
+
+# Switch to a branch, creating it only if it doesn't exist
+gswitch() {
+    local branch="$1"
+    local base="${2:-HEAD}" # Optional: what to branch off of if creating
+
+    if git rev-parse --verify "$branch" >/dev/null 2>&1; then
+        # Branch exists, just switch
+        git switch "$branch"
+    else
+        # Branch doesn't exist, create and switch
+        git switch -c "$branch" "$base"
+    fi
+}
+
+# Context manager for ZFS mounts
+# Usage: zwith_mount "pool/dataset" "callback_function" [args...]
+zwith() {
+    local dataset="$1"
+    shift
+    local callback="$1"
+    shift
+
+    local was_mounted
+    local status
+    
+    status=$(zfs get -H -o value mounted "$dataset" 2>/dev/null)
+
+    if yesish "$status"; then
+        was_mounted=true
+    else
+        was_mounted=false
+        zfs mount "$dataset" || return 1
+    fi
+
+    # Execute the scoped logic
+    "$callback" "$@"
+    local exit_code=$?
+
+    # Scope closure logic
+    if noish "$was_mounted"; then
+        zunmount "$dataset"
+    fi
+
+    return $exit_code
 }
