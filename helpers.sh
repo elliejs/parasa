@@ -44,14 +44,14 @@ confirm() {
 
 yesish() {
 	case "$1" in
-		[Yy][Ee][Ss]|[Yy]|[Tt][Rr][Uu][Ee]|1|"") return 0 ;;
+		[Yy][Ee][Ss]|[Yy]|[Tt][Rr][Uu][Ee]|1|""|[Tt]) return 0 ;;
 		*) return 1 ;;
 	esac
 }
 
 noish() {
 	case "$1" in
-		[Nn][Oo]|[Nn]|0|[Ff][Aa][Ll][Ss][Ee]) return 0 ;;
+		[Nn][Oo]|[Nn]|0|[Ff][Aa][Ll][Ss][Ee]|[Ff]) return 0 ;;
 		*) return 1 ;;
 	esac
 }

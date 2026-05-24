@@ -17,7 +17,12 @@ cleanup() {
 trap cleanup EXIT
 
 print_help() {
-
+	echo "-h help"
+	echo "-n new main git repo in build dir"
+	echo "-d dry run [no build, not permanent artifacts]"
+	echo "-q quiet, no alerts"
+	echo "-c cron mode, no confirmation required (toggles -q)"
+	echo "-s system name [required]"
 }
 
 NEW_GIT="No"
@@ -26,7 +31,7 @@ QUIET="No"
 SYSTEM_NAME=""
 CRON_MODE="No"
 TORAH_IGNORE_FILE=""
-while getopts ":ndqchx:s:" opt; do
+while getopts ":ndqchs:" opt; do
 	case "${opt}" in
 		n) NEW_GIT="Yes" ;;
 		d) DRY_RUN="Yes" ;;
@@ -37,9 +42,6 @@ while getopts ":ndqchx:s:" opt; do
 			;;
 		h)
 			print_help
-			;;
-		x)
-			TORAH_IGNORE_FILE="${OPTARG}"
 			;;
 		s)
 			SYSTEM_NAME="${OPTARG}"
@@ -167,12 +169,15 @@ yesish "${DRY_RUN}" || {
 	# the generated .git/info/exclude ignores from the mounts, and then selectively
 	# re-force-adding the files from torah which appear in these ignored dirs. Anything else
 	# in that torah ignore file (eg entropy) is hand added and could just be in the .gitignore
-	[ -n "${TORAH_IGNORE_FILE}" ] || TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM_NAME}.torahignore"
-	if [ -f "${TORAH_IGNORE_FILE}" ]; then
-		ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
-	else
-		yesish "${QUIET}" || confirm "WARNING: ${TORAH_IGNORE_FILE} not found." || exit
+	TORAH_IGNORE_FILE="/zshemot/minhagim/${SYSTEM_NAME}.torahignore"
+	if [ ! -f "${TORAH_IGNORE_FILE}" ]; then 
+		yesish "${QUIET}" || echo "INFO: There's no ignore file at: ${TORAH_IGNORE_FILE}, trying fallback..."
+		TORAH_IGNORE_FILE="/zshemot/minhagim/sinai.torahignore"
+		if [ ! -f "${TORAH_IGNORE_FILE}" ]; then
+			error "Fallback file ${TORAH_IGNORE_FILE} missing!\n" || exit
+		fi
 	fi
+	ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
 	# And add everything to the git
 	git add .
 	yesish "${QUIET}" || confirm "INFO: Committing ${artifact_name} to Sinai" || exit
