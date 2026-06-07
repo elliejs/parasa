@@ -178,12 +178,12 @@ yesish "${DRY_RUN}" || {
 			error "Fallback file ${TORAH_IGNORE_FILE} missing!\n" || exit
 		fi
 	fi
-	ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
+	# ignore-but-keep-torah "/zshemot/sinai" "${TORAH_IGNORE_FILE}"
 	# And add everything to the git
 	git add .
 	yesish "${QUIET}" || confirm "INFO: Committing ${artifact_name} to Sinai" || exit
 	git commit -m "${artifact_name}"
-	zfs snapshot -r zshemot/sinai@${artifact_name}
+	zfs snapshot zshemot/sinai@${artifact_name}
 }
 
 zunmount zshemot/minhagim || true
