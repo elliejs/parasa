@@ -23,6 +23,7 @@ print_help() {
 	echo "-q quiet, no alerts"
 	echo "-c cron mode, no confirmation required (toggles -q)"
 	echo "-s system name [required]"
+	exit 2
 }
 
 NEW_GIT="No"
@@ -182,7 +183,7 @@ yesish "${DRY_RUN}" || {
 	git add .
 	yesish "${QUIET}" || confirm "INFO: Committing ${artifact_name} to Sinai" || exit
 	git commit -m "${artifact_name}"
-	zfs snapshot zshemot/sinai@${artfact_name}
+	zfs snapshot -r zshemot/sinai@${artifact_name}
 }
 
 zunmount zshemot/minhagim || true
