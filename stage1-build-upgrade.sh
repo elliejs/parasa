@@ -98,7 +98,7 @@ yesish "${QUIET}" || confirm "INFO: Clearing git repo in: $(pwd)" || exit
 yesish "${DRY_RUN}" || {
 	clear-mtree .
 	git rm -rf . || true
-	git clean -fxd
+	git clean -fxd || true
 }
 cd --
 
