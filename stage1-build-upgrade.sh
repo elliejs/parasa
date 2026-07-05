@@ -183,7 +183,7 @@ yesish "${DRY_RUN}" || {
 	git add .
 	yesish "${QUIET}" || confirm "INFO: Committing ${artifact_name} to Sinai" || exit
 	git commit -m "${artifact_name}"
-	zfs snapshot zshemot/sinai@${artifact_name}
+	zfs snapshot -r zshemot/sinai@${artifact_name}
 }
 
 zunmount zshemot/minhagim || true

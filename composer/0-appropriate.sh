@@ -27,8 +27,8 @@ fi
 
 latest_snapshot="$(get-current-artifact zbereshit/mishkan)"
 zfs clone "zbereshit/mishkan@${latest_snapshot}" "${jail_dataset}"
+zfs clone "zbereshit/mishkan/var@${latest_snapshot}" "${jail_dataset}/var"
 ztouch "zbamidbar/container-data/${JAIL_NAME}"
-ztouch "zbamidbar/container-data/${JAIL_NAME}/var" -o mountpoint="/containers/${JAIL_NAME}/var"
 ztouch "zbamidbar/container-data/${JAIL_NAME}/home" -o mountpoint="/containers/${JAIL_NAME}/home"
 ztouch "zbamidbar/container-data/${JAIL_NAME}/home/plonit"
 ztouch "zbereshit/container-compose/${JAIL_NAME}"
