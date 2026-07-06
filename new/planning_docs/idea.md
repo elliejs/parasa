@@ -216,9 +216,9 @@ The right answer, of course, lives somewhere in the middle. In a perfect world w
 
 - Update the composition file's package list against the package database's list of installed first-class (non-dependencies) packages
 - Use git to track all non-foreign-mounted text file changes
-- I'm not sure what to do with the remaining non-text file changes. We should show them to the user and ask if they've been added to the composition file, but we can't then track them to watch for new changes later, (so as to not double-ask down the road), since then they'd end up in the git deltas, where we don't really want to try applying them in a rebase, since that requires human intervention because it's binary.
+- For non-text file changes: introduce a **drift manifest** — a lightweight ledger of acknowledged binary-file changes, stored in the var/ dataset for the system or container (zbamidbar/[system-data|container-data]/[name]/var/db/mishkan/drift). Since var/ is already gitignored and lives durably on zbamidbar, this is the natural home for operational runtime state. The manifest records each changed binary file, its sha512 hash, and whether the corresponding composition step has been written. This solves the double-ask problem (if the hash hasn't changed, we already know about it) and gives rebase a checklist: unaccounted entries are a hard stop before upgrading. etcupdate(8) is the spiritual ancestor of this approach — it similarly keeps a separate working-directory baseline to enable three-way merges without touching the live tree directly.
 
-HINT: we may want to look into etcupdate(8) for inspiration on this last point.
+See [drift_manifest.md](drift_manifest.md) for the full design.
 
 # Addendum with context: Blending Concept 1 and 2
 
