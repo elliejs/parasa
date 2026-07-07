@@ -1,22 +1,15 @@
-. "${MISHKAN_SCRIPT_DIR}/helpers.sh"
+#!/bin/sh
+# index.sh -- Source this file to make mishkan commands available.
+#
+# Usage: . /zshemot/mishkan/index.sh
+#    or: . /path/to/project-mishkan/index.sh
+#
+# Provides wrapper functions that call the actual scripts in scripts/.
 
-stage1-build-upgrade() {
-	sh "${MISHKAN_SCRIPT_DIR}/stage1-build-upgrade.sh" "$@"
+MISHKAN_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
+
+. "${MISHKAN_DIR}/scripts/helpers.sh"
+
+mishkan-bootstrap() {
+	sh "${MISHKAN_DIR}/scripts/stage0-bootstrap.sh" "$@"
 }
-
-stage2-rebase-containers() {
-	sh "${MISHKAN_SCRIPT_DIR}/stage2-rebase-containers.sh" "$@"
-}
-
-stage3-reflash-system() {
-	sh "${MISHKAN_SCRIPT_DIR}/stage3-reflash-system.sh" "$@"
-}
-
-composer0-appropriate() {
-	sh "${MISHKAN_SCRIPT_DIR}/composer/0-appropriate.sh" "$@"
-}
-
-composer1-run-compose() {
-	sh "${MISHKAN_SCRIPT_DIR}/composer/1-run-composition.sh" "$@"
-}
-

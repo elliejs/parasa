@@ -1,0 +1,12 @@
+# Default text-to-binary derivation mappings for FreeBSD stable/15.
+#
+# Format: tab-separated
+#   source-file	derived-file	regeneration-command
+#
+# Paths are relative to the system root.
+# These relationships are stable across FreeBSD 13, 14, and 15.
+
+etc/master.passwd	etc/pwd.db	pwd_mkdb -p -d /etc /etc/master.passwd
+etc/master.passwd	etc/spwd.db	pwd_mkdb -p -d /etc /etc/master.passwd
+etc/login.conf	etc/login.conf.db	cap_mkdb /etc/login.conf
+etc/mail/aliases	etc/mail/aliases.db	newaliases

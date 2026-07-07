@@ -249,9 +249,9 @@ create_datasets() {
 	run zfs create -o mountpoint=/containers -o canmount=on  zbereshit/containers
 
 	# -- zshemot --
-	run zfs create -o mountpoint=/zshemot/torah   -o canmount=noauto  zshemot/torah
-	run zfs create -o mountpoint=/zshemot/minhag  -o canmount=noauto  zshemot/minhag
-	run zfs create -o mountpoint=/zshemot/tablets  -o canmount=noauto  zshemot/tablets
+	run zfs create -o mountpoint=/zshemot/torah    -o canmount=noauto  zshemot/torah
+	run zfs create -o mountpoint=/zshemot/mishkan  -o canmount=noauto  zshemot/mishkan
+	run zfs create -o mountpoint=/zshemot/tablets   -o canmount=noauto  zshemot/tablets
 	run zfs create -o mountpoint=/zshemot/tablets/var -o canmount=noauto  zshemot/tablets/var
 
 	# -- zbamidbar --
@@ -260,6 +260,7 @@ create_datasets() {
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/sinai
 	run zfs create -o mountpoint=none -o canmount=noauto  "zbamidbar/sinai/tablets.git"
 	run zfs create -o mountpoint=none -o canmount=noauto  "zbamidbar/sinai/tablets.zfs"
+	run zfs create -o mountpoint=none -o canmount=noauto  "zbamidbar/sinai/mishkan.git"
 }
 
 # ── EFI partition setup ──────────────────────────────────────────────────────

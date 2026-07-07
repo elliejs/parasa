@@ -89,15 +89,18 @@ Within these pools, mishkan controls an authoritative layout of the system.
   - containers/       Root dataset for containers, mounted at /containers
 - zshemot/
   - torah/            The FreeBSD src repository
-  - minhag/           Literally "customs", the user controllable config files for the mishkan system
+  - mishkan/          The mishkan framework itself (public git repo clone)
+    - minhag/         Literally "customs". User configuration per target. See below.
+    - etc/            Defaults shipped with mishkan (derivation databases, jail.conf template)
   - tablets/          Build location for zshemot/torah
     - var/            Mounted separate var dataset
 - zbamidbar/
-  - container-data/   Root dataset for container data. Each container's dataset, eg container-data/[container-name]/home, lives under a child dataset of the container's name, and is mounted in under the container's real root after zbereshit has been properly configured. (more on this in later phases)
+  - container-data/   Root dataset for container data. Each container's dataset, eg container-data/[container-name]/home, lives under a child dataset of the container's name, and is mounted in under the container's real root after zbereshit has been properly configured. (more on this in later phases). Includes usr-local (packages), var, and home.
   - system-data/      Identical to container-data/ above, but for systems.
-  - sinai/         A complete system-tracking git repo, for all system deltas from the built zshemot/tablets. (more on this in later phases)
-    - tablets.git  Where the git repo lives
-    - tablets.zfs  Where the zfs archive lives
+  - sinai/            Long-term storage for git repos and ZFS archives
+    - tablets.git     Bare git remote for system/container delta chains (zbereshit's remote)
+    - tablets.zfs     ZFS send/recv archive, indexed by target name
+    - mishkan.git     Bare git remote for the mishkan config repo (zshemot/mishkan's local remote)
 
   Unless otherwise noted (zbereshit/containers, zbamidbar/container-data zbamidbar/system-data), all datasets are mounted at their logical mount point, eg /[pool-name]/[dataset-hierarchy]/
 
@@ -107,9 +110,77 @@ The boostrap phase should be one interactive shell function which asks the user 
 IMPORTANT: Do not ever test this function without permission. You can overwrite the entire system this way.
 Future: migrate to bsddialog(1)
 
-# Intermission: zdataset hygiene
+# Intermission: Pool philosophy
 
-datasets should follow a least-mounted policy. If a dataset can be unmounted, it should be. Generally mounted datasets will be the mounted zbereshit/system (mounted at /) the corresponding zbamidbar/system-data, mounted zbereshit/containers, and the corresponding zbamidbar/container-data. Most other datasets should be default unmounted and only mounted for script running purposes.
+The three pools serve distinct roles:
+
+- **zbereshit** (running pool): The result of all our scripting, scaffolding,
+  and foreign mounts. This is what's actually running — live systems and
+  containers with their delta chains committed to git. Its remote is
+  zbamidbar/sinai/tablets.git.
+- **zshemot** (config pool): Where the scaffolds and scripts live. Basically
+  just a clone of the mishkan repo, plus the FreeBSD src tree and the build
+  workspace. Its local remote is zbamidbar/sinai/mishkan.git.
+- **zbamidbar** (data lake): Heavy data and accountable foreign mounts.
+  Container and system data datasets (usr-local for packages, var, home) are
+  stored here and mounted on top of zbereshit containers/systems before
+  startup. Also stores the bare git remotes and ZFS archives in sinai/.
+
+## zdataset hygiene
+
+Datasets should follow a least-mounted policy. If a dataset can be
+unmounted, it should be. Generally mounted datasets are: the active
+zbereshit/system (mounted at /), the corresponding zbamidbar/system-data
+mounts, zbereshit/containers, and the corresponding zbamidbar/container-data
+mounts. Most other datasets should be default unmounted and only mounted
+for script running purposes.
+
+## Package handling
+
+The base artifact is built from source (`make installworld`) and contains no
+packages. Every package on a running system or container is admin-added.
+The full `pkg info` output IS the delta from the base — no diffing needed.
+
+Packages live on zbamidbar in the target's data dataset:
+`zbamidbar/[system|container]-data/[name]/usr-local`, mounted at
+`/usr/local` (systems) or `/containers/[name]/usr/local` (containers).
+
+On save, `mishkan-diff` collects the full package list into `pkg.list` in
+the target's minhag directory. On rebase or fresh start, if the usr-local
+dataset already exists, `pkg upgrade` / `pkg install` updates it
+incrementally rather than reinstalling from scratch.
+
+## Save workflow
+
+Saving a system or container is a single interactive session that produces
+two git commits:
+
+### Commit 1: zbereshit (system tree → zbamidbar/sinai/tablets.git)
+
+1. Run `mishkan-diff` against the live tree
+2. Auto-classify changes:
+   - Text files → `git add` (automatic)
+   - Known derived binaries → verified, no action needed
+   - Already git-tracked binaries → environment state, no action needed
+3. Prompt for unclassified binaries:
+   - `[d]` derived → writes to minhag target's `derivations.local`
+   - `[e]` environment → `git add` the binary file
+   - `[c]` command → writes to minhag target's `compose.ini`
+   - `[s]` skip → will ask again next time (blocks rebase)
+4. Regenerate `etc/mtree/system.dist`
+5. Commit the delta to the zbereshit branch
+
+### Commit 2: zshemot (mishkan repo → zbamidbar/sinai/mishkan.git)
+
+1. Collect changes produced by commit 1's classification:
+   - Updated `derivations.local` (new `[d]` entries)
+   - Updated `compose.ini` (new `[c]` entries)
+   - Updated `pkg.list` (full package list from `pkg info`)
+2. Commit to the mishkan repo
+
+The zbereshit commit records the *state*. The zshemot commit records the
+*recipe*. Together they fully describe how to reproduce or rebase the
+target.
 
 # Concept 1: Releases
 
@@ -119,23 +190,65 @@ The next thing we have to do after bootstrapping our entire layout is build a sy
 
 ### Minhag config layout
 
-To properly drive mishkan for anything other than bootstrapping, we need configuration files. Of course, because zbereshit is more ephermeral than mishkan, (it's a system, which can be torn down or rebuilt *through* the mishkan framework), the standard ~/.config/ location of config files isn't durable enough for us. We will use /zshemot/minhag to store our config files. There are mishkan-wide configuration files and per-system and per-container files:
+To properly drive mishkan for anything other than bootstrapping, we need
+configuration files. Because zbereshit is ephemeral (it's a system that can
+be torn down or rebuilt *through* the mishkan framework), the standard
+~/.config/ location isn't durable enough. Configuration lives under
+`zshemot/mishkan/minhag/`, inside the mishkan repo clone.
 
-- zshemot/minhag/
-  - mishkan.conf   mishkan system-wide configuration variables. (perhaps we can even utilize sysrc(8) to operate on this file?)
-  - containers/    container-wide configuration files. (more on this later)
-  - systems/       system-wide configuration files. (more on this in this section)
+The repo itself is cloned into `zshemot/mishkan/`. It ships with default
+derivation databases, a jail.conf template, and stage scripts. User
+configuration lives under `minhag/` within the repo — separated visually
+into systems and containers but structurally identical to the framework.
+
+```
+zshemot/mishkan/
+  mishkan.conf                  Mishkan-wide build defaults. Provides fallback
+                                values for all targets. sysrc(8) format.
+  etc/                          Shipped with the framework (public, upstream)
+    derivations/                Default text→binary derivation databases
+      stable-14.db              per FreeBSD branch
+      stable-15.db
+    jail.conf                   Default jail.conf, includes minhag/jail.conf.d/*
+  minhag/
+    systems/                    Per-system target directories
+      [system-name]/
+        build.conf              Build overrides (SRC_BRANCH, KERNCONF, etc.)
+                                Two-tier: values here override mishkan.conf.
+                                An empty file builds a default kernel + world.
+        compose.ini             Opaque replay commands (category 5 only)
+        derivations.local       Custom text→binary derivation entries
+        pkg.list                Packages to install (auto-populated or manual)
+    containers/                 Per-container target directories
+      [container-name]/
+        build.conf              Same shape as systems. No kernel config needed.
+        compose.ini
+        derivations.local
+        pkg.list
+        jail.conf               Jail configuration for this container
+    jail.conf.d/                Symlinked or included by etc/jail.conf
+```
+
+Scripting does not need to distinguish between systems and containers.
+The hierarchy is visual. In code, a target is a system if `build.conf`
+specifies a kernel config (KERNCONF), and a container if `jail.conf` is
+present. These are not mutually exclusive.
+
+Build configuration is two-tier: `mishkan.conf` provides defaults,
+`build.conf` provides per-target overrides. The effective config for any
+build is the maximal set of both, preferring `build.conf` where values
+overlap. `sysrc -f` can query either file.
 
 ### Build process
 
 The series of steps is as follows:
 
 1) Check if zshemot/torah (/zshemot/torah) is a git repo. If not, confirm with the user that we should clone the FreeBSD source repo https://git.freebsd.org/src.git into it.
-2) get the system name to build.
-3) search /zshemot/minhag/systems/ for [system-name].conf
-4) If it doesn't exist, warn the user and ask if it should be created. If no, assume the system name was a typo and back out. if yes, create the conf file and continue.
+2) get the target name to build.
+3) search /zshemot/mishkan/minhag/systems/[target-name]/ and /zshemot/mishkan/minhag/containers/[target-name]/ for a build.conf.
+4) If it doesn't exist, warn the user and ask if a target directory should be created (and whether it's a system or container). If no, assume the target name was a typo and back out. If yes, create the target directory with an empty build.conf and continue.
 
-NOTE: any time a config file search is talked about, first search the appropriate system or container config file and secondarily fall back to the system-wide mishkan.conf file. If the variable exists in neither, we will either have to surface an error if the variable is optional, or stop the process completely and back out if it's mandatory. Set all variables in the most private scope available (eg at the system or container level, not the mishkan-wide level).
+NOTE: Configuration is two-tier. For any variable lookup, first check the target's build.conf, then fall back to mishkan.conf. The effective config is the maximal set of both, preferring build.conf for overridden values. Use `sysrc -f` to query these files. If the variable exists in neither, surface an error if optional, or stop completely if mandatory. Set new variables in the most private scope (the target's build.conf, not mishkan.conf).
 
 5) search for the variable SRC_BRANCH, and check out that branch from the src repo. If the variable doesn't exist, list the available branches on the remote and ask to set one. The user should be able to select a branch via name or via list item number (number the branches as you output the options).
 6) sync to head, destroying any local changes (warn the user before doing so if any local changes exist).
@@ -186,17 +299,42 @@ The purpose of this phase is to create a cleanroom environment to build clean up
 
 # Concept 2: Container orchestration
 
-This concept doesn't really lead well from the previous, but it must be presented as a possibility so a future argument between Concept 1 and Concept 2 make sense.
+Containers and systems share the same tracking and rebase machinery.
+A container is structurally identical to a system — same delta chain, same
+stratified change tracking, same rebase procedure. The differences are:
 
-Containers should be repeatable and destroyable. A container config file should live in `/zshemot/minhag/containers/[container-name].conf`. This will define, in sysrc fashion, all necessary state. For example:
+- A container has a `jail.conf` in its minhag target directory
+- A container does not build or install a kernel
+- A container lives on zbereshit/containers, not zbereshit/systems
+- A container is started by jail(8), not the boot loader
 
-BASE_SYSTEM    The system artifact name used as the underlying base for the jail
-PACKAGES           The list of packages to install in the jail
-FIRST_START    list of commands to run upon first start of the jail, in order
+In scripting, the distinction is detected by file presence (jail.conf =
+container, KERNCONF in build.conf = system), not by directory hierarchy.
+The hierarchy (minhag/systems/ vs minhag/containers/) is for human
+readability only.
 
-To appropriate the resources for a jail, the BASE_SYSTEM is found in zbamidbar/sinai/tablets.zfs/[system-name]@[artifact-name]. Then we use zfs-send and zfs-recv to copy this pristine build artifact from zbamidbar to zbereshit/containers/[container-name]@[artifact-name]. Then the subordinate var/ dataset zfs-send & zfs-recv from zbamidbar/sinai to zbamidbar/container-data/[container-name]/var. Why not clone, since it's in the same pool? well var/ doesn't really relate to the release, and its tracking will be done via git. (more on this later). This container-data dataset is mounted into /containers on the root filesystem, so that it overlays on top of the jails root tree which comes from zbereshit/containers/[container-name]. Finally, two more container-data datasets are created: container-data/[container-name]/usr-local, which mounts in at /containers/[container-name]/usr/local, and stores the packages, and container-data/[container-name]/home, which is intuitive.
+Container target directories live at
+`/zshemot/mishkan/minhag/containers/[container-name]/` and contain the same
+files as system targets: build.conf, compose.ini, derivations.local,
+pkg.list, plus a jail.conf.
 
-After the resources have been appropriated, we start up the jail with service jail onestart or jail(8). We then install all packages, and finally run the FIRST_START commands.
+To appropriate the resources for a container, the BASE_SYSTEM artifact
+(specified in build.conf) is found in
+zbamidbar/sinai/tablets.zfs/[system-name]@[artifact-name]. We use zfs-send
+and zfs-recv to copy this pristine build artifact from zbamidbar to
+zbereshit/containers/[container-name]@[artifact-name]. The subordinate var/
+dataset is sent from zbamidbar/sinai to
+zbamidbar/container-data/[container-name]/var. Why not clone, since it's in
+the same pool? var/ doesn't relate to the release, and its tracking will be
+done via git. This container-data dataset is mounted into /containers so it
+overlays on top of the jail's root tree from
+zbereshit/containers/[container-name]. Two more container-data datasets are
+created: container-data/[container-name]/usr-local, which mounts at
+/containers/[container-name]/usr/local for packages, and
+container-data/[container-name]/home.
+
+After resources are appropriated, start the jail with jail(8). Install
+packages from pkg.list, then run compose.ini commands.
 
 ## Zoom out and filling in the missing blanks
 
@@ -212,11 +350,37 @@ Finally, git breaks down under one last issue. If the user adds a new user to th
 
 So to solve these breakdowns we introduce composition files, as talked about in Concept 2. composition files allow us to simply write down the commands we need to take from the base system to get where we are, which saves the issue of binary diffs and unaccountable mounted directories, but come with an obvious drawback. We must remember everything we do, and if we ever forget to write something down in the composition file, we'll fail to perform it after a system upgrade, and that will result in a broken system, potentially months after we've forgotten what worked and what we failed to log down. Git fixes these deficiencies by tracking all files and playing backstop for us and our wild sysadmin attempts to just get something to work.
 
-The right answer, of course, lives somewhere in the middle. In a perfect world we:
+The right answer, of course, lives somewhere in the middle. The key insight
+is that different kinds of changes have different replay strategies, and
+trying to force them all through one mechanism (pure git OR pure compose)
+is where the burden comes from. In a perfect world we:
 
-- Update the composition file's package list against the package database's list of installed first-class (non-dependencies) packages
-- Use git to track all non-foreign-mounted text file changes
-- For non-text file changes: introduce a **drift manifest** — a lightweight ledger of acknowledged binary-file changes, stored in the var/ dataset for the system or container (zbamidbar/[system-data|container-data]/[name]/var/db/mishkan/drift). Since var/ is already gitignored and lives durably on zbamidbar, this is the natural home for operational runtime state. The manifest records each changed binary file, its sha512 hash, and whether the corresponding composition step has been written. This solves the double-ask problem (if the hash hasn't changed, we already know about it) and gives rebase a checklist: unaccounted entries are a hard stop before upgrading. etcupdate(8) is the spiritual ancestor of this approach — it similarly keeps a separate working-directory baseline to enable three-way merges without touching the live tree directly.
+- Use git to track all non-foreign-mounted text file changes (automatic)
+- Update the composition file's package list against the package database's
+  list of installed first-class (non-dependencies) packages (automatic)
+- For known derived binaries (pwd.db from master.passwd, login.conf.db from
+  login.conf): merge the text source via three-way merge, then regenerate the
+  binary via the known command (pwd_mkdb, cap_mkdb, etc.). No compose entry
+  needed — the derivation relationships are well-known and ship with mishkan.
+- For environment state (SSH host keys, SSL certs, keytabs): git-track the
+  binary directly. These are small, rarely change, and should be preserved
+  across rebases, not regenerated. On conflict, keep ours.
+- For everything else: the composition file. But because the other categories
+  are handled automatically, the compose file shrinks to only the genuinely
+  irreducible commands — opaque binary producers that can't be auto-detected
+  or derived.
+
+Detection uses mtree: the build phase produces `etc/mtree/system.dist` with
+sha512 content hashes. A `mishkan-diff` tool compares the live filesystem
+against this baseline and auto-classifies what it can (text → git, derived
+binary → derivations.db, already git-tracked → environment state). Only
+truly unknown binaries require admin input, and the classification prompt
+happens at detection time (when the change is fresh in memory), not at
+rebase time (months later).
+
+Rebase ordering is critical: compose runs first (packages + commands on
+the new base), then git rebase (text files + environment state), then
+derived binary regeneration, then validation.
 
 See [drift_manifest.md](drift_manifest.md) for the full design.
 

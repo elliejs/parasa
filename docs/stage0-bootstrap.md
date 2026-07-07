@@ -16,13 +16,14 @@ that are not the running root. Order of operations:
 ## Script location and structure
 
 ```
-new/
+scripts/
   helpers.sh             shared helpers, sourced by all stage scripts
   stage0-bootstrap.sh    this script
 ```
 
 Stage scripts are standalone executables with a `#!/bin/sh` shebang.
-They source `helpers.sh` from the same directory at runtime.
+They source `helpers.sh` from the same directory at runtime. The top-level
+`index.sh` provides wrapper functions and is sourced on login.
 
 ## Boot disk partitioning (gpart)
 
@@ -130,10 +131,11 @@ zshemot/torah
   mountpoint=/zshemot/torah, canmount=noauto
   FreeBSD src.git clone. Mounted only during build phases.
 
-zshemot/minhag
-  mountpoint=/zshemot/minhag, canmount=noauto
-  User configuration files (mishkan.conf, per-system and per-container
-  conf files). Mounted when mishkan scripts need config.
+zshemot/mishkan
+  mountpoint=/zshemot/mishkan, canmount=noauto
+  The mishkan framework repo clone. Contains scripts, default derivation
+  databases, and user configuration (minhag/) per target. Mounted when
+  mishkan scripts need config or during builds.
 
 zshemot/tablets
   mountpoint=/zshemot/tablets, canmount=noauto
@@ -166,7 +168,11 @@ zbamidbar/sinai/tablets.git
 
 zbamidbar/sinai/tablets.zfs
   mountpoint=none, canmount=noauto
-  ZFS send/recv archive. Indexed by system name (child datasets per system).
+  ZFS send/recv archive. Indexed by target name (child datasets per target).
+
+zbamidbar/sinai/mishkan.git
+  mountpoint=none, canmount=noauto
+  Bare git remote for the mishkan config repo (zshemot/mishkan's local remote).
 ```
 
 ## Script flags
@@ -210,7 +216,7 @@ filesystem. Label validation: non-empty, no whitespace, no `/`.
 
 ## Helpers file additions for stage 0
 
-`new/helpers.sh` will contain the full set of utilities needed across all
+`scripts/helpers.sh` contains the full set of utilities needed across all
 stage scripts. For stage 0, the new helpers introduced are:
 
 - `error` / `die` — print and return/exit
