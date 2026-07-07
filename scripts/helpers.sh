@@ -106,22 +106,24 @@ zwith() {
 
 # ── mtree helpers ─────────────────────────────────────────────────────────────
 
-# Generate etc/mtree/system.dist for a tree.
+# Generate mtree.dist for a tree, writing to the target's minhag directory.
 # Strips time/nlink/flags (git-incompatible), adds sha512.
 generate_mtree() {
 	local tree="${1:?generate_mtree: tree root required}"
-	local ignore="${2:?generate_mtree: ignore file required}"
-	[ -d "${tree}/etc/mtree" ] || die "generate_mtree: no etc/mtree dir in ${tree}"
-	[ -f "$ignore" ]           || die "generate_mtree: ignore file not found: ${ignore}"
+	local minhag_dir="${2:?generate_mtree: minhag target directory required}"
+	local ignore="${3:?generate_mtree: ignore file required}"
+	[ -d "$minhag_dir" ] || die "generate_mtree: minhag dir not found: ${minhag_dir}"
+	[ -f "$ignore" ]     || die "generate_mtree: ignore file not found: ${ignore}"
 	mtree -c -x -R time,nlink,flags -K sha512 -p "$tree" \
-		-X "$ignore" > "${tree}/etc/mtree/system.dist"
+		-X "$ignore" > "${minhag_dir}/mtree.dist"
 }
 
-# Apply system.dist to restore permissions and flags.
+# Apply mtree.dist to restore permissions and flags.
 apply_mtree() {
 	local tree="${1:?apply_mtree: tree root required}"
-	local spec="${tree}/etc/mtree/system.dist"
-	[ -f "$spec" ] || die "apply_mtree: no system.dist in ${tree}/etc/mtree"
+	local minhag_dir="${2:?apply_mtree: minhag target directory required}"
+	local spec="${minhag_dir}/mtree.dist"
+	[ -f "$spec" ] || die "apply_mtree: no mtree.dist in ${minhag_dir}"
 	# Differences between spec and live tree are expected; don't fail.
 	mtree -f "$spec" -iu -p "$tree" || true
 }

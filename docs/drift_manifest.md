@@ -126,8 +126,9 @@ The original design stored a separate `var/db/mishkan/drift` file with
 status/hash/path records. This is redundant:
 
 - **Detection** is handled by mtree. The build phase already produces
-  `etc/mtree/system.dist` with sha512 content hashes. Comparing it against
-  the live filesystem tells us exactly what changed. That's what mtree does.
+  `mtree.dist` (stored in the target's minhag directory on zshemot) with
+  sha512 content hashes. Comparing it against the live filesystem tells us
+  exactly what changed. That's what mtree does.
 
 - **Memory** (knowing we already asked about a file) is encoded in the
   classification destinations:
@@ -135,7 +136,7 @@ status/hash/path records. This is redundant:
     `derivations.local` → auto-handled, mtree won't re-ask
   - Environment state → file is git-tracked in the delta chain → mtree
     spec includes it after regeneration, hash matches
-  - Opaque command → entry exists in the target's `compose.ini` → command
+  - Opaque command → entry exists in the target's `compose.sh` file → command
     runs during rebase, hash updates in new mtree
   - Skip → mtree keeps flagging it next time (intentional — admin must
     eventually classify it)
@@ -191,7 +192,7 @@ login). Replaces the original drift-manifest-based design.
 ### Detection
 
 ```
-mtree -f etc/mtree/system.dist -p /  →  list of changed files
+mtree -f /zshemot/mishkan/minhag/[type]/[name]/mtree.dist -p /  →  list of changed files
 
 for each changed file:
 
@@ -218,14 +219,14 @@ New binary file: etc/krb5.keytab
   [d] Derived — regenerated from a text file by a known command
         (enter: source file, regeneration command)
   [e] Environment state — preserve across rebases, git-track it now
-  [c] Command output — add producing command to compose file
+  [c] Command output — add producing command to compose.sh
         (enter: the command)
   [s] Skip — ask me again next time
 ```
 
 Option `[d]` adds to the target's `derivations.local` in minhag.
 Option `[e]` runs `git add` on the file in the system's delta chain.
-Option `[c]` appends to the target's `compose.ini` in minhag.
+Option `[c]` appends to the target's `compose.sh` file in minhag.
 Option `[s]` does nothing — mtree will flag it again next run.
 
 ### Pre-rebase gate
@@ -252,7 +253,7 @@ Run mishkan-diff and classify each file before rebasing.
      mount it and pkg upgrade/install incrementally. Otherwise fresh install.
 
 3. Replay compose commands
-     Run the [cmd] section of compose.ini on the new base.
+     Source the target's compose.sh and call post_pkg().
      This runs BEFORE git rebase — compose may produce both text and
      binary changes, and git needs to rebase on top of the post-compose
      state, not the clean base.
@@ -278,7 +279,7 @@ Run mishkan-diff and classify each file before rebasing.
      something went wrong in the regen step — flag it immediately.
 
 6. Regenerate mtree
-     New system.dist captures the post-rebase state.
+     New mtree.dist captures the post-rebase state.
 
 7. Validate
      Run mishkan-diff — should find zero unclassified changes.
@@ -288,9 +289,9 @@ Run mishkan-diff and classify each file before rebasing.
      Commit 2: zshemot/mishkan (updated pkg.list, etc.) → zbamidbar/sinai/mishkan.git
 ```
 
-Steps 1–2 use zshemot config (pkg.list, compose.ini). Steps 4–6 are
+Steps 1–2 use zshemot config (pkg.list, compose.sh). Steps 4–6 are
 automatic. Step 3 is the only part that depends on the admin having logged
-something, and the compose file only contains category-5 commands.
+something, and the compose script only contains category-5 commands.
 
 ## Note on etcupdate and pkgbase
 
@@ -307,11 +308,13 @@ on the git tree, is the right scope.
 
 ## Relationship to mtree
 
-The build phase produces `etc/mtree/system.dist` with content-only sha512
-hashes (no time, nlink, or flags — see helpers.sh `generate_mtree`). This
-is the baseline.
+The build phase produces `mtree.dist` in the target's minhag directory on
+zshemot, with content-only sha512 hashes (no time, nlink, or flags — see
+helpers.sh `generate_mtree`). This is the baseline. Storing it on zshemot
+(rather than inside the system tree on zbereshit) means anyone initializing
+a target from upstream has the mtree available from the mishkan repo alone.
 
-After rebase, a new `system.dist` is generated capturing the merged state.
+After rebase, a new `mtree.dist` is generated capturing the merged state.
 On the next `mishkan-diff` run, comparison is against this new baseline.
 
 mtree answers: "what changed since the last known-good state?"

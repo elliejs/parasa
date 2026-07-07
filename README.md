@@ -24,7 +24,7 @@ replay strategies:
   then the binary is regenerated via a known command (pwd_mkdb, cap_mkdb)
 - **Environment state** (SSH host keys, certs, keytabs) — git-tracked as
   binary blobs, preserved across rebases
-- **Opaque commands** — recorded in a compose file, replayed on new base
+- **Opaque commands** — recorded in a compose.sh file, replayed on new base
 
 Only the last category requires the admin to remember anything. Everything
 else is automatic.
@@ -62,8 +62,9 @@ minhag/               Per-target configuration ("customs").
   systems/            System targets (bare metal, bootable).
     <name>/
       build.conf      Build overrides. Empty = default kernel + world.
-      compose.ini     Opaque replay commands.
+      compose.sh         Opaque replay commands (one per line).
       derivations.local  Custom text-to-binary entries.
+      mtree.dist      Baseline mtree for the target.
       pkg.list        Full package list (auto-populated).
   containers/         Container targets (jails).
     <name>/
@@ -90,7 +91,7 @@ sysrc -f minhag/systems/myhost/build.conf SRC_BRANCH
 
 1. Build a new base artifact from source
 2. Install packages from `pkg.list`
-3. Replay compose commands (`compose.ini`) on the new base
+3. Replay compose.sh commands on the new base
 4. Three-way merge text files (git rebase of the delta chain)
 5. Regenerate derived binaries (pwd_mkdb, cap_mkdb, etc.)
 6. Environment state carries through the git rebase automatically
@@ -104,7 +105,7 @@ Saving a system or container is one interactive session, two git commits:
    auto-classifies text files and known derivations, prompts the admin
    for any unclassified binaries, commits the delta.
 2. **zshemot commit** — classifications from step 1 updated the target's
-   minhag files (compose.ini, derivations.local, pkg.list). Commit those.
+   minhag files (compose.sh, derivations.local, pkg.list). Commit those.
 
 The zbereshit commit records the *state*. The zshemot commit records the
 *recipe*.

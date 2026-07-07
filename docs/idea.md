@@ -152,35 +152,7 @@ incrementally rather than reinstalling from scratch.
 
 ## Save workflow
 
-Saving a system or container is a single interactive session that produces
-two git commits:
-
-### Commit 1: zbereshit (system tree → zbamidbar/sinai/tablets.git)
-
-1. Run `mishkan-diff` against the live tree
-2. Auto-classify changes:
-   - Text files → `git add` (automatic)
-   - Known derived binaries → verified, no action needed
-   - Already git-tracked binaries → environment state, no action needed
-3. Prompt for unclassified binaries:
-   - `[d]` derived → writes to minhag target's `derivations.local`
-   - `[e]` environment → `git add` the binary file
-   - `[c]` command → writes to minhag target's `compose.ini`
-   - `[s]` skip → will ask again next time (blocks rebase)
-4. Regenerate `etc/mtree/system.dist`
-5. Commit the delta to the zbereshit branch
-
-### Commit 2: zshemot (mishkan repo → zbamidbar/sinai/mishkan.git)
-
-1. Collect changes produced by commit 1's classification:
-   - Updated `derivations.local` (new `[d]` entries)
-   - Updated `compose.ini` (new `[c]` entries)
-   - Updated `pkg.list` (full package list from `pkg info`)
-2. Commit to the mishkan repo
-
-The zbereshit commit records the *state*. The zshemot commit records the
-*recipe*. Together they fully describe how to reproduce or rebase the
-target.
+See [save_workflow.md](save_workflow.md) for the full save workflow design.
 
 # Concept 1: Releases
 
@@ -216,13 +188,14 @@ zshemot/mishkan/
         build.conf              Build overrides (SRC_BRANCH, KERNCONF, etc.)
                                 Two-tier: values here override mishkan.conf.
                                 An empty file builds a default kernel + world.
-        compose.ini             Opaque replay commands (category 5 only)
+        compose.sh              Opaque replay commands (see drift_manifest.md, category 5)
         derivations.local       Custom text→binary derivation entries
+        mtree.dist              Baseline mtree for the target
         pkg.list                Packages to install (auto-populated or manual)
     containers/                 Per-container target directories
       [container-name]/
         build.conf              Same shape as systems. No kernel config needed.
-        compose.ini
+        compose.sh
         derivations.local
         pkg.list
         jail.conf               Jail configuration for this container
@@ -262,8 +235,8 @@ NOTE: Configuration is two-tier. For any variable lookup, first check the target
   5) distribution     (this target actually finishes giving permissions and final touches. A build is not complete without it).
 If any portion of this build phase fails, tell the user and stop, reporting which phase we were on.
 FUTURE GOAL: allow each system to also include a make env file to control kernel and world configuration variables (see build(8) and src.conf(5))
-9) make an mtree file called /zshemot/tablets/etc/system.dist
-  - A good starting point is `tree -c -x -R time,nlink,flags -K sha512 -p . > "etc/mtree/system.dist"` which works if you're in the /zshemot/tablets root dir of the built distribution. see mtree(8) for detail on flags, but here's an explanation:
+9) make an mtree file called mtree.dist in the target's minhag directory
+  - A good starting point is `mtree -c -x -R time,nlink,flags -K sha512 -p .` run from the /zshemot/tablets root dir of the built distribution, writing to the target's minhag dir. see mtree(8) for detail on flags, but here's an explanation:
 
 > Use `-R` to remove the flag options time, nlink, and flags because git clobbers hardlinks and I can't ever fix that, so why cache it, flags are used by zfs to let us know there's a snapshot and we can't control that on the git-clone side, and because time modified is not something I care about tracking. Use -x to not descend below mountpoints. Use `-K` to add the sha512 hash to the file to determine file integrity. Finally, use `-c` to print a config.
 
@@ -315,7 +288,7 @@ readability only.
 
 Container target directories live at
 `/zshemot/mishkan/minhag/containers/[container-name]/` and contain the same
-files as system targets: build.conf, compose.ini, derivations.local,
+files as system targets: build.conf, compose.sh, derivations.local, mtree.dist,
 pkg.list, plus a jail.conf.
 
 To appropriate the resources for a container, the BASE_SYSTEM artifact
@@ -334,7 +307,7 @@ created: container-data/[container-name]/usr-local, which mounts at
 container-data/[container-name]/home.
 
 After resources are appropriated, start the jail with jail(8). Install
-packages from pkg.list, then run compose.ini commands.
+packages from pkg.list, then run compose.sh commands.
 
 ## Zoom out and filling in the missing blanks
 
@@ -352,7 +325,7 @@ So to solve these breakdowns we introduce composition files, as talked about in 
 
 The right answer, of course, lives somewhere in the middle. The key insight
 is that different kinds of changes have different replay strategies, and
-trying to force them all through one mechanism (pure git OR pure compose)
+trying to force them all through one mechanism (pure git OR pure compose.sh)
 is where the burden comes from. In a perfect world we:
 
 - Use git to track all non-foreign-mounted text file changes (automatic)
@@ -360,17 +333,17 @@ is where the burden comes from. In a perfect world we:
   list of installed first-class (non-dependencies) packages (automatic)
 - For known derived binaries (pwd.db from master.passwd, login.conf.db from
   login.conf): merge the text source via three-way merge, then regenerate the
-  binary via the known command (pwd_mkdb, cap_mkdb, etc.). No compose entry
+  binary via the known command (pwd_mkdb, cap_mkdb, etc.). No compose.sh entry
   needed — the derivation relationships are well-known and ship with mishkan.
 - For environment state (SSH host keys, SSL certs, keytabs): git-track the
   binary directly. These are small, rarely change, and should be preserved
   across rebases, not regenerated. On conflict, keep ours.
 - For everything else: the composition file. But because the other categories
-  are handled automatically, the compose file shrinks to only the genuinely
+  are handled automatically, compose.sh shrinks to only the genuinely
   irreducible commands — opaque binary producers that can't be auto-detected
   or derived.
 
-Detection uses mtree: the build phase produces `etc/mtree/system.dist` with
+Detection uses mtree: the build phase produces `mtree.dist` (in the target's minhag directory) with
 sha512 content hashes. A `mishkan-diff` tool compares the live filesystem
 against this baseline and auto-classifies what it can (text → git, derived
 binary → derivations.db, already git-tracked → environment state). Only
@@ -378,7 +351,7 @@ truly unknown binaries require admin input, and the classification prompt
 happens at detection time (when the change is fresh in memory), not at
 rebase time (months later).
 
-Rebase ordering is critical: compose runs first (packages + commands on
+Rebase ordering is critical: compose.sh runs first (packages + commands on
 the new base), then git rebase (text files + environment state), then
 derived binary regeneration, then validation.
 
