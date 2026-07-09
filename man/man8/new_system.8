@@ -1,0 +1,212 @@
+.\"
+.\" Copyright (c) 2026 mishkan contributors
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 8, 2026
+.Dt NEW_SYSTEM 8
+.Os FreeBSD
+.Sh NAME
+.Nm new_system
+.Nd create a new system on top of an existing foundation
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Op Fl d
+.Op Fl s Ar name
+.Op Fl f Ar foundation
+.Op Fl o Ar key=value
+.Op Fl q
+.Op Fl b
+.Sh DESCRIPTION
+The
+.Nm
+utility creates a new system within the mishkan framework.
+It sets up the minhag directory structure, provisions ZFS data
+datasets, and records an inaugural git commit in the sinai
+repository.
+.Pp
+A system is built on top of a foundation, which provides the
+base archive for the root filesystem.
+The
+.Nm
+utility creates a branch
+.Pa system/ Ns Ar name
+from
+.Pa foundation/ Ns Ar name
+in the sinai repository, writes
+.Pa /etc/fstab ,
+and leaves a zero-byte
+.Pa .foundation
+file as a reference to the originating foundation.
+.Pp
+Standard data-lake mounts for
+.Pa var
+and
+.Pa usr/local
+are always created.
+Home and tmp datasets are optional and controlled via the
+.Fl o
+flag.
+.Pp
+Optionally,
+.Nm
+can deploy the newly created system to zbereshit via
+.Xr deploy_system 8 .
+.Sh OPTIONS
+.Bl -tag -width "-f foundation"
+.It Fl h
+Display a help message and exit.
+.It Fl d
+Dry run.
+Show what would be done without making any changes.
+.It Fl s Ar name
+Set the system name.
+When omitted,
+.Nm
+runs in fully interactive mode and prompts for a name.
+.It Fl f Ar foundation
+Specify which foundation to base the system on.
+.It Fl o Ar key=value
+Set a property override.
+This flag may be specified multiple times.
+Available keys:
+.Bl -tag -width "roothome_dataset" -compact
+.It Cm home_dataset
+Create a home dataset.
+Default:
+.Dq yes .
+.It Cm tmp_dataset
+Create a tmp dataset.
+Default:
+.Dq yes .
+.It Cm roothome_dataset
+Create a separate dataset for root's home directory.
+Default:
+.Dq no .
+.It Cm user_homes
+Comma-separated list of per-user home datasets to create.
+.It Cm mount_map
+Additional dataset-to-mountpoint mapping in
+.Ar dataset:mountpoint
+format.
+May be specified multiple times.
+.El
+.It Fl q
+Quiet mode.
+Suppress interactive prompts.
+May be specified twice:
+.Fl q
+suppresses prompts (property overrides or defaults are used);
+.Fl qq
+additionally suppresses progress output.
+.It Fl b
+Deploy the system after creation.
+May be specified twice:
+.Fl b
+deploys to zbereshit;
+.Fl bb
+deploys and sets nextboot.
+.El
+.Sh MODES OF OPERATION
+.Nm
+supports three modes depending on which flags are supplied:
+.Bl -tag -width "Semi-interactive"
+.It Em Interactive
+When
+.Fl s
+is not given, all questions are asked interactively.
+.It Em Semi-interactive
+When
+.Fl s
+is given but
+.Fl q
+is not, questions are still asked but values supplied via
+.Fl o
+serve as defaults.
+.It Em Quiet
+When both
+.Fl s
+and
+.Fl q
+are given, no prompts are issued.
+All properties take their defaults or values supplied via
+.Fl o .
+.El
+.Sh FSTAB
+Two kinds of fstab are maintained:
+.Bl -tag -width "recipe fstab"
+.It Em "system fstab"
+Contains normal filesystem mounts and is written to
+.Pa /etc/fstab
+within the system image.
+.It Em "recipe fstab"
+Contains container dependency mounts and is stored in
+.Pa fstab.local
+within the minhag system directory.
+.El
+.Sh FILES
+.Bl -tag -width Ds
+.It Pa minhag/systems/ Ns Ar name Ns /
+Per-system configuration directory containing:
+.Bl -tag -width "derivations.local" -compact
+.It Pa .foundation
+Zero-byte file recording the originating foundation name.
+.It Pa compose.sh
+System composition script.
+.It Pa derivations.local
+Local derivation overrides.
+.It Pa fstab.local
+Recipe fstab for container dependencies.
+.It Pa mtree.dist
+File hierarchy specification.
+.It Pa pkg.list
+Package list for the system.
+.El
+.It Pa zbamidbar/system-data/ Ns Ar name Ns /
+ZFS data datasets for the system:
+.Pa var ,
+.Pa usr-local ,
+.Pa home ,
+.Pa tmp .
+.It Pa zbamidbar/sinai.git
+Bare git repository.
+The system branch
+.Pa system/ Ns Ar name
+is created from
+.Pa foundation/ Ns Ar name .
+.It Pa zbamidbar/sinai.zfs/foundations/ Ns Ar foundation
+ZFS dataset containing the source foundation archive.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Create a system interactively:
+.Pp
+.Dl # new_system
+.Pp
+Create a system named
+.Dq webhost
+on foundation
+.Dq base14 :
+.Pp
+.Dl # new_system -s webhost -f base14
+.Pp
+Create a system quietly with no home dataset and deploy:
+.Pp
+.Dl # new_system -s webhost -f base14 -o home_dataset=no -q -b
+.Pp
+Dry run with custom user homes:
+.Pp
+.Dl # new_system -d -s webhost -f base14 -o user_homes=www,app
+.Pp
+Deploy and set nextboot:
+.Pp
+.Dl # new_system -s webhost -f base14 -q -bb
+.Sh SEE ALSO
+.Xr deploy_system 8 ,
+.Xr new_container 8 ,
+.Xr new_foundation 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the mishkan framework.

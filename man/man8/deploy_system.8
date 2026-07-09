@@ -1,0 +1,116 @@
+.\"
+.\" Copyright (c) 2026 mishkan contributors
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 8, 2026
+.Dt DEPLOY_SYSTEM 8
+.Os FreeBSD
+.Sh NAME
+.Nm deploy_system
+.Nd deploy a system from zbamidbar archive to zbereshit for boot
+.Sh SYNOPSIS
+.Nm
+.Fl s Ar name
+.Op Fl h
+.Op Fl d
+.Op Fl n
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the mishkan framework for FreeBSD system management.
+It deploys a named system by sending a foundation ZFS archive from
+.Pa zbamidbar
+to
+.Pa zbereshit ,
+then applies system-specific state via a git checkout of the
+corresponding system branch.
+.Pp
+The deployment proceeds as follows:
+.Bl -enum
+.It
+Read the foundation name from
+.Pa minhag/systems/ Ns Ao Ar name Ac Ns Pa /*.foundation .
+.It
+Find the foundation commit that the
+.Pa system/ Ns Ao Ar name Ac
+branch forks from in
+.Pa sinai.git .
+That commit's message is the artifact name and ZFS snapshot tag.
+.It
+Send the foundation archive using
+.Xr zfs-send 8
+from
+.Pa zbamidbar/sinai.zfs/foundations/ Ns Ao Ar foundation Ac Ns @ Ns Ao Ar artifact Ac
+and receive it into
+.Pa zbereshit/systems/ Ns Ao Ar name Ac
+using
+.Xr zfs-recv 8 .
+.It
+Run
+.Cm git checkout
+of the
+.Pa system/ Ns Ao Ar name Ac
+branch to apply system-specific state such as
+.Xr fstab 5 .
+.It
+If
+.Fl n
+is specified, configure
+.Xr nextboot 8
+for a one-shot boot into the deployed system.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-s NAME"
+.It Fl h
+Print a usage summary and exit.
+.It Fl d
+Dry run.
+Show what would be done without making any changes.
+.It Fl s Ar name
+Specify the system name.
+This option is required.
+.It Fl n
+Set
+.Xr nextboot 8
+after a successful deploy.
+This configures a one-shot boot into the deployed system that
+automatically reverts on failure.
+When this flag is used,
+.Cm zfs set -u mountpoint=/
+is applied to the target dataset and
+.Xr nextboot 8
+is invoked with:
+.Bd -literal -offset indent
+nextboot -e vfs.root.mountfrom="zfs:zbereshit/systems/<name>"
+.Ed
+.Pp
+If the session is interactive, the user is prompted to reboot.
+.El
+.Sh FILES
+.Bl -tag -width "zbamidbar/sinai.zfs/foundations/<foundation>"
+.It Pa minhag/systems/ Ns Ao Ar name Ac Ns Pa /*.foundation
+Foundation descriptor for the named system.
+.It Pa zbamidbar/sinai.git
+Git repository containing
+.Pa system/ Ns Ao Ar name Ac
+and
+.Pa foundation/ Ns Ao Ar name Ac
+branches.
+.It Pa zbamidbar/sinai.zfs/foundations/ Ns Ao Ar foundation Ac
+ZFS archive of the named foundation.
+.It Pa zbereshit/systems/ Ns Ao Ar name Ac
+Target dataset where the system is deployed for boot.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr new_foundation 8 ,
+.Xr new_system 8 ,
+.Xr nextboot 8 ,
+.Xr zfs-recv 8 ,
+.Xr zfs-send 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the mishkan framework.

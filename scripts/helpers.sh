@@ -135,6 +135,192 @@ clear_mtree() {
 	chflags -R noschg "$tree"
 }
 
+# ── Config helpers ────────────────────────────────────────────────────────────
+
+# Two-tier config lookup: target build.conf → mishkan.conf → default.
+# Usage: msysrc build_conf_path VAR_NAME [default]
+# Prints the value to stdout. Returns 1 if not found and no default.
+msysrc() {
+	local conf="${1:?msysrc: build.conf path required}"
+	local var="${2:?msysrc: variable name required}"
+	local default="${3:-}"
+	local val
+	if [ -f "$conf" ]; then
+		val=$(sysrc -f "$conf" -qn "$var" 2>/dev/null) || true
+		if [ -n "$val" ]; then
+			printf "%s" "$val"
+			return 0
+		fi
+	fi
+	val=$(sysrc -f "${MISHKAN_DIR}/mishkan.conf" -qn "$var" 2>/dev/null) || true
+	if [ -n "$val" ]; then
+		printf "%s" "$val"
+		return 0
+	fi
+	if [ -n "$default" ]; then
+		printf "%s" "$default"
+		return 0
+	fi
+	return 1
+}
+
+# ── ZFS query helpers ────────────────────────────────────────────────────────
+
+# Check if a ZFS dataset exists.
+zfs_dataset_exists() {
+	zfs list -H -o name "${1:?zfs_dataset_exists: dataset required}" \
+		>/dev/null 2>&1
+}
+
+# ── Git query helpers ────────────────────────────────────────────────────────
+
+# Check if a git branch exists in a repository.
+# Usage: git_branch_exists repo_path branch_name
+git_branch_exists() {
+	local repo="${1:?git_branch_exists: repo path required}"
+	local branch="${2:?git_branch_exists: branch name required}"
+	git -C "$repo" rev-parse --verify "refs/heads/$branch" >/dev/null 2>&1
+}
+
+# ── Foundation helpers ───────────────────────────────────────────────────────
+
+# Read foundation name from a system/container minhag dir.
+# Returns the name via stdout. Dies if zero or multiple .foundation files.
+get_foundation() {
+	local dir="${1:?get_foundation: minhag dir required}"
+	local found="" count=0 f
+	for f in "$dir"/*.foundation; do
+		[ -e "$f" ] || die "get_foundation: no .foundation file in ${dir}"
+		count=$((count + 1))
+		found="$f"
+	done
+	[ "$count" -eq 1 ] || die "get_foundation: expected 1 .foundation file in ${dir}, found ${count}"
+	basename "$found" .foundation
+}
+
+# ── Name validation ──────────────────────────────────────────────────────────
+
+# Validate a name for use as a dataset/branch component.
+# Must be non-empty, start with a letter or digit, contain only
+# alphanumeric characters plus hyphens, underscores, and dots.
+validate_name() {
+	local name="${1:-}"
+	local label="${2:-Name}"
+	[ -n "$name" ] || { error "${label} cannot be empty"; return 1; }
+	case "$name" in
+		-*) error "${label} cannot start with a hyphen"; return 1 ;;
+	esac
+	case "$name" in
+		*[!a-zA-Z0-9._-]*)
+			error "${label} may only contain letters, digits, hyphens, underscores, and dots"
+			return 1 ;;
+	esac
+	return 0
+}
+
+# ── Interactive prompt helpers ───────────────────────────────────────────────
+
+# Prompt with a default value. If QUIET > 0, return the default silently.
+# Usage: prompt_or_default "prompt text" default_value quiet_level
+prompt_or_default() {
+	local prompt="$1" default="$2" quiet="${3:-0}" resp
+	if [ "$quiet" -gt 0 ]; then
+		printf "%s" "$default"
+		return 0
+	fi
+	printf "%s [%s]: " "$prompt" "$default" >&2
+	read -r resp || resp=""
+	printf "%s" "${resp:-$default}"
+}
+
+# Prompt for a yes/no with a default. Respects quiet mode.
+# Usage: prompt_yesno "question" default_yesno quiet_level
+# Returns 0 for yes, 1 for no.
+prompt_yesno() {
+	local prompt="$1" default="$2" quiet="${3:-0}" resp
+	if [ "$quiet" -gt 0 ]; then
+		yesish "$default" && return 0 || return 1
+	fi
+	local hint
+	if yesish "$default"; then hint="Y/n"; else hint="y/N"; fi
+	while true; do
+		printf "%s [%s]: " "$prompt" "$hint" >&2
+		read -r resp || return 1
+		[ -n "$resp" ] || resp="$default"
+		yesish "$resp" && return 0
+		noish "$resp" && return 1
+		printf "Please answer y or n.\n" >&2
+	done
+}
+
+# List available foundations and prompt for selection.
+# Usage: select_foundation quiet_level
+# Prints the chosen foundation name to stdout.
+select_foundation() {
+	local quiet="${1:-0}" minhag_dir="${MISHKAN_DIR}/minhag/foundations"
+	local name found="" count=0 idx=0
+
+	for d in "$minhag_dir"/*/; do
+		[ -d "$d" ] || continue
+		name=$(basename "$d")
+		count=$((count + 1))
+		found="$name"
+	done
+
+	[ "$count" -gt 0 ] || die "No foundations found in ${minhag_dir}/. Run new_foundation first."
+
+	if [ "$count" -eq 1 ]; then
+		if [ "$quiet" -gt 0 ]; then
+			printf "%s" "$found"
+			return 0
+		fi
+		printf "Only one foundation available: %s\n" "$found" >&2
+		printf "%s" "$found"
+		return 0
+	fi
+
+	if [ "$quiet" -gt 0 ]; then
+		die "Multiple foundations available; use -f to specify one."
+	fi
+
+	printf "Available foundations:\n" >&2
+	idx=0
+	for d in "$minhag_dir"/*/; do
+		[ -d "$d" ] || continue
+		idx=$((idx + 1))
+		name=$(basename "$d")
+		printf "  %d) %s\n" "$idx" "$name" >&2
+	done
+
+	local resp
+	while true; do
+		printf "Foundation name or number: " >&2
+		read -r resp || die "EOF reading foundation selection"
+		# If numeric, resolve to name
+		case "$resp" in
+			[0-9]|[0-9][0-9])
+				local cur=0
+				for d in "$minhag_dir"/*/; do
+					[ -d "$d" ] || continue
+					cur=$((cur + 1))
+					if [ "$cur" -eq "$resp" ]; then
+						printf "%s" "$(basename "$d")"
+						return 0
+					fi
+				done
+				printf "  Invalid number.\n" >&2
+				continue
+				;;
+		esac
+		# Name given directly
+		if [ -d "${minhag_dir}/${resp}" ]; then
+			printf "%s" "$resp"
+			return 0
+		fi
+		printf "  Foundation '%s' not found.\n" "$resp" >&2
+	done
+}
+
 # ── Git / artifact helpers ────────────────────────────────────────────────────
 
 # Build an artifact name from a FreeBSD src repo.

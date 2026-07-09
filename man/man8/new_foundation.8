@@ -1,0 +1,167 @@
+.\" Copyright (c) 2026 The Mishkan Project
+.\"
+.Dd July 8, 2026
+.Dt NEW_FOUNDATION 8
+.Os FreeBSD
+.Sh NAME
+.Nm new_foundation
+.Nd build and archive a FreeBSD foundation from source
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Op Fl d
+.Op Fl s Ar name
+.Op Fl o Ar key=value
+.Op Fl q
+.Sh DESCRIPTION
+The
+.Nm
+utility builds a FreeBSD world and kernel from source and archives the
+result as a
+.Em foundation .
+A foundation is a pristine base build from which systems and containers
+branch.
+.Pp
+Build configuration is stored in
+.Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf
+and can be supplied interactively, via
+.Fl o
+overrides, or through defaults in
+.Pa mishkan.conf .
+.Pp
+.Nm
+operates in three modes:
+.Bl -tag -width "Semi-interactive"
+.It Em Interactive
+When
+.Fl s
+is not given, the user is prompted for all configuration values.
+.It Em Semi-interactive
+When
+.Fl s
+is given without
+.Fl q ,
+the user is prompted for configuration values, with any
+.Fl o
+overrides offered as defaults.
+.It Em Quiet
+When both
+.Fl s
+and
+.Fl q
+are given, no prompts are issued.
+Specifying
+.Fl q
+twice additionally suppresses progress output.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-o key=value"
+.It Fl h
+Display usage information and exit.
+.It Fl d
+Dry run.
+Show what would be done without making changes.
+.It Fl s Ar name
+Set the foundation name.
+Required when running in quiet mode.
+.It Fl o Ar key=value
+Override a build configuration key.
+May be specified multiple times.
+Recognized keys:
+.Bl -tag -width "src_branch" -compact
+.It Cm src_branch
+Source branch to build from.
+Default:
+.Li stable/15 .
+.It Cm kernconf
+Kernel configuration file.
+Default:
+.Li GENERIC .
+.It Cm make_jobs
+Number of parallel make jobs.
+Default: value of
+.Va hw.ncpu .
+.El
+.It Fl q
+Quiet mode.
+Suppress interactive prompts; requires
+.Fl s .
+When specified twice
+.Pq Fl qq ,
+progress output is also suppressed.
+.El
+.Sh EXECUTION FLOW
+.Nm
+proceeds through the following stages:
+.Bl -enum
+.It
+Collect the foundation name and build configuration.
+.It
+Create
+.Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf .
+.It
+Ensure the FreeBSD source tree is present at
+.Pa zshemot/torah .
+.It
+Create a transient workspace at
+.Pa zshemot/tablets .
+.It
+Execute the five make targets:
+.Cm buildworld ,
+.Cm buildkernel ,
+.Cm installkernel ,
+.Cm installworld ,
+and
+.Cm distribution .
+.It
+Commit the result to a
+.Li foundation/ Ns Ar name
+orphan branch on
+.Pa zbamidbar/sinai.git .
+.It
+Create a ZFS snapshot and archive to
+.Pa zbamidbar/sinai.zfs/foundations/ Ns Ar name .
+.It
+Destroy the transient workspace.
+.El
+.Sh FILES
+.Bl -tag -width "minhag/foundations/<name>/build.conf"
+.It Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf
+Per-foundation build configuration produced by
+.Nm .
+Contains
+.Va SRC_BRANCH ,
+.Va KERNCONF ,
+and
+.Va MAKE_JOBS .
+.It Pa mishkan.conf
+Framework-wide configuration providing fallback defaults.
+.It Pa etc/mtree.ignore
+List of paths excluded from mtree comparison.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Build a foundation interactively:
+.Bd -literal -offset indent
+# new_foundation
+.Ed
+.Pp
+Build a foundation with a custom kernel configuration:
+.Bd -literal -offset indent
+# new_foundation -s mybase -o kernconf=MYKERNEL
+.Ed
+.Pp
+Fully automated build with no prompts:
+.Bd -literal -offset indent
+# new_foundation -s prod15 -o src_branch=stable/15 -q
+.Ed
+.Pp
+Preview what a quiet build would do:
+.Bd -literal -offset indent
+# new_foundation -s prod15 -d -q
+.Ed
+.Sh SEE ALSO
+.Xr new_system 8 ,
+.Xr new_container 8 ,
+.Xr deploy_system 8

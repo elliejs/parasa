@@ -13,3 +13,19 @@ MISHKAN_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 mishkan_bootstrap() {
 	sh "${MISHKAN_DIR}/scripts/stage0-bootstrap.sh" "$@"
 }
+
+mishkan_new_foundation() {
+	sh "${MISHKAN_DIR}/scripts/new_foundation.sh" "$@"
+}
+
+mishkan_new_system() {
+	sh "${MISHKAN_DIR}/scripts/new_system.sh" "$@"
+}
+
+mishkan_new_container() {
+	sh "${MISHKAN_DIR}/scripts/new_container.sh" "$@"
+}
+
+mishkan_deploy_system() {
+	sh "${MISHKAN_DIR}/scripts/deploy_system.sh" "$@"
+}

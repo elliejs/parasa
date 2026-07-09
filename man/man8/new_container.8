@@ -1,0 +1,219 @@
+.\" Copyright (c) 2026 The Mishkan Project
+.\"
+.Dd July 8, 2026
+.Dt NEW_CONTAINER 8
+.Os FreeBSD
+.Sh NAME
+.Nm new_container
+.Nd create a new container (jail) on top of an existing foundation
+.Sh SYNOPSIS
+.Nm
+.Op Fl h
+.Op Fl d
+.Op Fl s Ar name
+.Op Fl f Ar foundation
+.Op Fl o Ar key=value
+.Op Fl q
+.Sh DESCRIPTION
+The
+.Nm
+utility creates a new container (jail) based on an existing foundation.
+It mirrors
+.Xr new_system 8
+but produces a jail managed by
+.Xr jail 8
+instead of a bootable system.
+.Pp
+.Nm
+creates a minhag directory containing a
+.Xr jail.conf 5
+skeleton, allocates data datasets, and makes an inaugural commit on a
+container-specific branch.
+Containers do not use
+.Xr nextboot 8 ;
+start them with
+.Xr jail 8
+instead.
+.Pp
+A foundation reference is recorded as a zero-byte file named
+.Pa Ao Ar foundation Ac Ns .foundation
+in the container's minhag directory, tying the container to the base
+build it derives from.
+.Pp
+.Nm
+operates in three modes:
+.Bl -tag -width "Semi-interactive"
+.It Em Interactive
+When
+.Fl s
+is not given, the user is prompted for all configuration values.
+.It Em Semi-interactive
+When
+.Fl s
+is given without
+.Fl q ,
+the user is prompted for configuration values, with any
+.Fl o
+overrides offered as defaults.
+.It Em Quiet
+When both
+.Fl s
+and
+.Fl q
+are given, no prompts are issued.
+Specifying
+.Fl q
+twice additionally suppresses progress output.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-f foundation"
+.It Fl h
+Display usage information and exit.
+.It Fl d
+Dry run.
+Show what would be done without making changes.
+.It Fl s Ar name
+Set the container name.
+Required when running in quiet mode.
+.It Fl f Ar foundation
+Foundation to base the container on.
+The named foundation must already exist.
+.It Fl o Ar key=value
+Override a container configuration key.
+May be specified multiple times.
+Recognized keys:
+.Bl -tag -width "mount_map" -compact
+.It Cm home_dataset
+Create a dedicated home dataset.
+Default:
+.Li yes .
+.It Cm tmp_dataset
+Create a dedicated tmp dataset.
+Default:
+.Li yes .
+.It Cm user_homes
+Comma-separated list of user home directories to provision under the
+home dataset.
+.It Cm mount_map
+Additional dataset-to-mountpoint mapping in
+.Ar dataset : Ns Ar mountpoint
+form.
+May be specified multiple times.
+.El
+.It Fl q
+Quiet mode.
+Suppress interactive prompts; requires
+.Fl s .
+When specified twice
+.Pq Fl qq ,
+progress output is also suppressed.
+.El
+.Sh EXECUTION FLOW
+.Nm
+proceeds through the following stages:
+.Bl -enum
+.It
+Collect the container name, foundation, and configuration.
+.It
+Create the minhag directory at
+.Pa minhag/containers/ Ns Ar name Ns Pa /
+with the following files:
+.Xr jail.conf 5
+skeleton,
+.Pa compose.sh ,
+.Pa derivations.local ,
+.Pa fstab.local ,
+.Pa mtree.dist ,
+and
+.Pa pkg.list .
+.It
+Write a zero-byte
+.Pa Ao Ar foundation Ac Ns .foundation
+file recording the foundation reference.
+.It
+Create data datasets under
+.Pa zbamidbar/container\-data/ Ns Ar name Ns Pa /
+for
+.Pa var ,
+.Pa usr\-local ,
+and optionally
+.Pa home
+and
+.Pa tmp .
+.It
+Make an inaugural commit on the
+.Li container/ Ns Ar name
+branch on
+.Pa zbamidbar/sinai.git
+with
+.Pa /etc/fstab
+entries for the data datasets.
+.It
+Deploy the container to
+.Pa zbereshit/containers/ Ns Ar name .
+.El
+.Sh FILES
+.Bl -tag -width "zbamidbar/container-data/<name>/"
+.It Pa minhag/containers/ Ns Ar name Ns Pa /.foundation
+Zero-byte file whose name records the foundation this container
+derives from.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /jail.conf
+.Xr jail.conf 5
+skeleton for the container.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /compose.sh
+Composition script controlling derivation application.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /derivations.local
+Local derivation list for the container.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /fstab.local
+Local fstab overrides.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /mtree.dist
+.Xr mtree 8
+specification for the container's file hierarchy.
+.It Pa minhag/containers/ Ns Ar name Ns Pa /pkg.list
+Package list for the container.
+.It Pa zbamidbar/container\-data/ Ns Ar name Ns Pa /
+Parent dataset for container-specific persistent data, containing
+.Pa var ,
+.Pa usr\-local ,
+.Pa home ,
+and
+.Pa tmp
+child datasets.
+.It Pa zbamidbar/sinai.git
+Bare repository holding the
+.Li container/ Ns Ar name
+branch with the inaugural commit.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Create a container interactively:
+.Bd -literal -offset indent
+# new_container
+.Ed
+.Pp
+Create a container on a specific foundation:
+.Bd -literal -offset indent
+# new_container -s webjail -f prod15
+.Ed
+.Pp
+Create a container with user homes provisioned:
+.Bd -literal -offset indent
+# new_container -s devjail -f prod15 -o user_homes=alice,bob
+.Ed
+.Pp
+Fully automated creation with no prompts:
+.Bd -literal -offset indent
+# new_container -s buildjail -f prod15 -q
+.Ed
+.Pp
+Preview what a quiet creation would do:
+.Bd -literal -offset indent
+# new_container -s buildjail -f prod15 -d -q
+.Ed
+.Sh SEE ALSO
+.Xr new_system 8 ,
+.Xr new_foundation 8 ,
+.Xr deploy_system 8 ,
+.Xr jail 8 ,
+.Xr jail.conf 5
