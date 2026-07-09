@@ -11,6 +11,8 @@ The mishkan was the Israelites' portable residence of Hashem. Much like the mish
 - Write /bin/sh compatible scripts, and shebang them. Do not rely on bash-isms.
 - When reading a man page, use a simple pager: `man -P cat`.
 - Container and jail are synonyms. We do not use docker, etc. A container is a jail.
+- Use underscores, not kebab-case, for all mishkan function and command names (e.g. `mishkan_bootstrap`, not `mishkan-bootstrap`).
+- All implementation plans and design outlines go in `plans/` at the repo root. Keep good records — this project has many moving pieces.
 
 # Concept 0: Bootstrapping
 
@@ -92,15 +94,15 @@ Within these pools, mishkan controls an authoritative layout of the system.
   - mishkan/          The mishkan framework itself (public git repo clone)
     - minhag/         Literally "customs". User configuration per target. See below.
     - etc/            Defaults shipped with mishkan (derivation databases, jail.conf template)
-  - tablets/          Build location for zshemot/torah
-    - var/            Mounted separate var dataset
+  - tablets/          Transient build workspace (created on demand, destroyed after use)
+    - var/            Mounted separate var dataset (also transient)
 - zbamidbar/
   - container-data/   Root dataset for container data. Each container's dataset, eg container-data/[container-name]/home, lives under a child dataset of the container's name, and is mounted in under the container's real root after zbereshit has been properly configured. (more on this in later phases). Includes usr-local (packages), var, and home.
   - system-data/      Identical to container-data/ above, but for systems.
-  - sinai/            Long-term storage for git repos and ZFS archives
-    - tablets.git     Bare git remote for system/container delta chains (zbereshit's remote)
-    - tablets.zfs     ZFS send/recv archive, indexed by target name
-    - mishkan.git     Bare git remote for the mishkan config repo (zshemot/mishkan's local remote)
+  - sinai.git         Bare git remote for foundation/system/container branches
+  - sinai.zfs         ZFS send/recv archive (foundations only — systems tracked by git+mtree+compose)
+    - foundations/    Pristine ZFS archives of each foundation build
+  - mishkan.git       Bare git remote for the mishkan config repo (zshemot/mishkan's local remote)
 
   Unless otherwise noted (zbereshit/containers, zbamidbar/container-data zbamidbar/system-data), all datasets are mounted at their logical mount point, eg /[pool-name]/[dataset-hierarchy]/
 
@@ -117,14 +119,17 @@ The three pools serve distinct roles:
 - **zbereshit** (running pool): The result of all our scripting, scaffolding,
   and foreign mounts. This is what's actually running — live systems and
   containers with their delta chains committed to git. Its remote is
-  zbamidbar/sinai/tablets.git.
+  zbamidbar/sinai.git.
 - **zshemot** (config pool): Where the scaffolds and scripts live. Basically
-  just a clone of the mishkan repo, plus the FreeBSD src tree and the build
-  workspace. Its local remote is zbamidbar/sinai/mishkan.git.
+  just a clone of the mishkan repo, plus the FreeBSD src tree. The build
+  workspace (zshemot/tablets) is transient — created on demand by
+  new_foundation or new_system, destroyed after use. Its local remote is
+  zbamidbar/mishkan.git.
 - **zbamidbar** (data lake): Heavy data and accountable foreign mounts.
   Container and system data datasets (usr-local for packages, var, home) are
   stored here and mounted on top of zbereshit containers/systems before
-  startup. Also stores the bare git remotes and ZFS archives in sinai/.
+  startup. Also stores the bare git remote (sinai.git) and ZFS foundation
+  archives (sinai.zfs).
 
 ## zdataset hygiene
 
@@ -182,85 +187,140 @@ zshemot/mishkan/
       stable-14.db              per FreeBSD branch
       stable-15.db
     jail.conf                   Default jail.conf, includes minhag/jail.conf.d/*
+    mtree.ignore                Paths to exclude from mtree (ships with mishkan)
   minhag/
+    foundations/                 Build configurations (shared across systems/containers)
+      [foundation-name]/
+        build.conf              SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
+                                Two-tier: values here override mishkan.conf.
     systems/                    Per-system target directories
       [system-name]/
-        build.conf              Build overrides (SRC_BRANCH, KERNCONF, etc.)
-                                Two-tier: values here override mishkan.conf.
-                                An empty file builds a default kernel + world.
+        [foundation].foundation Zero-byte file; filename = which foundation
         compose.sh              Opaque replay commands (see drift_manifest.md, category 5)
         derivations.local       Custom text→binary derivation entries
+        fstab.local             Recipe-only mounts (container deps, shared data-pools)
         mtree.dist              Baseline mtree for the target
         pkg.list                Packages to install (auto-populated or manual)
     containers/                 Per-container target directories
       [container-name]/
-        build.conf              Same shape as systems. No kernel config needed.
+        [foundation].foundation Zero-byte file; filename = which foundation
         compose.sh
         derivations.local
+        fstab.local             Recipe-only mounts
+        mtree.dist
         pkg.list
         jail.conf               Jail configuration for this container
     jail.conf.d/                Symlinked or included by etc/jail.conf
 ```
 
-Scripting does not need to distinguish between systems and containers.
-The hierarchy is visual. In code, a target is a system if `build.conf`
-specifies a kernel config (KERNCONF), and a container if `jail.conf` is
-present. These are not mutually exclusive.
+### Foundations
+
+A **foundation** is a build configuration that produces a pristine
+FreeBSD world+kernel. Build config (SRC_BRANCH, KERNCONF, MAKE_JOBS)
+lives in `minhag/foundations/<name>/build.conf`. Systems and containers
+are built **on top of** a foundation — they don't carry their own build
+config.
+
+Each system/container has exactly one zero-byte file named
+`<foundation-name>.foundation` in its minhag dir. The filename IS the
+data. Reading it: `basename "$(ls "$dir"/*.foundation)" .foundation`.
+Multiple `.foundation` files = error.
+
+This eliminates the ideological difference between systems and
+containers. What differentiates them is how you use them, not how they
+are built. A container has a `jail.conf`; a system has a KERNCONF in its
+foundation's `build.conf`. These are not mutually exclusive.
+
+### Git branch naming in sinai.git
+
+- `foundation/<name>` — pristine world+kernel build (orphan branch)
+- `system/<name>` — forks from a foundation commit; inaugural commit writes /etc/fstab
+- `container/<name>` — forks from a foundation commit
+
+### Two kinds of fstab entries
+
+Normal data-lake mounts (var, tmp, usr/local, optionally home) go into
+the system's `/etc/fstab` as the inaugural commit on the system branch.
+These are deployment config — they vary per deployment.
+
+Recipe-only mounts (container dependencies, shared jail data-pools) go
+in `minhag/<name>/fstab.local`. These are part of the system's identity
+and will matter more when we implement container dependencies. Most
+systems will have an empty `fstab.local`.
+
+Why fstab over `zfs set mountpoint=`: fstab is per-system (one value per
+system), `zfs set mountpoint=` is per-dataset (one value total). Shared
+datasets can mount at different paths on different systems. FreeBSD
+`mount -a` with `late` handles ZFS after pool import.
+
+### Command family
+
+| Command | Purpose |
+|---------|---------|
+| `new_foundation` | Build world+kernel from source, archive to zbamidbar |
+| `new_system` | Create a system on top of a foundation, optionally deploy |
+| `new_container` | Create a container on top of a foundation |
+| `deploy_system` | Deploy an archived system to zbereshit for boot |
+| `update_system` | Rebuild/upgrade an existing system onto a new foundation |
+| `edit_system` | Interactively edit system metadata, fstab, minhag config |
+| `destroy_system` | Tear down a system |
+
+See `plans/build_system.md` for the full implementation plan.
 
 Build configuration is two-tier: `mishkan.conf` provides defaults,
-`build.conf` provides per-target overrides. The effective config for any
-build is the maximal set of both, preferring `build.conf` where values
-overlap. `sysrc -f` can query either file.
+`build.conf` (in the foundation) provides per-target overrides. The
+effective config for any build is the maximal set of both, preferring
+`build.conf` where values overlap. `sysrc -f` can query either file.
 
-### Build process
+### Build process (new_foundation)
 
-The series of steps is as follows:
+Building is now a two-step process: first build a **foundation** (pristine
+world+kernel), then create **systems** or **containers** on top of it.
 
-1) Check if zshemot/torah (/zshemot/torah) is a git repo. If not, confirm with the user that we should clone the FreeBSD source repo https://git.freebsd.org/src.git into it.
-2) get the target name to build.
-3) search /zshemot/mishkan/minhag/systems/[target-name]/ and /zshemot/mishkan/minhag/containers/[target-name]/ for a build.conf.
-4) If it doesn't exist, warn the user and ask if a target directory should be created (and whether it's a system or container). If no, assume the target name was a typo and back out. If yes, create the target directory with an empty build.conf and continue.
+`new_foundation` creates a transient `zshemot/tablets` workspace, builds
+from `zshemot/torah`, commits to an orphan `foundation/<name>` branch on
+`zbamidbar/sinai.git`, snapshots and archives to
+`zbamidbar/sinai.zfs/foundations/<name>`, then destroys tablets.
 
-NOTE: Configuration is two-tier. For any variable lookup, first check the target's build.conf, then fall back to mishkan.conf. The effective config is the maximal set of both, preferring build.conf for overridden values. Use `sysrc -f` to query these files. If the variable exists in neither, surface an error if optional, or stop completely if mandatory. Set new variables in the most private scope (the target's build.conf, not mishkan.conf).
+The foundation .gitignore covers `var/`, `usr/local/`, `tmp/` only — NOT
+`home/`. Whether to gitignore home is per-system/container, decided during
+`new_system`/`new_container`.
 
-5) search for the variable SRC_BRANCH, and check out that branch from the src repo. If the variable doesn't exist, list the available branches on the remote and ask to set one. The user should be able to select a branch via name or via list item number (number the branches as you output the options).
-6) sync to head, destroying any local changes (warn the user before doing so if any local changes exist).
-7) If zbamidbar/sinai/tablets.zfs/[system-name] exists, zfs send it and zfs recv it into /zshemot/tablets and clear out the build directory /zshemot/tablets entirely of any artifacts, and confirm it's ready for us. (we need to be on the latest zfs snapshot for that system's build tree for a reason later). If that dataset doesn't exist, just make sure /zshemot/tablets exists and is empty.
-8) build, using `make -j12` inside the src dir with the following targets, in order
-  1) buildworld
-  2) buildkernel
-  NOTE: for the following targets, since they move from src to dest, we must define a custom DESTDIR=/zshemot/tablets, since that's our mishkan-wide artifact build dir (eg `make DESTDIR=/zshemot/tablets -j12 installkernel)
-  3) installkernel
-  4) installworld
-  5) distribution     (this target actually finishes giving permissions and final touches. A build is not complete without it).
-If any portion of this build phase fails, tell the user and stop, reporting which phase we were on.
-FUTURE GOAL: allow each system to also include a make env file to control kernel and world configuration variables (see build(8) and src.conf(5))
-9) make an mtree file called mtree.dist in the target's minhag directory
-  - A good starting point is `mtree -c -x -R time,nlink,flags -K sha512 -p .` run from the /zshemot/tablets root dir of the built distribution, writing to the target's minhag dir. see mtree(8) for detail on flags, but here's an explanation:
+mtree is generated with `mtree -c -x -R time,nlink,flags -K sha512` and an
+ignore file (`etc/mtree.ignore`, containing `.git`). See helpers.sh
+`generate_mtree()`.
 
-> Use `-R` to remove the flag options time, nlink, and flags because git clobbers hardlinks and I can't ever fix that, so why cache it, flags are used by zfs to let us know there's a snapshot and we can't control that on the git-clone side, and because time modified is not something I care about tracking. Use -x to not descend below mountpoints. Use `-K` to add the sha512 hash to the file to determine file integrity. Finally, use `-c` to print a config.
+The artifact name is derived from the src branch, date, and short SHA via
+`get_artifact_name()` in helpers.sh.
 
-10) Initialize a new git repo in our dest dir, /zshemot/tablets and point the remote to /zbamidbar/sinai/tablets.git. Since the dir is non-empty, you will have to force this operation.
+### System/container creation (new_system)
 
-11) commit everything and write a templated commit message with an artifact name including the system name. You can derive the artifact name I want like so (run on the torah dataset in /zshemot/torah to get the right source rev and branch) I'd also like the system name stapled onto the end of the artifact name, like `_${system_name}`. Add that to this function.:
-```
-get-artifact-name() {
-	local repo="${1:-}"
-	[ -d "${repo}/.git" ] || error "${repo} doesn't look like a git repo\n" || return
-	local artifact_name="$(git -c "${repo}" rev-parse --abbrev-ref head | tr '/' '-')"
-	artifact_name="${artifact_name}_$(date -i)"
-	artifact_name="${artifact_name}_$(git -c "${repo}" rev-parse --short head)"
-	echo "${artifact_name}"
-}
-```
+`new_system` takes an existing foundation and creates a system on top of it.
+The core operation is the **inaugural commit** — a commit on `system/<name>`
+branching from `foundation/<name>` that writes data-lake mount entries into
+`/etc/fstab` (var, tmp, usr/local are always included; home is optional).
 
-12) commit everything and write a templated commit message with the aforementioned artifact name including the system name
-13) take a snapshot of the built dataset with the aforementioned snapshot naming scheme.
-14) send this dataset to /zbamidbar/sinai/tablets.zfs/[system-name]. If the dest dataset already exists, we can do a snapshot incremental send, and if it doesn't, we'll have to send the whole stream. See zfs-send(8) and zfs-receive(8) for more information.
+The ZFS flow: `zbamidbar/sinai.zfs/foundations/<name>` recv to
+`zshemot/tablets` (temporarily), branch and commit, push, destroy tablets.
+If there are no fstab changes, the branch is created on the bare repo
+without recv'ing tablets.
 
-### Phase Summary:
+### Deployment (deploy_system)
 
-The purpose of this phase is to create a cleanroom environment to build clean upgrades from source, and to commit those upgrades to a git repo on our large zbamidbar disk. We will eventually cleverly use a mix of scripting, zfs, and git to re-compose customized systems from this starting point, but first we must successfully make and track a build. At this point we should have a built artifact, with a system name, an mtree for tracking permissions git drops, a git commit for tracking file deltas across revisions, and a cold storage of the whole zfs dataset as an incremental change from the same system config build (useful when we start building custom kernels later) in a system specific dataset tree on our data-lake.
+`deploy_system` sends a foundation's ZFS dataset from zbamidbar to
+`zbereshit/systems/<name>`, then applies the system branch via git checkout
+to layer system-specific state (fstab entries, etc.) on top.
+
+Deploy resolves the right ZFS snapshot by tracing the system branch back to
+its foundation fork-point — the foundation commit's message IS the artifact
+name, which is the ZFS snapshot tag.
+
+Optional `-n` flag sets `nextboot -e vfs.root.mountfrom="zfs:zbereshit/systems/<name>"`
+for one-shot boot with auto-revert on failure. `mountpoint=/` is only set
+when nextboot is enabled.
+
+See `plans/build_system.md` for the full implementation plan with execution
+flows, argument parsing, and phase details.
 
 ## Phase 2: Rebase
 
@@ -291,12 +351,12 @@ Container target directories live at
 files as system targets: build.conf, compose.sh, derivations.local, mtree.dist,
 pkg.list, plus a jail.conf.
 
-To appropriate the resources for a container, the BASE_SYSTEM artifact
-(specified in build.conf) is found in
-zbamidbar/sinai/tablets.zfs/[system-name]@[artifact-name]. We use zfs-send
+To appropriate the resources for a container, the foundation artifact
+is found via the container's `.foundation` file and resolved through
+`zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>`. We use zfs-send
 and zfs-recv to copy this pristine build artifact from zbamidbar to
 zbereshit/containers/[container-name]@[artifact-name]. The subordinate var/
-dataset is sent from zbamidbar/sinai to
+dataset is sent from zbamidbar/sinai.zfs to
 zbamidbar/container-data/[container-name]/var. Why not clone, since it's in
 the same pool? var/ doesn't relate to the release, and its tracking will be
 done via git. This container-data dataset is mounted into /containers so it
@@ -359,7 +419,7 @@ See [drift_manifest.md](drift_manifest.md) for the full design.
 
 # Addendum with context: Blending Concept 1 and 2
 
-Edit to Concept 1 Phase 1: When we either beam down the tablets.zfs system we're upgrading or create a new clean directory, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
+Edit to Concept 1 Phase 1: When we recv a foundation from sinai.zfs to the transient tablets workspace, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
 
 Edit 2 to Concept 1 Phase 1: We want to track all these foreign-mount files from the base system (eg in var. None exist in home/ or usr/local), but we don't want to track any further files in them. So we should:
 

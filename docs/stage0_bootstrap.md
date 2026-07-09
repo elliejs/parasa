@@ -137,14 +137,8 @@ zshemot/mishkan
   databases, and user configuration (minhag/) per target. Mounted when
   mishkan scripts need config or during builds.
 
-zshemot/tablets
-  mountpoint=/zshemot/tablets, canmount=noauto
-  Build destination. Temporary; cleared and repopulated each build cycle.
-
-zshemot/tablets/var
-  mountpoint=/zshemot/tablets/var, canmount=noauto
-  Separate var dataset for the build artifact (needed so var/ can be
-  independently sent/received to zbamidbar).
+Note: zshemot/tablets is NOT created by bootstrap. It is transient —
+created on demand by new_foundation or new_system, destroyed after use.
 ```
 
 ### zbamidbar
@@ -158,19 +152,15 @@ zbamidbar/system-data
   mountpoint=none, canmount=noauto
   Parent for per-system data datasets.
 
-zbamidbar/sinai
+zbamidbar/sinai.git
   mountpoint=none, canmount=noauto
-  Parent for long-term storage of build artifacts.
+  Bare git remote. Foundation/system/container branches pushed here.
 
-zbamidbar/sinai/tablets.git
+zbamidbar/sinai.zfs
   mountpoint=none, canmount=noauto
-  Bare git remote. Build artifacts are pushed here after each build.
+  ZFS send/recv archive. Contains foundations/ (pristine build archives).
 
-zbamidbar/sinai/tablets.zfs
-  mountpoint=none, canmount=noauto
-  ZFS send/recv archive. Indexed by target name (child datasets per target).
-
-zbamidbar/sinai/mishkan.git
+zbamidbar/mishkan.git
   mountpoint=none, canmount=noauto
   Bare git remote for the mishkan config repo (zshemot/mishkan's local remote).
 ```

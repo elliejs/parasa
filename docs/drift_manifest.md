@@ -20,15 +20,16 @@ they actually fall into distinct categories with different replay strategies.
 
 ## The rebase model
 
-A system is built from `zshemot/torah` (the FreeBSD src repo) and committed
-under an artifact name to a git repo on `zbamidbar/sinai/tablets.git`. That
-artifact commit becomes the base of a branch. The admin's changes — config
+A foundation is built from `zshemot/torah` (the FreeBSD src repo) and
+committed under an artifact name to a `foundation/<name>` branch on
+`zbamidbar/sinai.git`. Systems and containers branch from a foundation
+commit (`system/<name>`, `container/<name>`). The admin's changes — config
 edits, user additions, service tuning — form a chain of delta commits on
-that branch.
+the system/container branch.
 
-When the base system is rebuilt (new FreeBSD version, kernel config change,
-etc.), the new build produces a new artifact commit. The admin's delta chain
-is rebased onto it.
+When the foundation is rebuilt (new FreeBSD version, kernel config change,
+etc.), the new build produces a new foundation commit. The admin's delta
+chain is rebased onto it: `git rebase foundation/<name>`.
 
 ```
 artifact-v1 ← delta1 ← delta2 ← delta3    (old branch)
@@ -245,7 +246,7 @@ Run mishkan-diff and classify each file before rebasing.
 
 ```
 1. Beam down new base artifact
-     (zfs send from zbamidbar/sinai/tablets.zfs → zbereshit/systems/[name])
+     (zfs send from zbamidbar/sinai.zfs/foundations/[foundation] → zbereshit/systems/[name])
 
 2. Install packages from pkg.list
      The base has no packages (built from source). pkg.list is the full
@@ -285,8 +286,8 @@ Run mishkan-diff and classify each file before rebasing.
      Run mishkan-diff — should find zero unclassified changes.
 
 8. Save (two commits)
-     Commit 1: zbereshit delta branch → zbamidbar/sinai/tablets.git
-     Commit 2: zshemot/mishkan (updated pkg.list, etc.) → zbamidbar/sinai/mishkan.git
+     Commit 1: zbereshit delta branch → zbamidbar/sinai.git
+     Commit 2: zshemot/mishkan (updated pkg.list, etc.) → zbamidbar/mishkan.git
 ```
 
 Steps 1–2 use zshemot config (pkg.list, compose.sh). Steps 4–6 are

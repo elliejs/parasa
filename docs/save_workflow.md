@@ -3,7 +3,7 @@
 Saving a system or container is a single interactive session that produces
 two git commits:
 
-## Commit 1: zbereshit (system tree -> zbamidbar/sinai/tablets.git)
+## Commit 1: zbereshit (system tree -> zbamidbar/sinai.git)
 
 1. Run `mishkan-diff` against the live tree
 2. Auto-classify changes:
@@ -18,7 +18,7 @@ two git commits:
 4. Regenerate `mtree.dist` in the target's minhag directory
 5. Commit the delta to the zbereshit branch
 
-## Commit 2: zshemot (mishkan repo -> zbamidbar/sinai/mishkan.git)
+## Commit 2: zshemot (mishkan repo -> zbamidbar/mishkan.git)
 
 1. Collect changes produced by commit 1's classification:
    - Updated `derivations.local` (new `[d]` entries)

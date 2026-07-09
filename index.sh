@@ -10,6 +10,6 @@ MISHKAN_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
 . "${MISHKAN_DIR}/scripts/helpers.sh"
 
-mishkan-bootstrap() {
+mishkan_bootstrap() {
 	sh "${MISHKAN_DIR}/scripts/stage0-bootstrap.sh" "$@"
 }
