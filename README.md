@@ -1,3 +1,13 @@
+<div align="center">
+
+<img src="epigraph.svg?v=3" alt="Ashmedai swallowed the ring and grew until he placed one wing in the heaven and one wing on the earth. He threw Solomon a distance of four hundred parasangs.">
+
+<sub>Gittin 68b:15 &mdash; William Davidson Talmud, via <a href="https://www.sefaria.org/Gittin.68b.15">Sefaria</a></sub>
+
+---
+
+</div>
+
 # Parasa
 
 A composable system-tracking framework for FreeBSD. Build clean base
@@ -47,25 +57,35 @@ Parasa organizes storage across three ZFS pools, each GELI-encrypted:
 ## Repo structure
 
 ```
-index.sh              Source on login. Exposes parasa-* shell functions.
-parasa.conf          Parasa-wide build defaults (sysrc format).
+index.sh              Source on login. Exposes parasa_* shell functions.
+parasa.conf           Parasa-wide build defaults (sysrc format).
 
 scripts/
   helpers.sh          Shared /bin/sh utilities (ZFS, mtree, prompts).
   stage0-bootstrap.sh One-time disk partitioning, GELI, pool + dataset setup.
+  new_foundation.sh   Build world+kernel from source, archive as foundation.
+  new_system.sh       Create a system on a foundation, optionally deploy.
+  new_container.sh    Create a container on a foundation.
+  deploy_system.sh    Deploy an archived system to zbereshit for boot.
+
+man/man8/             mdoc(7) man pages for each command.
 
 etc/
   derivations/        Default text-to-binary derivation databases, per branch.
     stable-15.db      master.passwd->pwd.db, login.conf->login.conf.db, etc.
 
 minhag/               Per-target configuration ("customs").
-  systems/            System targets (bare metal, bootable).
+  foundations/        Build configurations (SRC_BRANCH, KERNCONF, etc.)
     <name>/
       build.conf      Build overrides. Empty = default kernel + world.
+  systems/            System targets (bare metal, bootable).
+    <name>/
+      <foundation>.foundation  Zero-byte file; filename = foundation.
       compose.sh         Opaque replay commands (one per line).
       derivations.local  Custom text-to-binary entries.
-      mtree.dist      Baseline mtree for the target.
-      pkg.list        Full package list (auto-populated).
+      fstab.local        Recipe-only mounts (container deps, shared pools).
+      mtree.dist         Baseline mtree for the target.
+      pkg.list           Full package list (auto-populated).
   containers/         Container targets (jails).
     <name>/
       (same as systems, plus:)
@@ -78,13 +98,13 @@ old/                  Previous-era scripts, preserved for reference.
 ## Configuration
 
 Two-tier, sysrc(8) format. `parasa.conf` provides defaults. Each
-target's `build.conf` overrides them. An empty `build.conf` builds a
+foundation's `build.conf` overrides them. An empty `build.conf` builds a
 default GENERIC kernel and world.
 
 ```sh
 # Query effective config:
 sysrc -f parasa.conf SRC_BRANCH
-sysrc -f minhag/systems/myhost/build.conf SRC_BRANCH
+sysrc -f minhag/foundations/mybase/build.conf SRC_BRANCH
 ```
 
 ## How rebase works
