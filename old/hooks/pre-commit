@@ -2,7 +2,7 @@
 
 set -eu
 exec < /dev/tty
-. /home/miri/project-mishkan/helpers.sh
+. /home/miri/project-parasa/helpers.sh
 confirm "Generate mtree for this commit?" && {
 	REPO_ROOT="$(git rev-parse --show-toplevel)/"
 	root-only

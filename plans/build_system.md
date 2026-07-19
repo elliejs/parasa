@@ -74,8 +74,8 @@ Normal data-lake mounts go into the system's `/etc/fstab` as the first commit on
 | `scripts/new_system.sh` | **Create** | Create system on a foundation, optionally deploy |
 | `scripts/deploy_system.sh` | **Create** | Deploy archived system to zbereshit + nextboot |
 | `scripts/helpers.sh` | **Edit** | Add `msysrc()`, `zfs_dataset_exists()`, `git_branch_exists()`, `get_foundation()` |
-| `index.sh` | **Edit** | Add `mishkan_new_foundation()`, `mishkan_new_system()`, `mishkan_deploy_system()` |
-| `etc/mtree.ignore` | **Create** | Ships with mishkan repo; contains `.git` |
+| `index.sh` | **Edit** | Add `parasa_new_foundation()`, `parasa_new_system()`, `parasa_deploy_system()` |
+| `etc/mtree.ignore` | **Create** | Ships with parasa repo; contains `.git` |
 | `docs/idea.md` | **Edit** | Foundation concept, fstab split, command family, dataset renames |
 | `docs/user_stories_build_system.md` | **Rewrite** | Split into foundation + system stories |
 | `docs/drift_manifest.md` | **Edit** | Update build.conf refs to foundations |
@@ -145,7 +145,7 @@ Mode detection:
     1. `git add .` — stages everything including base var/ files
     2. Create `.gitignore`: `var/`, `usr/local/`, `tmp/`. NOT `home/` — whether to gitignore home is a per-system/container decision, asked during `new_system`/`new_container` and applied in the inaugural commit.
     3. `git add .gitignore`
-    4. Generate mtree: `generate_mtree /zshemot/tablets $MINHAG_DIR $MISHKAN_DIR/etc/mtree.ignore`
+    4. Generate mtree: `generate_mtree /zshemot/tablets $MINHAG_DIR $PARASA_DIR/etc/mtree.ignore`
     5. `git commit -m "$ARTIFACT_NAME"`
     6. `git push origin foundation/$FOUNDATION_NAME`
 
@@ -211,7 +211,7 @@ The standard data-lake mounts (var, tmp, usr/local) are always auto-included in 
    - `derivations.local` (empty)
    - `pkg.list` (empty)
    - `fstab.local` (recipe-only mounts, or empty if none)
-   - `mtree.dist` (empty, populated later by mishkan-diff)
+   - `mtree.dist` (empty, populated later by parasa-diff)
 8. **`create_system_datasets`** — on zbamidbar:
    - `ztouch zbamidbar/system-data/$SYSTEM_NAME`
    - Full `zfs send | recv` from `zbamidbar/sinai.zfs/foundations/$FOUNDATION_NAME/var` to `zbamidbar/system-data/$SYSTEM_NAME/var` (independent copy of pristine var)
@@ -325,7 +325,7 @@ Each system/container has exactly one zero-byte file named `<foundation-name>.fo
 **`msysrc()`** — two-tier config lookup:
 ```
 # Usage: msysrc foundation_name VAR_NAME [default]
-# Checks minhag/foundations/<name>/build.conf first, falls back to mishkan.conf.
+# Checks minhag/foundations/<name>/build.conf first, falls back to parasa.conf.
 ```
 
 **`zfs_dataset_exists()`** — `zfs list -H -o name "$1" >/dev/null 2>&1`
@@ -377,7 +377,7 @@ Each system/container has exactly one zero-byte file named `<foundation-name>.fo
 In `scripts/stage0-bootstrap.sh`:
 - `zbamidbar/sinai/tablets.git` → `zbamidbar/sinai.git` ✓
 - `zbamidbar/sinai/tablets.zfs` → `zbamidbar/sinai.zfs` ✓
-- `zbamidbar/sinai/mishkan.git` → `zbamidbar/mishkan.git` (flattened) ✓
+- `zbamidbar/sinai/parasa.git` → `zbamidbar/parasa.git` (flattened) ✓
 - `zbamidbar/sinai` parent dataset removed (no longer needed) ✓
 - `zshemot/tablets` + `zshemot/tablets/var` removed from bootstrap (transient) ✓
 
@@ -396,11 +396,11 @@ In `scripts/stage0-bootstrap.sh`:
 
 ## Verification
 
-1. `mishkan_new_foundation -s generic-stable15 -d` — dry-run foundation build
-2. `mishkan_new_foundation` — interactive foundation build (with `$EDITOR` offer)
-3. `mishkan_new_system -s wonderland -f generic-stable15` — interactive new system
-4. `mishkan_new_system -s testbox -f generic-stable15 -qbb` — quiet full pipeline
-5. `mishkan_deploy_system -s wonderland -n` — standalone deploy + nextboot
+1. `parasa_new_foundation -s generic-stable15 -d` — dry-run foundation build
+2. `parasa_new_foundation` — interactive foundation build (with `$EDITOR` offer)
+3. `parasa_new_system -s wonderland -f generic-stable15` — interactive new system
+4. `parasa_new_system -s testbox -f generic-stable15 -qbb` — quiet full pipeline
+5. `parasa_deploy_system -s wonderland -n` — standalone deploy + nextboot
 6. Name collision → clear error
 7. Missing foundation → error listing available foundations
 8. Verify inaugural commit: after `new_system`, check `system/<name>` branch has fstab changes

@@ -1,8 +1,8 @@
-# Project Mishkan, a composable, easy to update, thin interface to your FreeBSD computer.
+# Project Parasa, a composable, easy to update, thin interface to your FreeBSD computer.
 
 ## Overview
 
-The mishkan was the Israelites' portable residence of Hashem. Much like the mishkan, this project creates a framework for portably moving your computer around a wilderness of scrap files and "mold" -- the cruft from misfiring ideas and dependency installs that ended up not doing what you wanted them to.
+A parasa (parasang) is an ancient unit of distance — the length of a journey, not the destination. This project is named for that idea: parasa measures and manages the distance between a pristine FreeBSD build and your running system. It creates a composable framework for tracking, versioning, and deploying your system state across a wilderness of configuration drift and accumulated cruft.
 
 # Important
 
@@ -11,7 +11,7 @@ The mishkan was the Israelites' portable residence of Hashem. Much like the mish
 - Write /bin/sh compatible scripts, and shebang them. Do not rely on bash-isms.
 - When reading a man page, use a simple pager: `man -P cat`.
 - Container and jail are synonyms. We do not use docker, etc. A container is a jail.
-- Use underscores, not kebab-case, for all mishkan function and command names (e.g. `mishkan_bootstrap`, not `mishkan-bootstrap`).
+- Use underscores, not kebab-case, for all parasa function and command names (e.g. `parasa_bootstrap`, not `parasa-bootstrap`).
 - All implementation plans and design outlines go in `plans/` at the repo root. Keep good records — this project has many moving pieces.
 
 # Concept 0: Bootstrapping
@@ -82,18 +82,18 @@ These pools have the following meaning:
 - zshemot: Literally "names". The second book of the torah, this is the name and configuration index for our entire project. If our boot pool dies, this data pool should allow us to recover the configurations used to construct the boot pool.
 - zbamidbar: Literally "in the wilderness". The fourth book of the torah, this pool is our data lake. It contains all manner of large data stores and is 8 Terabytes in size. Things like: Jail user directories, pkg install directories, build repositories.
 
-## Bootstrap phase 1: Mishkan dataset organization
+## Bootstrap phase 1: Parasa dataset organization
 
-Within these pools, mishkan controls an authoritative layout of the system.
+Within these pools, parasa controls an authoritative layout of the system.
 
 - zbereshit/
   - systems/          Root dataset for the active boot system, and any other inactive, but cross-bootable, systems. The active dataset will be mounted at /, and the other datasets are unmounted, though could be mounted at /systems
   - containers/       Root dataset for containers, mounted at /containers
 - zshemot/
   - torah/            The FreeBSD src repository
-  - mishkan/          The mishkan framework itself (public git repo clone)
+  - parasa/          The parasa framework itself (public git repo clone)
     - minhag/         Literally "customs". User configuration per target. See below.
-    - etc/            Defaults shipped with mishkan (derivation databases, jail.conf template)
+    - etc/            Defaults shipped with parasa (derivation databases, jail.conf template)
   - tablets/          Transient build workspace (created on demand, destroyed after use)
     - var/            Mounted separate var dataset (also transient)
 - zbamidbar/
@@ -102,13 +102,13 @@ Within these pools, mishkan controls an authoritative layout of the system.
   - sinai.git         Bare git remote for foundation/system/container branches
   - sinai.zfs         ZFS send/recv archive (foundations only — systems tracked by git+mtree+compose)
     - foundations/    Pristine ZFS archives of each foundation build
-  - mishkan.git       Bare git remote for the mishkan config repo (zshemot/mishkan's local remote)
+  - parasa.git       Bare git remote for the parasa config repo (zshemot/parasa's local remote)
 
   Unless otherwise noted (zbereshit/containers, zbamidbar/container-data zbamidbar/system-data), all datasets are mounted at their logical mount point, eg /[pool-name]/[dataset-hierarchy]/
 
 ### Phase Summary:
 
-The boostrap phase should be one interactive shell function which asks the user for disk lists (eg ada0 ada1) and zpool keywords (eg mirror) to pass to zpool-create(8). Simply pass their string to zpool create and retry if failed, and surface the error. Ask for each of the three main data pools in a mishkan system. After that, it should perform the entire bootstrap format phase of all disks. NOTE: Do not allow the user to overwrite the currently running disk. Check for root access before starting, as zfs will require it. Perform interactive password input for the geli passwords. Write a help message for the function.
+The boostrap phase should be one interactive shell function which asks the user for disk lists (eg ada0 ada1) and zpool keywords (eg mirror) to pass to zpool-create(8). Simply pass their string to zpool create and retry if failed, and surface the error. Ask for each of the three main data pools in a parasa system. After that, it should perform the entire bootstrap format phase of all disks. NOTE: Do not allow the user to overwrite the currently running disk. Check for root access before starting, as zfs will require it. Perform interactive password input for the geli passwords. Write a help message for the function.
 IMPORTANT: Do not ever test this function without permission. You can overwrite the entire system this way.
 Future: migrate to bsddialog(1)
 
@@ -121,10 +121,10 @@ The three pools serve distinct roles:
   containers with their delta chains committed to git. Its remote is
   zbamidbar/sinai.git.
 - **zshemot** (config pool): Where the scaffolds and scripts live. Basically
-  just a clone of the mishkan repo, plus the FreeBSD src tree. The build
+  just a clone of the parasa repo, plus the FreeBSD src tree. The build
   workspace (zshemot/tablets) is transient — created on demand by
   new_foundation or new_system, destroyed after use. Its local remote is
-  zbamidbar/mishkan.git.
+  zbamidbar/parasa.git.
 - **zbamidbar** (data lake): Heavy data and accountable foreign mounts.
   Container and system data datasets (usr-local for packages, var, home) are
   stored here and mounted on top of zbereshit containers/systems before
@@ -150,7 +150,7 @@ Packages live on zbamidbar in the target's data dataset:
 `zbamidbar/[system|container]-data/[name]/usr-local`, mounted at
 `/usr/local` (systems) or `/containers/[name]/usr/local` (containers).
 
-On save, `mishkan-diff` collects the full package list into `pkg.list` in
+On save, `parasa-diff` collects the full package list into `pkg.list` in
 the target's minhag directory. On rebase or fresh start, if the usr-local
 dataset already exists, `pkg upgrade` / `pkg install` updates it
 incrementally rather than reinstalling from scratch.
@@ -167,32 +167,32 @@ The next thing we have to do after bootstrapping our entire layout is build a sy
 
 ### Minhag config layout
 
-To properly drive mishkan for anything other than bootstrapping, we need
+To properly drive parasa for anything other than bootstrapping, we need
 configuration files. Because zbereshit is ephemeral (it's a system that can
-be torn down or rebuilt *through* the mishkan framework), the standard
+be torn down or rebuilt *through* the parasa framework), the standard
 ~/.config/ location isn't durable enough. Configuration lives under
-`zshemot/mishkan/minhag/`, inside the mishkan repo clone.
+`zshemot/parasa/minhag/`, inside the parasa repo clone.
 
-The repo itself is cloned into `zshemot/mishkan/`. It ships with default
+The repo itself is cloned into `zshemot/parasa/`. It ships with default
 derivation databases, a jail.conf template, and stage scripts. User
 configuration lives under `minhag/` within the repo — separated visually
 into systems and containers but structurally identical to the framework.
 
 ```
-zshemot/mishkan/
-  mishkan.conf                  Mishkan-wide build defaults. Provides fallback
+zshemot/parasa/
+  parasa.conf                  Parasa-wide build defaults. Provides fallback
                                 values for all targets. sysrc(8) format.
   etc/                          Shipped with the framework (public, upstream)
     derivations/                Default text→binary derivation databases
       stable-14.db              per FreeBSD branch
       stable-15.db
     jail.conf                   Default jail.conf, includes minhag/jail.conf.d/*
-    mtree.ignore                Paths to exclude from mtree (ships with mishkan)
+    mtree.ignore                Paths to exclude from mtree (ships with parasa)
   minhag/
     foundations/                 Build configurations (shared across systems/containers)
       [foundation-name]/
         build.conf              SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
-                                Two-tier: values here override mishkan.conf.
+                                Two-tier: values here override parasa.conf.
     systems/                    Per-system target directories
       [system-name]/
         [foundation].foundation Zero-byte file; filename = which foundation
@@ -267,7 +267,7 @@ datasets can mount at different paths on different systems. FreeBSD
 
 See `plans/build_system.md` for the full implementation plan.
 
-Build configuration is two-tier: `mishkan.conf` provides defaults,
+Build configuration is two-tier: `parasa.conf` provides defaults,
 `build.conf` (in the foundation) provides per-target overrides. The
 effective config for any build is the maximal set of both, preferring
 `build.conf` where values overlap. `sysrc -f` can query either file.
@@ -347,7 +347,7 @@ The hierarchy (minhag/systems/ vs minhag/containers/) is for human
 readability only.
 
 Container target directories live at
-`/zshemot/mishkan/minhag/containers/[container-name]/` and contain the same
+`/zshemot/parasa/minhag/containers/[container-name]/` and contain the same
 files as system targets: build.conf, compose.sh, derivations.local, mtree.dist,
 pkg.list, plus a jail.conf.
 
@@ -394,7 +394,7 @@ is where the burden comes from. In a perfect world we:
 - For known derived binaries (pwd.db from master.passwd, login.conf.db from
   login.conf): merge the text source via three-way merge, then regenerate the
   binary via the known command (pwd_mkdb, cap_mkdb, etc.). No compose.sh entry
-  needed — the derivation relationships are well-known and ship with mishkan.
+  needed — the derivation relationships are well-known and ship with parasa.
 - For environment state (SSH host keys, SSL certs, keytabs): git-track the
   binary directly. These are small, rarely change, and should be preserved
   across rebases, not regenerated. On conflict, keep ours.
@@ -404,7 +404,7 @@ is where the burden comes from. In a perfect world we:
   or derived.
 
 Detection uses mtree: the build phase produces `mtree.dist` (in the target's minhag directory) with
-sha512 content hashes. A `mishkan-diff` tool compares the live filesystem
+sha512 content hashes. A `parasa-diff` tool compares the live filesystem
 against this baseline and auto-classifies what it can (text → git, derived
 binary → derivations.db, already git-tracked → environment state). Only
 truly unknown binaries require admin input, and the classification prompt
@@ -434,6 +434,6 @@ This keeps us tracking the base system files in var, but bans tracking any furth
 
 # Helpers: A useful composition
 
-Useful tiny functions should be created and used widely. Most to all of these tiny functions should be available to the mishkan system administrator, and should be sourced on login.
+Useful tiny functions should be created and used widely. Most to all of these tiny functions should be available to the parasa system administrator, and should be sourced on login.
 
 ### msysrc [sys] [var] - a function interface to sysrc that checks the system or container and the system-wide config files for the variable.

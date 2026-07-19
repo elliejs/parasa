@@ -1,5 +1,5 @@
 #!/bin/sh
-# stage0-bootstrap -- One-time disk initialization for a new mishkan system.
+# stage0-bootstrap -- One-time disk initialization for a new parasa system.
 #
 # Partitions the boot disk, GELI-encrypts all pool devices, creates ZFS pools,
 # and builds the initial dataset hierarchy.
@@ -14,7 +14,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
 print_help() {
 	cat <<'EOF'
-stage0-bootstrap -- Initialize disk layout for a new mishkan system.
+stage0-bootstrap -- Initialize disk layout for a new parasa system.
 
 Usage: stage0-bootstrap [-dh]
 
@@ -28,7 +28,7 @@ Performs, in order:
   3. GELI-encrypt all pool devices (one passphrase per pool, entered interactively)
   4. glabel each GELI provider with a user-chosen label
   5. Create ZFS pools zbereshit, zshemot, zbamidbar
-  6. Build the mishkan ZFS dataset hierarchy
+  6. Build the parasa ZFS dataset hierarchy
 
 DANGER: All data on selected disks will be destroyed.
 EOF
@@ -251,14 +251,14 @@ create_datasets() {
 	# -- zshemot --
 	# Note: zshemot/tablets is transient — created by new_foundation, not bootstrap
 	run zfs create -o mountpoint=/zshemot/torah    -o canmount=noauto  zshemot/torah
-	run zfs create -o mountpoint=/zshemot/mishkan  -o canmount=noauto  zshemot/mishkan
+	run zfs create -o mountpoint=/zshemot/parasa  -o canmount=noauto  zshemot/parasa
 
 	# -- zbamidbar --
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/container-data
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/system-data
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/sinai.git
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/sinai.zfs
-	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/mishkan.git
+	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/parasa.git
 }
 
 # ── EFI partition setup ──────────────────────────────────────────────────────
@@ -266,7 +266,7 @@ create_datasets() {
 install_efi_loader() {
 	local efi_part="$1"
 	local efi_tmp
-	efi_tmp=$(mktemp -d /tmp/mishkan-efi-XXXXXX)
+	efi_tmp=$(mktemp -d /tmp/parasa-efi-XXXXXX)
 
 	run newfs_msdos -F 32 -c 1 "$efi_part"
 	run mount -t msdosfs "$efi_part" "$efi_tmp"
@@ -282,7 +282,7 @@ install_efi_loader() {
 
 root_only
 
-printf "\n=== MISHKAN STAGE 0: DISK BOOTSTRAP ===\n"
+printf "\n=== PARASA STAGE 0: DISK BOOTSTRAP ===\n"
 printf "WARNING: All data on selected disks will be DESTROYED.\n"
 $DRY_RUN && printf "(dry-run mode: no changes will be made)\n"
 printf "\n"

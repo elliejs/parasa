@@ -9,7 +9,7 @@
 set -eu
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-MISHKAN_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
+PARASA_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 . "${SCRIPT_DIR}/helpers.sh"
 
 # ── Help ────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ progress() {
 # ── Resolve foundation and snapshot ─────────────────────────────────────────
 
 resolve_snapshot() {
-	local minhag="${MISHKAN_DIR}/minhag/systems/${SYSTEM_NAME}"
+	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
 	[ -d "$minhag" ] || die "System minhag dir not found: ${minhag}"
 
 	FOUNDATION_NAME=$(get_foundation "$minhag")

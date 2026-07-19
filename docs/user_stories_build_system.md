@@ -9,8 +9,8 @@ See `plans/build_system.md` for the full implementation plan.
 
 ## Story A: New foundation, interactive
 
-Alice opens a pristine, post-bootstrap mishkan computer. She runs
-`mishkan_new_foundation` with no arguments. The command detects no `-s`
+Alice opens a pristine, post-bootstrap parasa computer. She runs
+`parasa_new_foundation` with no arguments. The command detects no `-s`
 flag and launches in interactive mode.
 
 1. **Name**: The command asks for a foundation name. Alice types
@@ -57,7 +57,7 @@ Alice now has a foundation she can use to create systems or containers.
 
 Bob runs:
 ```
-mishkan_new_foundation -s generic-stable15 -o src_branch=stable/15 -qq
+parasa_new_foundation -s generic-stable15 -o src_branch=stable/15 -qq
 ```
 
 `-s` provides the name, `-o` provides the build config, `-qq` suppresses
@@ -70,7 +70,7 @@ doesn't exist), it dies with an error.
 
 ## Story C: New system, interactive
 
-Alice has her `generic-stable15` foundation. She runs `mishkan_new_system`
+Alice has her `generic-stable15` foundation. She runs `parasa_new_system`
 with no arguments.
 
 1. **System name**: Prompted. She types `wonderland`. The command checks
@@ -101,7 +101,7 @@ with no arguments.
    - `derivations.local` (empty)
    - `pkg.list` (empty)
    - `fstab.local` (empty — no recipe-only mounts)
-   - `mtree.dist` (empty, populated later by mishkan-diff)
+   - `mtree.dist` (empty, populated later by parasa-diff)
 
 6. **Create datasets**: On zbamidbar:
    - `zbamidbar/system-data/wonderland` (parent)
@@ -139,7 +139,7 @@ with no arguments.
 
 Bob runs:
 ```
-mishkan_new_system -s testbox -f generic-stable15 -o home_dataset=no -qbb
+parasa_new_system -s testbox -f generic-stable15 -o home_dataset=no -qbb
 ```
 
 - `-s testbox` — system name
@@ -160,7 +160,7 @@ interaction.
 Carol has a system `wonderland` already created (via `new_system`) but not
 yet deployed. She runs:
 ```
-mishkan_deploy_system -s wonderland -n
+parasa_deploy_system -s wonderland -n
 ```
 
 1. **Resolve**: The command reads `minhag/systems/wonderland/*.foundation`
@@ -188,7 +188,7 @@ mishkan_deploy_system -s wonderland -n
 
 Carol runs:
 ```
-mishkan_new_system -s mybox -f generic-stable15 -o home_dataset=yes
+parasa_new_system -s mybox -f generic-stable15 -o home_dataset=yes
 ```
 
 No `-q` flag, so the command enters semi-interactive mode. Every question

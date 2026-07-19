@@ -75,7 +75,7 @@ Examples: `pwd.db`, `spwd.db` (from `master.passwd` via `pwd_mkdb`),
   regeneration command if the text source changed. Verify the binary hash
   after regen matches what the regeneration command should produce.
 - **Admin burden**: none — the derivation relationships are well-known and
-  ship with mishkan
+  ship with parasa
 
 This is how etcupdate(8) handles the passwd problem: it never tries to merge
 `pwd.db`. It merges `master.passwd` (text, three-way merge works) and then
@@ -91,7 +91,7 @@ Kerberos keytabs, machine-specific credentials
 
 - **Detection**: mtree hash change (automatic)
 - **Replay**: **none needed** — these files are preserved, not regenerated
-- **Admin burden**: one-time classification via `mishkan-diff` prompt
+- **Admin burden**: one-time classification via `parasa-diff` prompt
 
 These files have nothing to do with the base system version. An SSH host key
 exists because this machine is this machine, not because of anything in the
@@ -102,7 +102,7 @@ exactly as-is.
 change, and there's no merge concern — on conflict, the resolution is always
 "keep ours." Git handles this naturally. No separate `preserve.list` needed.
 
-When `mishkan-diff` encounters a new binary and the admin classifies it as
+When `parasa-diff` encounters a new binary and the admin classifies it as
 environment state, we simply `git add` it. From then on, git carries it
 through rebases.
 
@@ -123,7 +123,7 @@ these and essentially nothing else.
 
 ### The drift manifest flat file
 
-The original design stored a separate `var/db/mishkan/drift` file with
+The original design stored a separate `var/db/parasa/drift` file with
 status/hash/path records. This is redundant:
 
 - **Detection** is handled by mtree. The build phase already produces
@@ -147,7 +147,7 @@ The classification destinations ARE the memory. No separate ledger needed.
 ## derivations.db
 
 A static lookup table of text→binary derivation relationships, shipped with
-mishkan and pinned to FreeBSD version sets.
+parasa and pinned to FreeBSD version sets.
 
 ### Format
 
@@ -175,17 +175,17 @@ FreeBSD 13, 14, and 15. Version pinning is a future-proofing mechanism: if
 FreeBSD 16 adds a new text→binary pair, the `stable/16` derivations file
 picks it up without breaking older systems.
 
-The base set ships with the mishkan framework at
-`zshemot/mishkan/etc/derivations/stable-14.db` (one file per FreeBSD
+The base set ships with the parasa framework at
+`zshemot/parasa/etc/derivations/stable-14.db` (one file per FreeBSD
 branch). During the build phase, the appropriate file is copied into the
-artifact at `etc/mishkan/derivations.db`.
+artifact at `etc/parasa/derivations.db`.
 
 Per-target custom derivation entries live in the minhag target directory:
-`zshemot/mishkan/minhag/systems/[name]/derivations.local` (or containers/).
-At runtime, `mishkan-diff` reads both the base `derivations.db` from the
+`zshemot/parasa/minhag/systems/[name]/derivations.local` (or containers/).
+At runtime, `parasa-diff` reads both the base `derivations.db` from the
 system tree and the target's `derivations.local` from minhag.
 
-## mishkan-diff
+## parasa-diff
 
 The detection and classification tool. Runs interactively (manually or on
 login). Replaces the original drift-manifest-based design.
@@ -193,7 +193,7 @@ login). Replaces the original drift-manifest-based design.
 ### Detection
 
 ```
-mtree -f /zshemot/mishkan/minhag/[type]/[name]/mtree.dist -p /  →  list of changed files
+mtree -f /zshemot/parasa/minhag/[type]/[name]/mtree.dist -p /  →  list of changed files
 
 for each changed file:
 
@@ -232,14 +232,14 @@ Option `[s]` does nothing — mtree will flag it again next run.
 
 ### Pre-rebase gate
 
-Before rebase, `mishkan-diff` must exit clean. "Clean" means every binary
+Before rebase, `parasa-diff` must exit clean. "Clean" means every binary
 change is classified — no unclassified files remain. If any exist:
 
 ```
 Cannot rebase: unclassified binary changes:
   etc/krb5.keytab
 
-Run mishkan-diff and classify each file before rebasing.
+Run parasa-diff and classify each file before rebasing.
 ```
 
 ## Rebase procedure
@@ -283,11 +283,11 @@ Run mishkan-diff and classify each file before rebasing.
      New mtree.dist captures the post-rebase state.
 
 7. Validate
-     Run mishkan-diff — should find zero unclassified changes.
+     Run parasa-diff — should find zero unclassified changes.
 
 8. Save (two commits)
      Commit 1: zbereshit delta branch → zbamidbar/sinai.git
-     Commit 2: zshemot/mishkan (updated pkg.list, etc.) → zbamidbar/mishkan.git
+     Commit 2: zshemot/parasa (updated pkg.list, etc.) → zbamidbar/parasa.git
 ```
 
 Steps 1–2 use zshemot config (pkg.list, compose.sh). Steps 4–6 are
@@ -300,7 +300,7 @@ etcupdate(8) is being deprecated in favor of pkgbase, which packages the
 FreeBSD base system as pkg(8) packages. pkgbase handles config conflicts by
 dropping `.pkgnew` files for manual merge.
 
-pkgbase is useful for in-place upgrades of a running system. Mishkan's model
+pkgbase is useful for in-place upgrades of a running system. Parasa's model
 is different: we build clean base artifacts from source and compose deltas on
 top. We need three-way merge logic for the text files in step 3, but we
 don't need etcupdate's directory management or pkgbase's package-level
@@ -313,10 +313,10 @@ The build phase produces `mtree.dist` in the target's minhag directory on
 zshemot, with content-only sha512 hashes (no time, nlink, or flags — see
 helpers.sh `generate_mtree`). This is the baseline. Storing it on zshemot
 (rather than inside the system tree on zbereshit) means anyone initializing
-a target from upstream has the mtree available from the mishkan repo alone.
+a target from upstream has the mtree available from the parasa repo alone.
 
 After rebase, a new `mtree.dist` is generated capturing the merged state.
-On the next `mishkan-diff` run, comparison is against this new baseline.
+On the next `parasa-diff` run, comparison is against this new baseline.
 
 mtree answers: "what changed since the last known-good state?"
 The classification system answers: "for each change, what's the replay

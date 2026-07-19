@@ -2,7 +2,7 @@
 
 ## What this script does
 
-Performs one-time disk initialization for a fresh mishkan system. Meant to
+Performs one-time disk initialization for a fresh parasa system. Meant to
 be run once, from an installer environment or a live system, against disks
 that are not the running root. Order of operations:
 
@@ -11,7 +11,7 @@ that are not the running root. Order of operations:
 3. GELI-encrypt all three pool devices (separate passphrases per pool)
 4. GLABEL the GELI providers with stable names
 5. Create the three ZFS pools
-6. Build the mishkan dataset hierarchy
+6. Build the parasa dataset hierarchy
 
 ## Script location and structure
 
@@ -109,7 +109,7 @@ The user provides a disk list and an optional topology keyword (e.g.,
 
 All datasets inherit `mountpoint=none, canmount=noauto` from pool root.
 Per-dataset overrides set below. Datasets should follow the least-mounted
-policy: only mounted when a mishkan script needs them.
+policy: only mounted when a parasa script needs them.
 
 ### zbereshit
 
@@ -131,11 +131,11 @@ zshemot/torah
   mountpoint=/zshemot/torah, canmount=noauto
   FreeBSD src.git clone. Mounted only during build phases.
 
-zshemot/mishkan
-  mountpoint=/zshemot/mishkan, canmount=noauto
-  The mishkan framework repo clone. Contains scripts, default derivation
+zshemot/parasa
+  mountpoint=/zshemot/parasa, canmount=noauto
+  The parasa framework repo clone. Contains scripts, default derivation
   databases, and user configuration (minhag/) per target. Mounted when
-  mishkan scripts need config or during builds.
+  parasa scripts need config or during builds.
 
 Note: zshemot/tablets is NOT created by bootstrap. It is transient —
 created on demand by new_foundation or new_system, destroyed after use.
@@ -160,9 +160,9 @@ zbamidbar/sinai.zfs
   mountpoint=none, canmount=noauto
   ZFS send/recv archive. Contains foundations/ (pristine build archives).
 
-zbamidbar/mishkan.git
+zbamidbar/parasa.git
   mountpoint=none, canmount=noauto
-  Bare git remote for the mishkan config repo (zshemot/mishkan's local remote).
+  Bare git remote for the parasa config repo (zshemot/parasa's local remote).
 ```
 
 ## Script flags

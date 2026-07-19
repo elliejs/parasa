@@ -9,7 +9,7 @@
 set -eu
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-MISHKAN_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
+PARASA_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 . "${SCRIPT_DIR}/helpers.sh"
 
 # ── Help ────────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ collect_foundation_name() {
 }
 
 check_foundation_available() {
-	local minhag="${MISHKAN_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 	if [ -d "$minhag" ]; then
 		die "Foundation '${FOUNDATION_NAME}' already exists in minhag. Use destroy_foundation (future) or pick a new name."
 	fi
@@ -161,11 +161,11 @@ check_foundation_available() {
 }
 
 resolve_build_config() {
-	local build_conf="${MISHKAN_DIR}/minhag/foundations/${FOUNDATION_NAME}/build.conf"
+	local build_conf="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}/build.conf"
 	local default_jobs
 	default_jobs=$(sysctl -n hw.ncpu 2>/dev/null || printf "4")
 
-	# Determine defaults: -o overrides > mishkan.conf > hardcoded
+	# Determine defaults: -o overrides > parasa.conf > hardcoded
 	local def_branch="${OPT_SRC_BRANCH}"
 	local def_kernconf="${OPT_KERNCONF}"
 	local def_jobs="${OPT_MAKE_JOBS}"
@@ -192,7 +192,7 @@ print_summary() {
 # ── Phase 2: Preparation ───────────────────────────────────────────────────
 
 create_minhag_dir() {
-	local minhag="${MISHKAN_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 	progress "Creating minhag dir: ${minhag}"
 	run mkdir -p "$minhag"
 
@@ -200,7 +200,7 @@ create_minhag_dir() {
 	if ! $DRY_RUN; then
 		cat > "${minhag}/build.conf" <<-EOF
 		# build.conf for foundation: ${FOUNDATION_NAME}
-		# Per-foundation overrides. Falls back to mishkan.conf.
+		# Per-foundation overrides. Falls back to parasa.conf.
 		SRC_BRANCH="${SRC_BRANCH}"
 		KERNCONF="${KERNCONF}"
 		MAKE_JOBS="${MAKE_JOBS}"
@@ -315,7 +315,7 @@ run_build() {
 
 commit_build() {
 	local tablets="/zshemot/tablets"
-	local minhag="${MISHKAN_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 
 	progress "Committing build to git"
 
@@ -335,9 +335,9 @@ commit_build() {
 	# Generate mtree
 	progress "Generating mtree baseline"
 	if ! $DRY_RUN; then
-		generate_mtree "$tablets" "$minhag" "${MISHKAN_DIR}/etc/mtree.ignore"
+		generate_mtree "$tablets" "$minhag" "${PARASA_DIR}/etc/mtree.ignore"
 	else
-		printf "  [dry] generate_mtree %s %s %s\n" "$tablets" "$minhag" "${MISHKAN_DIR}/etc/mtree.ignore" >&2
+		printf "  [dry] generate_mtree %s %s %s\n" "$tablets" "$minhag" "${PARASA_DIR}/etc/mtree.ignore" >&2
 	fi
 
 	# Build artifact name

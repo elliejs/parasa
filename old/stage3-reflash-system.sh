@@ -1,8 +1,8 @@
 #! /bin/bash
 set -euo pipefail
 
-MISHKAN_SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-. "${MISHKAN_SCRIPT_DIR}/helpers.sh"
+PARASA_SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
+. "${PARASA_SCRIPT_DIR}/helpers.sh"
 
 root-only
 

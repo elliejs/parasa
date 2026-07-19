@@ -9,7 +9,7 @@
 set -eu
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-MISHKAN_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
+PARASA_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 . "${SCRIPT_DIR}/helpers.sh"
 
 # ── Help ────────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ collect_system_name() {
 }
 
 check_system_available() {
-	local minhag="${MISHKAN_DIR}/minhag/systems/${SYSTEM_NAME}"
+	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
 	if [ -d "$minhag" ]; then
 		die "System '${SYSTEM_NAME}' already exists in minhag. Use destroy_system (future) or pick a new name."
 	fi
@@ -159,7 +159,7 @@ check_system_available() {
 collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
 		# Validate the named foundation exists
-		local fminhag="${MISHKAN_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
 		zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}" || \
 			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/sinai.zfs."
@@ -255,7 +255,7 @@ print_summary() {
 # ── Phase 2: Setup ─────────────────────────────────────────────────────────
 
 create_minhag_dir() {
-	local minhag="${MISHKAN_DIR}/minhag/systems/${SYSTEM_NAME}"
+	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
 
 	progress "Creating minhag dir: ${minhag}"
 	run mkdir -p "$minhag"

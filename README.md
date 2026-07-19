@@ -1,4 +1,4 @@
-# Mishkan
+# Parasa
 
 A composable system-tracking framework for FreeBSD. Build clean base
 systems from source, track every delta with git, and rebase your
@@ -6,7 +6,7 @@ customizations onto new releases without losing anything.
 
 ## What it does
 
-Mishkan sits between you and your FreeBSD systems (bare metal and jails).
+Parasa sits between you and your FreeBSD systems (bare metal and jails).
 It builds base system artifacts from the FreeBSD source tree, tracks your
 customizations as a git delta chain on top of those artifacts, and gives
 you a clean path to rebase those customizations when the base system is
@@ -14,7 +14,7 @@ upgraded.
 
 The hard problem is binary files. Git can three-way merge text configs
 beautifully, but binary files (passwd databases, login.conf.db, keytabs,
-certificates) produce unresolvable conflicts. Mishkan solves this with
+certificates) produce unresolvable conflicts. Parasa solves this with
 **stratified change tracking** — different types of changes get different
 replay strategies:
 
@@ -31,13 +31,13 @@ else is automatic.
 
 ## Pool layout
 
-Mishkan organizes storage across three ZFS pools, each GELI-encrypted:
+Parasa organizes storage across three ZFS pools, each GELI-encrypted:
 
 - **zbereshit** (boot pool) — the running system. Contains live systems
   and containers with their git delta chains. This is the result of all
   the scaffolding, scripts, and foreign mounts working together.
 - **zshemot** (config pool) — where the scaffolds and scripts live. Houses
-  the FreeBSD source tree, the mishkan framework clone, and the build
+  the FreeBSD source tree, the parasa framework clone, and the build
   workspace.
 - **zbamidbar** (data lake) — heavy data and foreign mounts. Per-target
   datasets for packages (usr-local), var, and home are stored here and
@@ -47,8 +47,8 @@ Mishkan organizes storage across three ZFS pools, each GELI-encrypted:
 ## Repo structure
 
 ```
-index.sh              Source on login. Exposes mishkan-* shell functions.
-mishkan.conf          Mishkan-wide build defaults (sysrc format).
+index.sh              Source on login. Exposes parasa-* shell functions.
+parasa.conf          Parasa-wide build defaults (sysrc format).
 
 scripts/
   helpers.sh          Shared /bin/sh utilities (ZFS, mtree, prompts).
@@ -77,13 +77,13 @@ old/                  Previous-era scripts, preserved for reference.
 
 ## Configuration
 
-Two-tier, sysrc(8) format. `mishkan.conf` provides defaults. Each
+Two-tier, sysrc(8) format. `parasa.conf` provides defaults. Each
 target's `build.conf` overrides them. An empty `build.conf` builds a
 default GENERIC kernel and world.
 
 ```sh
 # Query effective config:
-sysrc -f mishkan.conf SRC_BRANCH
+sysrc -f parasa.conf SRC_BRANCH
 sysrc -f minhag/systems/myhost/build.conf SRC_BRANCH
 ```
 
@@ -95,13 +95,13 @@ sysrc -f minhag/systems/myhost/build.conf SRC_BRANCH
 4. Three-way merge text files (git rebase of the delta chain)
 5. Regenerate derived binaries (pwd_mkdb, cap_mkdb, etc.)
 6. Environment state carries through the git rebase automatically
-7. Validate with `mishkan-diff` — should find zero unclassified changes
+7. Validate with `parasa-diff` — should find zero unclassified changes
 
 ## Save workflow
 
 Saving a system or container is one interactive session, two git commits:
 
-1. **zbereshit commit** — `mishkan-diff` detects changes via mtree,
+1. **zbereshit commit** — `parasa-diff` detects changes via mtree,
    auto-classifies text files and known derivations, prompts the admin
    for any unclassified binaries, commits the delta.
 2. **zshemot commit** — classifications from step 1 updated the target's

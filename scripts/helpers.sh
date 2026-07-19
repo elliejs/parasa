@@ -1,5 +1,5 @@
 #!/bin/sh
-# helpers.sh -- shared utilities for mishkan stage scripts.
+# helpers.sh -- shared utilities for parasa stage scripts.
 # Source this file; do not execute it directly.
 
 # ── Messaging ─────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ clear_mtree() {
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
-# Two-tier config lookup: target build.conf → mishkan.conf → default.
+# Two-tier config lookup: target build.conf → parasa.conf → default.
 # Usage: msysrc build_conf_path VAR_NAME [default]
 # Prints the value to stdout. Returns 1 if not found and no default.
 msysrc() {
@@ -152,7 +152,7 @@ msysrc() {
 			return 0
 		fi
 	fi
-	val=$(sysrc -f "${MISHKAN_DIR}/mishkan.conf" -qn "$var" 2>/dev/null) || true
+	val=$(sysrc -f "${PARASA_DIR}/parasa.conf" -qn "$var" 2>/dev/null) || true
 	if [ -n "$val" ]; then
 		printf "%s" "$val"
 		return 0
@@ -257,7 +257,7 @@ prompt_yesno() {
 # Usage: select_foundation quiet_level
 # Prints the chosen foundation name to stdout.
 select_foundation() {
-	local quiet="${1:-0}" minhag_dir="${MISHKAN_DIR}/minhag/foundations"
+	local quiet="${1:-0}" minhag_dir="${PARASA_DIR}/minhag/foundations"
 	local name found="" count=0 idx=0
 
 	for d in "$minhag_dir"/*/; do
