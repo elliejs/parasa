@@ -341,7 +341,11 @@ commit_build() {
 	fi
 
 	# Build artifact name
-	ARTIFACT_NAME=$(get_artifact_name /zshemot/torah "$FOUNDATION_NAME")
+	if ! $DRY_RUN; then
+		ARTIFACT_NAME=$(get_artifact_name /zshemot/torah "$FOUNDATION_NAME")
+	else
+		ARTIFACT_NAME="[dry-run-artifact]"
+	fi
 	progress "Artifact: ${ARTIFACT_NAME}"
 
 	# Commit

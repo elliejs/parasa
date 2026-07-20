@@ -199,35 +199,36 @@ Describe "new_foundation.sh"
     # the DRY_RUN guard. Tests verify it reaches the expected stages
     # before that failure point.
 
-    # These tests verify the dry-run reaches each pipeline stage.
-    # The script exits non-zero because get_artifact_name checks
-    # [ -d /zshemot/torah/.git ] outside the DRY_RUN guard — a known
-    # limitation, not a test failure.
+    It "runs the full pipeline in dry-run mode"
+      When run script scripts/new_foundation.sh -s dryfound -q -d
+      The status should be success
+      The error should include "[dry]"
+    End
 
     It "reports build config"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "stable/15"
       The error should include "GENERIC"
     End
 
     It "shows minhag dir creation"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "Creating minhag dir"
       The error should include "dryfound"
     End
 
     It "shows source tree preparation"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "Preparing source tree"
       The error should include "zmount zshemot/torah"
     End
 
     It "creates tablets workspace"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "Creating transient build workspace"
       The error should include "zfs create"
       The error should include "zshemot/tablets"
@@ -235,14 +236,14 @@ Describe "new_foundation.sh"
 
     It "initializes git in tablets"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "Initializing git"
       The error should include "checkout --orphan foundation/dryfound"
     End
 
     It "shows all five make targets"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "buildworld"
       The error should include "buildkernel"
       The error should include "installworld"
@@ -250,24 +251,25 @@ Describe "new_foundation.sh"
       The error should include "distribution"
     End
 
-    It "reaches commit phase before failing on artifact name"
+    It "completes commit and archive phases"
       When run script scripts/new_foundation.sh -s dryfound -q -d
-      The status should be failure
+      The status should be success
       The error should include "Committing build"
-      The error should include "git -C /zshemot/tablets add"
-      The error should include "get_artifact_name"
+      The error should include "Archiving to zbamidbar"
+      The error should include "Destroying transient"
+      The error should include "created successfully"
     End
 
     It "applies -o overrides in dry-run"
       When run script scripts/new_foundation.sh -s dryfound -o kernconf=MYKERNEL -o src_branch=main -q -d
-      The status should be failure
+      The status should be success
       The error should include "MYKERNEL"
       The error should include "main"
     End
 
     It "suppresses progress with -qq"
       When run script scripts/new_foundation.sh -s dryfound -qq -d
-      The status should be failure
+      The status should be success
       The error should include "[dry]"
       The error should not include "==>"
     End
