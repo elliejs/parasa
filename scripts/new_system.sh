@@ -11,6 +11,10 @@ set -eu
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 PARASA_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 . "${SCRIPT_DIR}/helpers.sh"
+. "${SCRIPT_DIR}/workspace.sh"
+
+WS_KIND="system"
+WS_DATA_POOL="system-data"
 
 # ── Help ────────────────────────────────────────────────────────────────────
 
@@ -99,106 +103,18 @@ while getopts ":hds:f:o:qb" opt; do
 done
 shift $((OPTIND - 1))
 
-# ── Dry-run wrapper ─────────────────────────────────────────────────────────
+# ── System-specific options ─────────────────────────────────────────────────
 
-run() {
-	if $DRY_RUN; then
-		printf "  [dry] %s\n" "$*" >&2
-	else
-		"$@"
-	fi
-}
+collect_system_options() {
+	collect_build_options
 
-# ── Progress output ─────────────────────────────────────────────────────────
-
-progress() {
-	[ "$QUIET" -lt 2 ] && printf "\n==> %s\n" "$1" >&2
-	return 0
-}
-
-# ── Cleanup ─────────────────────────────────────────────────────────────────
-
-cleanup() {
-	if [ -n "$SYSTEM_NAME" ] && zfs_dataset_exists "zshemot/amim/${SYSTEM_NAME}"; then
-		printf "Cleaning up transient zshemot/amim/%s workspace...\n" "$SYSTEM_NAME" >&2
-		zfs destroy -r "zshemot/amim/${SYSTEM_NAME}" 2>/dev/null || true
-	fi
-}
-
-# ── Phase 1: Input ──────────────────────────────────────────────────────────
-
-collect_system_name() {
-	if [ -n "$SYSTEM_NAME" ]; then
-		validate_name "$SYSTEM_NAME" "System name" || exit 1
-		return
-	fi
-	if [ "$QUIET" -gt 0 ]; then
-		die "System name required in quiet mode (-s NAME)."
-	fi
-	local resp
-	while true; do
-		printf "System name: " >&2
-		read -r resp || die "EOF reading system name"
-		if validate_name "$resp" "System name"; then
-			SYSTEM_NAME="$resp"
-			return
-		fi
-	done
-}
-
-check_system_available() {
-	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
-	if [ -d "$minhag" ]; then
-		die "System '${SYSTEM_NAME}' already exists in minhag. Use destroy_system (future) or pick a new name."
-	fi
-	if zfs_dataset_exists "zbereshit/systems/${SYSTEM_NAME}"; then
-		die "System '${SYSTEM_NAME}' already deployed on zbereshit."
-	fi
-}
-
-collect_foundation() {
-	if [ -n "$FOUNDATION_NAME" ]; then
-		# Validate the named foundation exists
-		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
-		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
-		zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}" || \
-			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/sinai.zfs."
-		return
-	fi
-	FOUNDATION_NAME=$(select_foundation "$QUIET")
-}
-
-collect_build_options() {
-	# Optional datasets (var and usr/local are always created, not asked)
-	WANT_HOME=$(prompt_yesno "Create /home dataset?" "$OPT_HOME" "$QUIET" && echo yes || echo no)
-	WANT_TMP=$(prompt_yesno "Create /tmp dataset?" "$OPT_TMP" "$QUIET" && echo yes || echo no)
-
+	# System-specific: roothome dataset
 	WANT_ROOTHOME="no"
 	if yesish "$WANT_HOME"; then
 		WANT_ROOTHOME=$(prompt_yesno "Create separate /home/root dataset?" "$OPT_ROOTHOME" "$QUIET" && echo yes || echo no)
 	fi
 
-	# User home datasets
-	USER_HOMES="$OPT_USER_HOMES"
-	if [ "$QUIET" -eq 0 ] && [ -z "$USER_HOMES" ]; then
-		printf "Additional user home datasets (comma-separated, Enter for none): " >&2
-		read -r USER_HOMES || USER_HOMES=""
-	fi
-
-	# Custom mount entries
-	CUSTOM_MOUNTS="$OPT_MOUNT_MAP"
-	if [ "$QUIET" -eq 0 ] && [ -z "$CUSTOM_MOUNTS" ]; then
-		printf "\nCustom mount entries (dataset:mountpoint, one per line, Enter when done):\n" >&2
-		local entry
-		while true; do
-			printf "  mount> " >&2
-			read -r entry || break
-			[ -n "$entry" ] || break
-			CUSTOM_MOUNTS="${CUSTOM_MOUNTS}${CUSTOM_MOUNTS:+ }${entry}"
-		done
-	fi
-
-	# Build fstab lines for custom mounts
+	# Format custom mounts as system fstab lines (zfs, rw,late)
 	SYSTEM_MOUNTS=""
 	if [ -n "$CUSTOM_MOUNTS" ]; then
 		local m dataset mountpoint
@@ -210,6 +126,48 @@ collect_build_options() {
 		done
 	fi
 }
+
+# ── System fstab generation ────────────────────────────────────────────────
+
+build_fstab_lines() {
+	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
+
+	FSTAB_LINES="${data_root}/var	/var	zfs	rw,late	0	0
+${data_root}/usr-local	/usr/local	zfs	rw,late	0	0"
+
+	if yesish "$WANT_HOME"; then
+		FSTAB_LINES="${FSTAB_LINES}
+${data_root}/home	/home	zfs	rw,late	0	0"
+	fi
+	if yesish "$WANT_TMP"; then
+		FSTAB_LINES="${FSTAB_LINES}
+${data_root}/tmp	/tmp	zfs	rw,late	0	0"
+	fi
+	if yesish "$WANT_ROOTHOME"; then
+		FSTAB_LINES="${FSTAB_LINES}
+${data_root}/home/root	/root	zfs	rw,late	0	0"
+	fi
+
+	if [ -n "$USER_HOMES" ]; then
+		local old_ifs="$IFS" user
+		IFS=','
+		for user in $USER_HOMES; do
+			IFS="$old_ifs"
+			user=$(printf "%s" "$user" | tr -d '[:space:]')
+			[ -n "$user" ] || continue
+			FSTAB_LINES="${FSTAB_LINES}
+${data_root}/home/${user}	/home/${user}	zfs	rw,late	0	0"
+		done
+		IFS="$old_ifs"
+	fi
+
+	if [ -n "$SYSTEM_MOUNTS" ]; then
+		FSTAB_LINES="${FSTAB_LINES}
+${SYSTEM_MOUNTS}"
+	fi
+}
+
+# ── System summary ─────────────────────────────────────────────────────────
 
 print_summary() {
 	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
@@ -234,182 +192,31 @@ print_summary() {
 	fi
 }
 
-# ── Phase 2: Setup ─────────────────────────────────────────────────────────
+# ── Main ────────────────────────────────────────────────────────────────────
 
-create_minhag_dir() {
-	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
+main() {
+	root_only
 
-	progress "Creating minhag dir: ${minhag}"
-	run mkdir -p "$minhag"
-
-	if ! $DRY_RUN; then
-		# Zero-byte foundation file
-		: > "${minhag}/${FOUNDATION_NAME}.foundation"
-
-		# Boilerplate files
-		: > "${minhag}/compose.sh"
-		: > "${minhag}/derivations.local"
-		: > "${minhag}/pkg.list"
-		: > "${minhag}/mtree.dist"
-	else
-		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist}\n" \
-			"$minhag" "$FOUNDATION_NAME" >&2
-	fi
-}
-
-create_system_datasets() {
-	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
-	local foundation_var="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}/var"
-
-	progress "Creating data datasets"
-
-	# Parent
-	run ztouch "$data_root" -o mountpoint=none -o canmount=noauto
-
-	# var: copy pristine var from foundation
-	progress "Copying pristine var from foundation"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
-	if ! $DRY_RUN; then
-		# Get the latest snapshot on the foundation var dataset
-		local snap
-		snap=$(get_current_artifact "$foundation_var")
-		if [ -n "$snap" ]; then
-			zfs send "${foundation_var}@${snap}" | \
-				zfs recv -o mountpoint=none -o canmount=noauto "${data_root}/var"
-		else
-			ztouch "${data_root}/var" -o mountpoint=none -o canmount=noauto
-		fi
-	else
-		printf "  [dry] zfs send %s@<snap> | zfs recv %s/var\n" \
-			"$foundation_var" "$data_root" >&2
+	# Phase 1: Input
+	SYSTEM_NAME=$(collect_name "$SYSTEM_NAME" "System")
+	WS_NAME="$SYSTEM_NAME"
+	trap ws_cleanup EXIT
+	check_available
+	collect_foundation
+	collect_system_options
+	print_summary
+	if [ "$QUIET" -eq 0 ]; then
+		confirm "Proceed with system creation?" || exit 0
 	fi
 
-	# usr-local: always created, empty
-	run ztouch "${data_root}/usr-local" -o mountpoint=none -o canmount=noauto
+	# Phase 2: Setup
+	create_minhag_boilerplate
+	create_data_datasets
 
-	# Optional datasets
-	if yesish "$WANT_HOME"; then
-		run ztouch "${data_root}/home" -o mountpoint=none -o canmount=noauto
-	fi
-	if yesish "$WANT_TMP"; then
-		run ztouch "${data_root}/tmp" -o mountpoint=none -o canmount=noauto
-	fi
-	if yesish "$WANT_ROOTHOME"; then
-		run ztouch "${data_root}/home/root" -o mountpoint=none -o canmount=noauto
-	fi
+	# Phase 3: Inaugural commit
+	ws_begin
 
-	# User home datasets
-	if [ -n "$USER_HOMES" ]; then
-		local old_ifs="$IFS" user
-		IFS=','
-		for user in $USER_HOMES; do
-			IFS="$old_ifs"
-			user=$(printf "%s" "$user" | tr -d '[:space:]')
-			[ -n "$user" ] || continue
-			run ztouch "${data_root}/home/${user}" -o mountpoint=none -o canmount=noauto
-		done
-		IFS="$old_ifs"
-	fi
-}
-
-# ── Phase 3: Inaugural commit ──────────────────────────────────────────────
-
-build_fstab_lines() {
-	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
-
-	# Always-included mounts
-	FSTAB_LINES="${data_root}/var	/var	zfs	rw,late	0	0
-${data_root}/usr-local	/usr/local	zfs	rw,late	0	0"
-
-	# Optional standard mounts
-	if yesish "$WANT_HOME"; then
-		FSTAB_LINES="${FSTAB_LINES}
-${data_root}/home	/home	zfs	rw,late	0	0"
-	fi
-	if yesish "$WANT_TMP"; then
-		FSTAB_LINES="${FSTAB_LINES}
-${data_root}/tmp	/tmp	zfs	rw,late	0	0"
-	fi
-	if yesish "$WANT_ROOTHOME"; then
-		FSTAB_LINES="${FSTAB_LINES}
-${data_root}/home/root	/root	zfs	rw,late	0	0"
-	fi
-
-	# User home datasets
-	if [ -n "$USER_HOMES" ]; then
-		local old_ifs="$IFS" user
-		IFS=','
-		for user in $USER_HOMES; do
-			IFS="$old_ifs"
-			user=$(printf "%s" "$user" | tr -d '[:space:]')
-			[ -n "$user" ] || continue
-			FSTAB_LINES="${FSTAB_LINES}
-${data_root}/home/${user}	/home/${user}	zfs	rw,late	0	0"
-		done
-		IFS="$old_ifs"
-	fi
-
-	# Custom mounts
-	if [ -n "$SYSTEM_MOUNTS" ]; then
-		FSTAB_LINES="${FSTAB_LINES}
-${SYSTEM_MOUNTS}"
-	fi
-}
-
-create_inaugural_commit() {
-	local sinai_git="/zbamidbar/sinai.git"
-	local foundation_archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
-	local workspace="/zshemot/amim/${SYSTEM_NAME}"
-
-	progress "Creating inaugural commit"
-
-	# Ensure sinai.git is mounted
-	run zmount zbamidbar/sinai.git "$sinai_git"
-
-	# Ensure amim parent dataset exists
-	run ztouch zshemot/amim -o mountpoint=none -o canmount=noauto
-
-	# Recv foundation to transient workspace
-	progress "Receiving foundation to workspace"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
-
-	if zfs_dataset_exists "zshemot/amim/${SYSTEM_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${SYSTEM_NAME}"
-	fi
-
-	if ! $DRY_RUN; then
-		local snap
-		snap=$(get_current_artifact "$foundation_archive")
-		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
-		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/amim/${SYSTEM_NAME}"
-		zfs mount "zshemot/amim/${SYSTEM_NAME}"
-		zfs mount "zshemot/amim/${SYSTEM_NAME}/var" 2>/dev/null || true
-	else
-		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/amim/%s\n" \
-			"$foundation_archive" "$SYSTEM_NAME" >&2
-	fi
-
-	# Git setup: the recv'd dataset includes .git from foundation build
-	progress "Setting up system branch"
-	if ! $DRY_RUN; then
-		# Verify remote points to sinai.git
-		local current_remote
-		current_remote=$(git -C "$workspace" config remote.origin.url 2>/dev/null || echo "")
-		if [ "$current_remote" != "$sinai_git" ]; then
-			git -C "$workspace" remote set-url origin "$sinai_git" 2>/dev/null || \
-				git -C "$workspace" remote add origin "$sinai_git"
-		fi
-		git -C "$workspace" fetch origin
-
-		# Create system branch from foundation
-		git -C "$workspace" checkout -b "system/${SYSTEM_NAME}" \
-			"foundation/${FOUNDATION_NAME}"
-	else
-		printf "  [dry] git -C %s checkout -b system/%s foundation/%s\n" \
-			"$workspace" "$SYSTEM_NAME" "$FOUNDATION_NAME" >&2
-	fi
-
-	# Write fstab entries
+	# System-specific: write /etc/fstab into workspace
 	build_fstab_lines
 	progress "Writing /etc/fstab entries"
 	if ! $DRY_RUN; then
@@ -417,52 +224,14 @@ create_inaugural_commit() {
 			printf "# System data-lake mounts (generated by new_system)\n"
 			printf "# device\tmountpoint\ttype\toptions\tdump\tpass\n"
 			printf "%s\n" "$FSTAB_LINES"
-		} >> "${workspace}/etc/fstab"
+		} >> "${WS_PATH}/etc/fstab"
 	else
-		printf "  [dry] append fstab entries to %s/etc/fstab\n" "$workspace" >&2
+		printf "  [dry] append fstab entries to %s/etc/fstab\n" "$WS_PATH" >&2
 	fi
+	run git -C "$WS_PATH" add etc/fstab
 
-	# Commit and push
-	run git -C "$workspace" add etc/fstab
-	run git -C "$workspace" commit -m "system/${SYSTEM_NAME} inaugural"
-	run git -C "$workspace" push origin "system/${SYSTEM_NAME}"
-
-	# Wipe workspace
-	progress "Destroying workspace"
-	if [ -d "$workspace" ] && ! $DRY_RUN; then
-		clear_mtree "$workspace"
-	fi
-	if zfs_dataset_exists "zshemot/amim/${SYSTEM_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${SYSTEM_NAME}"
-	fi
-}
-
-# ── Main ────────────────────────────────────────────────────────────────────
-
-main() {
-	root_only
-	trap cleanup EXIT
-
-	# Phase 1: Input
-	collect_system_name
-	check_system_available
-	collect_foundation
-	collect_build_options
-	print_summary
-	if [ "$QUIET" -eq 0 ]; then
-		confirm "Proceed with system creation?" || exit 0
-	fi
-
-	# Phase 2: Setup
-	create_minhag_dir
-	create_system_datasets
-
-	# Phase 3: Inaugural commit
-	create_inaugural_commit
-
-	# Cleanup working mounts
-	run zunmount zbamidbar/sinai.git
-	run zunmount zbamidbar/sinai.zfs
+	ws_commit
+	ws_end
 
 	progress "System '${SYSTEM_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2

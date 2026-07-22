@@ -1,0 +1,287 @@
+#!/bin/sh
+# workspace.sh -- shared workspace lifecycle for system and container creation.
+# Source this file after helpers.sh; do not execute it directly.
+#
+# Required variables (set by caller before sourcing):
+#   PARASA_DIR       repo root
+#   SCRIPT_DIR       scripts directory
+#
+# Required variables (set by caller before calling ws_ functions):
+#   WS_NAME          workspace name (system or container name)
+#   WS_KIND          "system" or "container"
+#   WS_DATA_POOL     "system-data" or "container-data"
+#   FOUNDATION_NAME  foundation this workspace is based on
+#   DRY_RUN          true/false
+#   QUIET            0/1/2
+#
+# Variables set by workspace functions (available to caller after call):
+#   WS_MINHAG        full path to minhag/${WS_KIND}s/$WS_NAME
+#   WS_DATA_ROOT     zbamidbar/$WS_DATA_POOL/$WS_NAME
+#   WS_PATH          /zshemot/amim/$WS_NAME (workspace mount path)
+
+# ── Dry-run wrapper ──────────────────────────────────────────────────────────
+
+run() {
+	if $DRY_RUN; then
+		printf "  [dry] %s\n" "$*" >&2
+	else
+		"$@"
+	fi
+}
+
+# ── Progress output ──────────────────────────────────────────────────────────
+
+progress() {
+	[ "$QUIET" -lt 2 ] && printf "\n==> %s\n" "$1" >&2
+	return 0
+}
+
+# ── Cleanup trap ─────────────────────────────────────────────────────────────
+
+ws_cleanup() {
+	if [ -n "${WS_NAME:-}" ] && zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
+		printf "Cleaning up transient zshemot/amim/%s workspace...\n" "$WS_NAME" >&2
+		zfs destroy -r "zshemot/amim/${WS_NAME}" 2>/dev/null || true
+	fi
+}
+
+# ── Phase 1: Input ───────────────────────────────────────────────────────────
+
+# Validate or interactively prompt for a workspace name.
+# $1 = current name value (may be empty)
+# $2 = label ("System" or "Container")
+# Prints validated name to stdout.
+collect_name() {
+	local current="$1" label="$2"
+	if [ -n "$current" ]; then
+		validate_name "$current" "$label name" || exit 1
+		printf "%s" "$current"
+		return
+	fi
+	if [ "$QUIET" -gt 0 ]; then
+		die "${label} name required in quiet mode (-s NAME)."
+	fi
+	local resp
+	while true; do
+		printf "%s name: " "$label" >&2
+		read -r resp || die "EOF reading ${label} name"
+		if validate_name "$resp" "$label name"; then
+			printf "%s" "$resp"
+			return
+		fi
+	done
+}
+
+# Verify no minhag dir or zbereshit dataset exists for this name.
+check_available() {
+	local label
+	case "$WS_KIND" in
+		system)    label="System" ;;
+		container) label="Container" ;;
+		*)         label="$WS_KIND" ;;
+	esac
+	local minhag="${PARASA_DIR}/minhag/${WS_KIND}s/${WS_NAME}"
+	if [ -d "$minhag" ]; then
+		die "${label} '${WS_NAME}' already exists in minhag. Use destroy_${WS_KIND} (future) or pick a new name."
+	fi
+	if zfs_dataset_exists "zbereshit/${WS_KIND}s/${WS_NAME}"; then
+		die "${label} '${WS_NAME}' already deployed on zbereshit."
+	fi
+}
+
+# Validate or prompt for foundation name.
+# Sets FOUNDATION_NAME.
+collect_foundation() {
+	if [ -n "$FOUNDATION_NAME" ]; then
+		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
+		zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}" || \
+			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/sinai.zfs."
+		return
+	fi
+	FOUNDATION_NAME=$(select_foundation "$QUIET")
+}
+
+# Prompt for common dataset options.
+# Sets: WANT_HOME, WANT_TMP, USER_HOMES, CUSTOM_MOUNTS
+# Does NOT handle WANT_ROOTHOME (system-specific) or format mount lines.
+# Reads: OPT_HOME, OPT_TMP, OPT_USER_HOMES, OPT_MOUNT_MAP, QUIET
+collect_build_options() {
+	WANT_HOME=$(prompt_yesno "Create /home dataset?" "${OPT_HOME:-yes}" "$QUIET" && echo yes || echo no)
+	WANT_TMP=$(prompt_yesno "Create /tmp dataset?" "${OPT_TMP:-yes}" "$QUIET" && echo yes || echo no)
+
+	USER_HOMES="${OPT_USER_HOMES:-}"
+	if [ "$QUIET" -eq 0 ] && [ -z "$USER_HOMES" ]; then
+		printf "Additional user home datasets (comma-separated, Enter for none): " >&2
+		read -r USER_HOMES || USER_HOMES=""
+	fi
+
+	CUSTOM_MOUNTS="${OPT_MOUNT_MAP:-}"
+	if [ "$QUIET" -eq 0 ] && [ -z "$CUSTOM_MOUNTS" ]; then
+		printf "\nCustom mount entries (dataset:mountpoint, one per line, Enter when done):\n" >&2
+		local entry
+		while true; do
+			printf "  mount> " >&2
+			read -r entry || break
+			[ -n "$entry" ] || break
+			CUSTOM_MOUNTS="${CUSTOM_MOUNTS}${CUSTOM_MOUNTS:+ }${entry}"
+		done
+	fi
+}
+
+# ── Phase 2: Setup ───────────────────────────────────────────────────────────
+
+# Create the minhag dir with the five common boilerplate files.
+# Sets WS_MINHAG.
+create_minhag_boilerplate() {
+	WS_MINHAG="${PARASA_DIR}/minhag/${WS_KIND}s/${WS_NAME}"
+
+	progress "Creating minhag dir: ${WS_MINHAG}"
+	run mkdir -p "$WS_MINHAG"
+
+	if ! $DRY_RUN; then
+		: > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"
+		: > "${WS_MINHAG}/compose.sh"
+		: > "${WS_MINHAG}/derivations.local"
+		: > "${WS_MINHAG}/pkg.list"
+		: > "${WS_MINHAG}/mtree.dist"
+	else
+		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist}\n" \
+			"$WS_MINHAG" "$FOUNDATION_NAME" >&2
+	fi
+}
+
+# Create data datasets on zbamidbar.
+# Creates: parent, var (copied from foundation), usr-local, optional home/tmp/roothome,
+# and per-user home datasets.
+# Sets WS_DATA_ROOT.
+create_data_datasets() {
+	WS_DATA_ROOT="zbamidbar/${WS_DATA_POOL}/${WS_NAME}"
+	local foundation_var="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}/var"
+
+	progress "Creating data datasets"
+
+	run ztouch "$WS_DATA_ROOT" -o mountpoint=none -o canmount=noauto
+
+	# var: copy pristine var from foundation
+	progress "Copying pristine var from foundation"
+	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+	if ! $DRY_RUN; then
+		local snap
+		snap=$(get_current_artifact "$foundation_var")
+		if [ -n "$snap" ]; then
+			zfs send "${foundation_var}@${snap}" | \
+				zfs recv -o mountpoint=none -o canmount=noauto "${WS_DATA_ROOT}/var"
+		else
+			ztouch "${WS_DATA_ROOT}/var" -o mountpoint=none -o canmount=noauto
+		fi
+	else
+		printf "  [dry] zfs send %s@<snap> | zfs recv %s/var\n" \
+			"$foundation_var" "$WS_DATA_ROOT" >&2
+	fi
+
+	# usr-local: always created
+	run ztouch "${WS_DATA_ROOT}/usr-local" -o mountpoint=none -o canmount=noauto
+
+	# Optional datasets
+	if yesish "$WANT_HOME"; then
+		run ztouch "${WS_DATA_ROOT}/home" -o mountpoint=none -o canmount=noauto
+	fi
+	if yesish "$WANT_TMP"; then
+		run ztouch "${WS_DATA_ROOT}/tmp" -o mountpoint=none -o canmount=noauto
+	fi
+	if yesish "${WANT_ROOTHOME:-no}"; then
+		run ztouch "${WS_DATA_ROOT}/home/root" -o mountpoint=none -o canmount=noauto
+	fi
+
+	# User home datasets
+	if [ -n "$USER_HOMES" ]; then
+		local old_ifs="$IFS" user
+		IFS=','
+		for user in $USER_HOMES; do
+			IFS="$old_ifs"
+			user=$(printf "%s" "$user" | tr -d '[:space:]')
+			[ -n "$user" ] || continue
+			run ztouch "${WS_DATA_ROOT}/home/${user}" -o mountpoint=none -o canmount=noauto
+		done
+		IFS="$old_ifs"
+	fi
+}
+
+# ── Phase 3: Inaugural commit lifecycle ──────────────────────────────────────
+
+# Set up the transient workspace for the inaugural commit.
+# Mounts sinai.git/sinai.zfs, recvs foundation to amim, sets up git branch.
+# Sets WS_PATH.
+ws_begin() {
+	local sinai_git="/zbamidbar/sinai.git"
+	local foundation_archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
+	WS_PATH="/zshemot/amim/${WS_NAME}"
+
+	progress "Creating inaugural commit"
+
+	run zmount zbamidbar/sinai.git "$sinai_git"
+	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+
+	# Ensure amim parent dataset exists
+	run ztouch zshemot/amim -o mountpoint=none -o canmount=noauto
+
+	# Destroy any leftover workspace
+	if zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
+		run zfs destroy -r "zshemot/amim/${WS_NAME}"
+	fi
+
+	# Recv foundation to workspace
+	progress "Receiving foundation to workspace"
+	if ! $DRY_RUN; then
+		local snap
+		snap=$(get_current_artifact "$foundation_archive")
+		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
+		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/amim/${WS_NAME}"
+		zfs mount "zshemot/amim/${WS_NAME}"
+		zfs mount "zshemot/amim/${WS_NAME}/var" 2>/dev/null || true
+	else
+		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/amim/%s\n" \
+			"$foundation_archive" "$WS_NAME" >&2
+	fi
+
+	# Git setup
+	progress "Setting up ${WS_KIND} branch"
+	if ! $DRY_RUN; then
+		local current_remote
+		current_remote=$(git -C "$WS_PATH" config remote.origin.url 2>/dev/null || echo "")
+		if [ "$current_remote" != "$sinai_git" ]; then
+			git -C "$WS_PATH" remote set-url origin "$sinai_git" 2>/dev/null || \
+				git -C "$WS_PATH" remote add origin "$sinai_git"
+		fi
+		git -C "$WS_PATH" fetch origin
+
+		git -C "$WS_PATH" checkout -b "${WS_KIND}/${WS_NAME}" \
+			"foundation/${FOUNDATION_NAME}"
+	else
+		printf "  [dry] git -C %s checkout -b %s/%s foundation/%s\n" \
+			"$WS_PATH" "$WS_KIND" "$WS_NAME" "$FOUNDATION_NAME" >&2
+	fi
+}
+
+# Commit and push the inaugural branch.
+# Extra args (e.g. --allow-empty) are passed to git commit before -m.
+ws_commit() {
+	progress "Committing inaugural"
+	run git -C "$WS_PATH" commit "$@" -m "${WS_KIND}/${WS_NAME} inaugural"
+	run git -C "$WS_PATH" push origin "${WS_KIND}/${WS_NAME}"
+}
+
+# Destroy the transient workspace and unmount working datasets.
+ws_end() {
+	progress "Destroying workspace"
+	if [ -d "$WS_PATH" ] && ! $DRY_RUN; then
+		clear_mtree "$WS_PATH"
+	fi
+	if zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
+		run zfs destroy -r "zshemot/amim/${WS_NAME}"
+	fi
+
+	run zunmount zbamidbar/sinai.git
+	run zunmount zbamidbar/sinai.zfs
+}

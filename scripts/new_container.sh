@@ -2,9 +2,9 @@
 # new_container -- Create a new container (jail) on top of a foundation.
 #
 # Mirrors new_system but for containers: creates a minhag directory with
-# jail.conf, data datasets on zbamidbar/container-data, and an inaugural
-# commit on a container/<name> branch in sinai.git. Containers are started
-# by jail(8), not the boot loader.
+# jail.conf and mount.fstab, data datasets on zbamidbar/container-data,
+# and an inaugural commit on a container/<name> branch in sinai.git.
+# Containers are started by jail(8), not the boot loader.
 #
 # See plans/build_system.md and docs/idea.md Concept 2 for design context.
 set -eu
@@ -12,6 +12,10 @@ set -eu
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 PARASA_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 . "${SCRIPT_DIR}/helpers.sh"
+. "${SCRIPT_DIR}/workspace.sh"
+
+WS_KIND="container"
+WS_DATA_POOL="container-data"
 
 # ── Help ────────────────────────────────────────────────────────────────────
 
@@ -99,98 +103,12 @@ while getopts ":hds:f:o:q" opt; do
 done
 shift $((OPTIND - 1))
 
-# ── Dry-run wrapper ─────────────────────────────────────────────────────────
+# ── Container-specific options ─────────────────────────────────────────────
 
-run() {
-	if $DRY_RUN; then
-		printf "  [dry] %s\n" "$*" >&2
-	else
-		"$@"
-	fi
-}
+collect_container_options() {
+	collect_build_options
 
-# ── Progress output ─────────────────────────────────────────────────────────
-
-progress() {
-	[ "$QUIET" -lt 2 ] && printf "\n==> %s\n" "$1" >&2
-	return 0
-}
-
-# ── Cleanup ─────────────────────────────────────────────────────────────────
-
-cleanup() {
-	if [ -n "$CONTAINER_NAME" ] && zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
-		printf "Cleaning up transient zshemot/amim/%s workspace...\n" "$CONTAINER_NAME" >&2
-		zfs destroy -r "zshemot/amim/${CONTAINER_NAME}" 2>/dev/null || true
-	fi
-}
-
-# ── Phase 1: Input ──────────────────────────────────────────────────────────
-
-collect_container_name() {
-	if [ -n "$CONTAINER_NAME" ]; then
-		validate_name "$CONTAINER_NAME" "Container name" || exit 1
-		return
-	fi
-	if [ "$QUIET" -gt 0 ]; then
-		die "Container name required in quiet mode (-s NAME)."
-	fi
-	local resp
-	while true; do
-		printf "Container name: " >&2
-		read -r resp || die "EOF reading container name"
-		if validate_name "$resp" "Container name"; then
-			CONTAINER_NAME="$resp"
-			return
-		fi
-	done
-}
-
-check_container_available() {
-	local minhag="${PARASA_DIR}/minhag/containers/${CONTAINER_NAME}"
-	if [ -d "$minhag" ]; then
-		die "Container '${CONTAINER_NAME}' already exists in minhag. Use destroy_container (future) or pick a new name."
-	fi
-	if zfs_dataset_exists "zbereshit/containers/${CONTAINER_NAME}"; then
-		die "Container '${CONTAINER_NAME}' already deployed on zbereshit."
-	fi
-}
-
-collect_foundation() {
-	if [ -n "$FOUNDATION_NAME" ]; then
-		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
-		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
-		zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}" || \
-			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/sinai.zfs."
-		return
-	fi
-	FOUNDATION_NAME=$(select_foundation "$QUIET")
-}
-
-collect_build_options() {
-	local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
-
-	WANT_HOME=$(prompt_yesno "Create /home dataset?" "$OPT_HOME" "$QUIET" && echo yes || echo no)
-	WANT_TMP=$(prompt_yesno "Create /tmp dataset?" "$OPT_TMP" "$QUIET" && echo yes || echo no)
-
-	USER_HOMES="$OPT_USER_HOMES"
-	if [ "$QUIET" -eq 0 ] && [ -z "$USER_HOMES" ]; then
-		printf "Additional user home datasets (comma-separated, Enter for none): " >&2
-		read -r USER_HOMES || USER_HOMES=""
-	fi
-
-	CUSTOM_MOUNTS="$OPT_MOUNT_MAP"
-	if [ "$QUIET" -eq 0 ] && [ -z "$CUSTOM_MOUNTS" ]; then
-		printf "\nCustom mount entries (dataset:mountpoint, one per line, Enter when done):\n" >&2
-		local entry
-		while true; do
-			printf "  mount> " >&2
-			read -r entry || break
-			[ -n "$entry" ] || break
-			CUSTOM_MOUNTS="${CUSTOM_MOUNTS}${CUSTOM_MOUNTS:+ }${entry}"
-		done
-	fi
-
+	# Format custom mounts as nullfs lines with container path prefix
 	CUSTOM_MOUNT_LINES=""
 	if [ -n "$CUSTOM_MOUNTS" ]; then
 		local m dataset mountpoint
@@ -203,38 +121,12 @@ collect_build_options() {
 	fi
 }
 
-print_summary() {
-	local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
-	cat >&2 <<-EOF
+# ── Container minhag extras ────────────────────────────────────────────────
 
-	Container: ${CONTAINER_NAME}
-	  Foundation:  ${FOUNDATION_NAME}
-	  var:         ${data_root}/var (always)
-	  usr/local:   ${data_root}/usr-local (always)
-	  home:        $(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")
-	  tmp:         $(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")
-	  user homes:  ${USER_HOMES:-none}
-	EOF
-}
-
-# ── Phase 2: Setup ─────────────────────────────────────────────────────────
-
-create_minhag_dir() {
-	local minhag="${PARASA_DIR}/minhag/containers/${CONTAINER_NAME}"
-
-	progress "Creating minhag dir: ${minhag}"
-	run mkdir -p "$minhag"
-
+# Write mount.fstab and jail.conf into the minhag dir.
+# Called after create_minhag_boilerplate sets WS_MINHAG.
+create_container_minhag_extras() {
 	if ! $DRY_RUN; then
-		# Zero-byte foundation file
-		: > "${minhag}/${FOUNDATION_NAME}.foundation"
-
-		# Boilerplate files
-		: > "${minhag}/compose.sh"
-		: > "${minhag}/derivations.local"
-		: > "${minhag}/pkg.list"
-		: > "${minhag}/mtree.dist"
-
 		# mount.fstab -- all container mounts (data-lake + custom)
 		local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
 		local cpath="/containers/${CONTAINER_NAME}"
@@ -263,10 +155,10 @@ create_minhag_dir() {
 			if [ -n "$CUSTOM_MOUNT_LINES" ]; then
 				printf "%s\n" "$CUSTOM_MOUNT_LINES"
 			fi
-		} > "${minhag}/mount.fstab"
+		} > "${WS_MINHAG}/mount.fstab"
 
 		# Skeleton jail.conf
-		cat > "${minhag}/jail.conf" <<-JAILCONF
+		cat > "${WS_MINHAG}/jail.conf" <<-JAILCONF
 		# jail.conf for container: ${CONTAINER_NAME}
 		# See jail(8) and jail.conf(5) for options.
 		#
@@ -286,152 +178,52 @@ create_minhag_dir() {
 		}
 		JAILCONF
 	else
-		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist,mount.fstab,jail.conf}\n" \
-			"$minhag" "$FOUNDATION_NAME" >&2
+		printf "  [dry] create %s/{mount.fstab,jail.conf}\n" "$WS_MINHAG" >&2
 	fi
 }
 
-create_container_datasets() {
+# ── Container summary ──────────────────────────────────────────────────────
+
+print_summary() {
 	local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
-	local foundation_var="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}/var"
+	cat >&2 <<-EOF
 
-	progress "Creating data datasets"
-
-	run ztouch "$data_root" -o mountpoint=none -o canmount=noauto
-
-	# var: copy pristine var from foundation
-	progress "Copying pristine var from foundation"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
-	if ! $DRY_RUN; then
-		local snap
-		snap=$(get_current_artifact "$foundation_var")
-		if [ -n "$snap" ]; then
-			zfs send "${foundation_var}@${snap}" | \
-				zfs recv -o mountpoint=none -o canmount=noauto "${data_root}/var"
-		else
-			ztouch "${data_root}/var" -o mountpoint=none -o canmount=noauto
-		fi
-	else
-		printf "  [dry] zfs send %s@<snap> | zfs recv %s/var\n" \
-			"$foundation_var" "$data_root" >&2
-	fi
-
-	# usr-local
-	run ztouch "${data_root}/usr-local" -o mountpoint=none -o canmount=noauto
-
-	if yesish "$WANT_HOME"; then
-		run ztouch "${data_root}/home" -o mountpoint=none -o canmount=noauto
-	fi
-	if yesish "$WANT_TMP"; then
-		run ztouch "${data_root}/tmp" -o mountpoint=none -o canmount=noauto
-	fi
-
-	if [ -n "$USER_HOMES" ]; then
-		local old_ifs="$IFS" user
-		IFS=','
-		for user in $USER_HOMES; do
-			IFS="$old_ifs"
-			user=$(printf "%s" "$user" | tr -d '[:space:]')
-			[ -n "$user" ] || continue
-			run ztouch "${data_root}/home/${user}" -o mountpoint=none -o canmount=noauto
-		done
-		IFS="$old_ifs"
-	fi
-}
-
-# ── Phase 3: Inaugural commit ──────────────────────────────────────────────
-
-create_inaugural_commit() {
-	local sinai_git="/zbamidbar/sinai.git"
-	local foundation_archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
-	local workspace="/zshemot/amim/${CONTAINER_NAME}"
-
-	progress "Creating inaugural commit"
-
-	run zmount zbamidbar/sinai.git "$sinai_git"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
-
-	# Ensure amim parent exists
-	if ! zfs_dataset_exists zshemot/amim; then
-		run ztouch zshemot/amim
-	fi
-
-	if zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${CONTAINER_NAME}"
-	fi
-
-	# Recv foundation to workspace
-	progress "Receiving foundation to workspace"
-	if ! $DRY_RUN; then
-		local snap
-		snap=$(get_current_artifact "$foundation_archive")
-		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
-		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/amim/${CONTAINER_NAME}"
-		zfs mount "zshemot/amim/${CONTAINER_NAME}"
-		zfs mount "zshemot/amim/${CONTAINER_NAME}/var" 2>/dev/null || true
-	else
-		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/amim/%s\n" \
-			"$foundation_archive" "$CONTAINER_NAME" >&2
-	fi
-
-	# Git setup
-	progress "Setting up container branch"
-	if ! $DRY_RUN; then
-		local current_remote
-		current_remote=$(git -C "$workspace" config remote.origin.url 2>/dev/null || echo "")
-		if [ "$current_remote" != "$sinai_git" ]; then
-			git -C "$workspace" remote set-url origin "$sinai_git" 2>/dev/null || \
-				git -C "$workspace" remote add origin "$sinai_git"
-		fi
-		git -C "$workspace" fetch origin
-
-		git -C "$workspace" checkout -b "container/${CONTAINER_NAME}" \
-			"foundation/${FOUNDATION_NAME}"
-	else
-		printf "  [dry] git -C %s checkout -b container/%s foundation/%s\n" \
-			"$workspace" "$CONTAINER_NAME" "$FOUNDATION_NAME" >&2
-	fi
-
-	# Minimal inaugural commit (mounts handled by host-side mount.fstab)
-	run git -C "$workspace" commit --allow-empty -m "container/${CONTAINER_NAME} inaugural"
-	run git -C "$workspace" push origin "container/${CONTAINER_NAME}"
-
-	# Destroy workspace
-	progress "Destroying workspace"
-	if [ -d "$workspace" ] && ! $DRY_RUN; then
-		clear_mtree "$workspace"
-	fi
-	if zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${CONTAINER_NAME}"
-	fi
+	Container: ${CONTAINER_NAME}
+	  Foundation:  ${FOUNDATION_NAME}
+	  var:         ${data_root}/var (always)
+	  usr/local:   ${data_root}/usr-local (always)
+	  home:        $(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")
+	  tmp:         $(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")
+	  user homes:  ${USER_HOMES:-none}
+	EOF
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
 
 main() {
 	root_only
-	trap cleanup EXIT
 
 	# Phase 1: Input
-	collect_container_name
-	check_container_available
+	CONTAINER_NAME=$(collect_name "$CONTAINER_NAME" "Container")
+	WS_NAME="$CONTAINER_NAME"
+	trap ws_cleanup EXIT
+	check_available
 	collect_foundation
-	collect_build_options
+	collect_container_options
 	print_summary
 	if [ "$QUIET" -eq 0 ]; then
 		confirm "Proceed with container creation?" || exit 0
 	fi
 
 	# Phase 2: Setup
-	create_minhag_dir
-	create_container_datasets
+	create_minhag_boilerplate
+	create_container_minhag_extras
+	create_data_datasets
 
-	# Phase 3: Inaugural commit
-	create_inaugural_commit
-
-	# Cleanup working mounts
-	run zunmount zbamidbar/sinai.git
-	run zunmount zbamidbar/sinai.zfs
+	# Phase 3: Inaugural commit (container: no content, allow-empty)
+	ws_begin
+	ws_commit --allow-empty
+	ws_end
 
 	progress "Container '${CONTAINER_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2

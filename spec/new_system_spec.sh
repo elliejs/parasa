@@ -383,6 +383,24 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
       When run script scripts/new_system.sh -s drybox -f testfound -q -d
       The error should include "created successfully"
     End
+
+    It "uses amim workspace for inaugural commit"
+      When run script scripts/new_system.sh -s drybox -f testfound -q -d
+      The error should include "zshemot/amim"
+      The error should include "amim/drybox"
+    End
+
+    It "does not create or mention fstab.local"
+      When run script scripts/new_system.sh -s drybox -f testfound -q -d
+      The status should be success
+      The error should not include "fstab.local"
+    End
+
+    It "does not mention recipe mounts"
+      When run script scripts/new_system.sh -s drybox -f testfound -q -d
+      The status should be success
+      The error should not include "recipe"
+    End
   End
 
   # ── Name availability ───────────────────────────────────────────────────
