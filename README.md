@@ -80,16 +80,16 @@ minhag/               Per-target configuration ("customs").
       build.conf      Build overrides. Empty = default kernel + world.
   systems/            System targets (bare metal, bootable).
     <name>/
-      <foundation>.foundation  Zero-byte file; filename = foundation.
+      <foundation>.foundation  Contains artifact name; filename = foundation.
       compose.sh         Opaque replay commands (one per line).
       derivations.local  Custom text-to-binary entries.
-      fstab.local        Recipe-only mounts (container deps, shared pools).
       mtree.dist         Baseline mtree for the target.
       pkg.list           Full package list (auto-populated).
   containers/         Container targets (jails).
     <name>/
       (same as systems, plus:)
       jail.conf       Jail configuration.
+      mount.fstab     All container mounts (processed by jail start/stop).
 
 docs/                 Design documents and implementation plans.
 old/                  Previous-era scripts, preserved for reference.

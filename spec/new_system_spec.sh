@@ -84,10 +84,6 @@ ${data_root}/home/${user}	/home/${user}	zfs	rw,late	0	0"
         FSTAB_LINES="${FSTAB_LINES}
 ${SYSTEM_MOUNTS}"
       fi
-      if [ -n "$RECIPE_MOUNTS" ]; then
-        FSTAB_LINES="${FSTAB_LINES}
-${RECIPE_MOUNTS}"
-      fi
     }
 
     Describe "with all defaults (home=yes, tmp=yes)"
@@ -98,7 +94,6 @@ ${RECIPE_MOUNTS}"
         WANT_ROOTHOME="no"
         USER_HOMES=""
         SYSTEM_MOUNTS=""
-        RECIPE_MOUNTS=""
         FSTAB_LINES=""
       }
       Before 'setup_defaults'
@@ -134,7 +129,6 @@ ${RECIPE_MOUNTS}"
         WANT_ROOTHOME="no"
         USER_HOMES=""
         SYSTEM_MOUNTS=""
-        RECIPE_MOUNTS=""
         FSTAB_LINES=""
       }
       Before 'setup_no_home'
@@ -154,7 +148,6 @@ ${RECIPE_MOUNTS}"
         WANT_ROOTHOME="yes"
         USER_HOMES=""
         SYSTEM_MOUNTS=""
-        RECIPE_MOUNTS=""
         FSTAB_LINES=""
       }
       Before 'setup_roothome'
@@ -179,7 +172,6 @@ ${RECIPE_MOUNTS}"
         WANT_ROOTHOME="no"
         USER_HOMES="alice,bob"
         SYSTEM_MOUNTS=""
-        RECIPE_MOUNTS=""
         FSTAB_LINES=""
       }
       Before 'setup_user_homes'
@@ -201,7 +193,6 @@ ${RECIPE_MOUNTS}"
         WANT_ROOTHOME="no"
         USER_HOMES=""
         SYSTEM_MOUNTS="zbamidbar/shared-pool	/shared	zfs	rw,late	0	0"
-        RECIPE_MOUNTS=""
         FSTAB_LINES=""
       }
       Before 'setup_system_mounts'
@@ -213,20 +204,19 @@ ${RECIPE_MOUNTS}"
       End
     End
 
-    Describe "with recipe mounts"
-      setup_recipe_mounts() {
+    Describe "with custom mounts"
+      setup_custom_mounts() {
         SYSTEM_NAME="recipe"
         WANT_HOME="no"
         WANT_TMP="no"
         WANT_ROOTHOME="no"
         USER_HOMES=""
-        SYSTEM_MOUNTS=""
-        RECIPE_MOUNTS="zbamidbar/jail-shared	/jail/shared	zfs	rw,late	0	0"
+        SYSTEM_MOUNTS="zbamidbar/jail-shared	/jail/shared	zfs	rw,late	0	0"
         FSTAB_LINES=""
       }
-      Before 'setup_recipe_mounts'
+      Before 'setup_custom_mounts'
 
-      It "appends recipe mount entries to fstab"
+      It "appends custom mount entries to fstab"
         When call build_fstab_lines
         The variable FSTAB_LINES should include "zbamidbar/jail-shared"
         The variable FSTAB_LINES should include "/jail/shared"
@@ -240,8 +230,8 @@ ${RECIPE_MOUNTS}"
         WANT_TMP="yes"
         WANT_ROOTHOME="yes"
         USER_HOMES="alice,bob,carol"
-        SYSTEM_MOUNTS="zbamidbar/external	/mnt/ext	zfs	rw,late	0	0"
-        RECIPE_MOUNTS="zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
+        SYSTEM_MOUNTS="zbamidbar/external	/mnt/ext	zfs	rw,late	0	0
+zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
         FSTAB_LINES=""
       }
       Before 'setup_full'
@@ -285,14 +275,14 @@ ${RECIPE_MOUNTS}"
     Mock zfs
       case "$1" in
         list)
-          # Foundation archives exist; systems and tablets don't
+          # Foundation archives exist; systems and amim workspaces don't
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
             *sinai.zfs*)    exit 0 ;;
             *sinai.git*)    exit 0 ;;
             *systems*)      exit 1 ;;
-            *tablets*)      exit 1 ;;
+            *amim*)         exit 1 ;;
             *system-data*)  exit 1 ;;
             *)              exit 1 ;;
           esac

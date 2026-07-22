@@ -30,24 +30,24 @@ flag and launches in interactive mode.
    with the collected values. Since this is interactive mode, offers to open
    the foundation directory in `$EDITOR` before proceeding. Alice declines.
 
-5. **Build**: The command creates the transient `zshemot/tablets` +
-   `zshemot/tablets/var` datasets, checks out `stable/15` from
+5. **Build**: The command creates the transient `zshemot/amim/generic-stable15` +
+   `zshemot/amim/generic-stable15/var` datasets, checks out `stable/15` from
    `zshemot/torah`, and runs the five make targets (buildworld, buildkernel,
-   installkernel, installworld, distribution) with DESTDIR=/zshemot/tablets.
+   installkernel, installworld, distribution) with DESTDIR=/zshemot/amim/generic-stable15.
    Progress is reported throughout.
 
-6. **Track**: The command initializes git in `/zshemot/tablets`, adds the
+6. **Track**: The command initializes git in `/zshemot/amim/generic-stable15`, adds the
    remote pointing to `zbamidbar/sinai.git`, creates orphan branch
    `foundation/generic-stable15`. It stages all files (`git add .`), creates
    `.gitignore` with `var/`, `usr/local/`, `tmp/` (NOT `home/`), stages the
    gitignore, generates mtree, and commits with the artifact name as the
    message. Pushes to sinai.git.
 
-7. **Archive**: Snapshots `zshemot/tablets` recursively under the artifact
-   name, creates `zbamidbar/sinai.zfs/foundations/generic-stable15`, and does
-   a full `zfs send | recv` to archive it.
+7. **Archive**: Snapshots `zshemot/amim/generic-stable15` recursively under
+   the artifact name, creates `zbamidbar/sinai.zfs/foundations/generic-stable15`,
+   and does a full `zfs send | recv` to archive it.
 
-8. **Cleanup**: Destroys `zshemot/tablets` recursively. Done.
+8. **Cleanup**: Destroys `zshemot/amim/generic-stable15` recursively. Done.
 
 Alice now has a foundation she can use to create systems or containers.
 
@@ -87,11 +87,11 @@ with no arguments.
    - Any other user home datasets? → Alice types `alice` → creates
      `zbamidbar/system-data/wonderland/home/alice`
    - Any custom mount entries? → Alice adds
-     `zbamidbar/alice-portable-home` at `/home/alice` and says it is NOT
-     recipe-related (so it goes in /etc/fstab, not fstab.local).
+     `zbamidbar/alice-portable-home` at `/home/alice`
 
    The standard data-lake mounts (var, tmp, usr/local) are always
-   auto-included — these are not asked as questions.
+   auto-included — these are not asked as questions. All mounts go into
+   the system's `/etc/fstab` via the inaugural commit.
 
 4. **Summary + confirm**.
 
@@ -100,7 +100,6 @@ with no arguments.
    - `compose.sh` (empty)
    - `derivations.local` (empty)
    - `pkg.list` (empty)
-   - `fstab.local` (empty — no recipe-only mounts)
    - `mtree.dist` (empty, populated later by parasa-diff)
 
 6. **Create datasets**: On zbamidbar:
@@ -113,21 +112,21 @@ with no arguments.
 
 7. **Inaugural commit**: The core operation.
    - Recv foundation from `zbamidbar/sinai.zfs/foundations/generic-stable15`
-     to `zshemot/tablets` (temporarily)
+     to `zshemot/amim/wonderland` (temporarily)
    - The recv'd dataset includes `.git` from the foundation build. Fetch
      from sinai.git.
    - `git checkout -b system/wonderland foundation/generic-stable15`
-   - Write mount entries into `/etc/fstab` inside tablets:
+   - Write all mount entries into `/etc/fstab` inside the workspace:
      ```
      zbamidbar/system-data/wonderland/var        /var        zfs  rw,late  0  0
      zbamidbar/system-data/wonderland/home       /home       zfs  rw,late  0  0
-     zbamidbar/system-data/wonderland/usr/local  /usr/local  zfs  rw,late  0  0
+     zbamidbar/system-data/wonderland/usr-local  /usr/local  zfs  rw,late  0  0
      zbamidbar/system-data/wonderland/tmp        /tmp        zfs  rw,late  0  0
      zbamidbar/alice-portable-home               /home/alice zfs  rw,late  0  0
      ```
    - `git add etc/fstab`, commit "system/wonderland inaugural", push to
      sinai.git
-   - Destroy tablets
+   - Destroy `zshemot/amim/wonderland`
 
 8. **Deploy prompt**: Since this is interactive and no `-b` flag was given,
    the command asks if Alice wants to deploy. She says yes, and it asks

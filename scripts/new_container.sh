@@ -59,9 +59,9 @@ Examples:
 Execution flow:
   1. Collect container name and foundation
   2. Ask dataset/mount questions
-  3. Create minhag/containers/<name>/ with .foundation, jail.conf, etc.
+  3. Create minhag/containers/<name>/ with .foundation, jail.conf, mount.fstab, etc.
   4. Create data datasets on zbamidbar/container-data/<name>/
-  5. Create inaugural commit on container/<name> branch (writes /etc/fstab)
+  5. Create inaugural commit on container/<name> branch
 EOF
 	exit 0
 }
@@ -119,9 +119,9 @@ progress() {
 # ── Cleanup ─────────────────────────────────────────────────────────────────
 
 cleanup() {
-	if zfs_dataset_exists zshemot/tablets; then
-		printf "Cleaning up transient zshemot/tablets...\n" >&2
-		zfs destroy -r zshemot/tablets 2>/dev/null || true
+	if [ -n "$CONTAINER_NAME" ] && zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
+		printf "Cleaning up transient zshemot/amim/%s workspace...\n" "$CONTAINER_NAME" >&2
+		zfs destroy -r "zshemot/amim/${CONTAINER_NAME}" 2>/dev/null || true
 	fi
 }
 
@@ -191,25 +191,14 @@ collect_build_options() {
 		done
 	fi
 
-	RECIPE_MOUNTS=""
-	SYSTEM_MOUNTS=""
+	CUSTOM_MOUNT_LINES=""
 	if [ -n "$CUSTOM_MOUNTS" ]; then
 		local m dataset mountpoint
 		for m in $CUSTOM_MOUNTS; do
 			dataset="${m%%:*}"
 			mountpoint="${m#*:}"
-			if [ "$QUIET" -eq 0 ]; then
-				if prompt_yesno "  ${dataset} → ${mountpoint}: recipe-related mount?" "no" 0; then
-					RECIPE_MOUNTS="${RECIPE_MOUNTS}${RECIPE_MOUNTS:+
-}${dataset}	${mountpoint}	zfs	rw,late	0	0"
-				else
-					SYSTEM_MOUNTS="${SYSTEM_MOUNTS}${SYSTEM_MOUNTS:+
-}${dataset}	${mountpoint}	zfs	rw,late	0	0"
-				fi
-			else
-				SYSTEM_MOUNTS="${SYSTEM_MOUNTS}${SYSTEM_MOUNTS:+
-}${dataset}	${mountpoint}	zfs	rw,late	0	0"
-			fi
+			CUSTOM_MOUNT_LINES="${CUSTOM_MOUNT_LINES}${CUSTOM_MOUNT_LINES:+
+}${dataset}	/containers/${CONTAINER_NAME}${mountpoint}	nullfs	rw	0	0"
 		done
 	fi
 }
@@ -246,13 +235,35 @@ create_minhag_dir() {
 		: > "${minhag}/pkg.list"
 		: > "${minhag}/mtree.dist"
 
-		# Recipe-only mounts
-		if [ -n "$RECIPE_MOUNTS" ]; then
-			printf "# Recipe-only mounts (container deps, shared data-pools)\n" > "${minhag}/fstab.local"
-			printf "%s\n" "$RECIPE_MOUNTS" >> "${minhag}/fstab.local"
-		else
-			: > "${minhag}/fstab.local"
-		fi
+		# mount.fstab -- all container mounts (data-lake + custom)
+		local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
+		local cpath="/containers/${CONTAINER_NAME}"
+		{
+			printf "# source\tdestination\tfstype\toptions\tdump\tpass\n"
+			printf "%s/var\t%s/var\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			printf "%s/usr-local\t%s/usr/local\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			if yesish "$WANT_HOME"; then
+				printf "%s/home\t%s/home\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			fi
+			if yesish "$WANT_TMP"; then
+				printf "%s/tmp\t%s/tmp\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			fi
+			if [ -n "$USER_HOMES" ]; then
+				local old_ifs="$IFS" user
+				IFS=','
+				for user in $USER_HOMES; do
+					IFS="$old_ifs"
+					user=$(printf "%s" "$user" | tr -d '[:space:]')
+					[ -n "$user" ] || continue
+					printf "%s/home/%s\t%s/home/%s\tzfs\trw\t0\t0\n" \
+						"$data_root" "$user" "$cpath" "$user"
+				done
+				IFS="$old_ifs"
+			fi
+			if [ -n "$CUSTOM_MOUNT_LINES" ]; then
+				printf "%s\n" "$CUSTOM_MOUNT_LINES"
+			fi
+		} > "${minhag}/mount.fstab"
 
 		# Skeleton jail.conf
 		cat > "${minhag}/jail.conf" <<-JAILCONF
@@ -265,6 +276,7 @@ create_minhag_dir() {
 		    host.hostname = "${CONTAINER_NAME}";
 		    path = "/containers/${CONTAINER_NAME}";
 
+		    mount.fstab = "${PARASA_DIR}/minhag/containers/${CONTAINER_NAME}/mount.fstab";
 		    mount.devfs;
 		    devfs_ruleset = 4;
 
@@ -274,7 +286,7 @@ create_minhag_dir() {
 		}
 		JAILCONF
 	else
-		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist,fstab.local,jail.conf}\n" \
+		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist,mount.fstab,jail.conf}\n" \
 			"$minhag" "$FOUNDATION_NAME" >&2
 	fi
 }
@@ -332,99 +344,65 @@ create_container_datasets() {
 create_inaugural_commit() {
 	local sinai_git="/zbamidbar/sinai.git"
 	local foundation_archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
-	local tablets="/zshemot/tablets"
-	local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
+	local workspace="/zshemot/amim/${CONTAINER_NAME}"
 
 	progress "Creating inaugural commit"
 
 	run zmount zbamidbar/sinai.git "$sinai_git"
 	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
 
-	if zfs_dataset_exists zshemot/tablets; then
-		run zfs destroy -r zshemot/tablets
+	# Ensure amim parent exists
+	if ! zfs_dataset_exists zshemot/amim; then
+		run ztouch zshemot/amim
 	fi
 
-	# Recv foundation to tablets
-	progress "Receiving foundation to tablets workspace"
+	if zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
+		run zfs destroy -r "zshemot/amim/${CONTAINER_NAME}"
+	fi
+
+	# Recv foundation to workspace
+	progress "Receiving foundation to workspace"
 	if ! $DRY_RUN; then
 		local snap
 		snap=$(get_current_artifact "$foundation_archive")
 		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
-		zfs send -R "${foundation_archive}@${snap}" | zfs recv zshemot/tablets
-		zfs mount zshemot/tablets
-		zfs mount zshemot/tablets/var 2>/dev/null || true
+		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/amim/${CONTAINER_NAME}"
+		zfs mount "zshemot/amim/${CONTAINER_NAME}"
+		zfs mount "zshemot/amim/${CONTAINER_NAME}/var" 2>/dev/null || true
 	else
-		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/tablets\n" \
-			"$foundation_archive" >&2
+		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/amim/%s\n" \
+			"$foundation_archive" "$CONTAINER_NAME" >&2
 	fi
 
 	# Git setup
 	progress "Setting up container branch"
 	if ! $DRY_RUN; then
 		local current_remote
-		current_remote=$(git -C "$tablets" config remote.origin.url 2>/dev/null || echo "")
+		current_remote=$(git -C "$workspace" config remote.origin.url 2>/dev/null || echo "")
 		if [ "$current_remote" != "$sinai_git" ]; then
-			git -C "$tablets" remote set-url origin "$sinai_git" 2>/dev/null || \
-				git -C "$tablets" remote add origin "$sinai_git"
+			git -C "$workspace" remote set-url origin "$sinai_git" 2>/dev/null || \
+				git -C "$workspace" remote add origin "$sinai_git"
 		fi
-		git -C "$tablets" fetch origin
+		git -C "$workspace" fetch origin
 
-		git -C "$tablets" checkout -b "container/${CONTAINER_NAME}" \
+		git -C "$workspace" checkout -b "container/${CONTAINER_NAME}" \
 			"foundation/${FOUNDATION_NAME}"
 	else
 		printf "  [dry] git -C %s checkout -b container/%s foundation/%s\n" \
-			"$tablets" "$CONTAINER_NAME" "$FOUNDATION_NAME" >&2
+			"$workspace" "$CONTAINER_NAME" "$FOUNDATION_NAME" >&2
 	fi
 
-	# Build fstab lines
-	progress "Writing /etc/fstab entries"
-	if ! $DRY_RUN; then
-		{
-			printf "# Container data-lake mounts (generated by new_container)\n"
-			printf "# device\tmountpoint\ttype\toptions\tdump\tpass\n"
-			# Always-included
-			printf "%s/var\t/var\tzfs\trw,late\t0\t0\n" "$data_root"
-			printf "%s/usr-local\t/usr/local\tzfs\trw,late\t0\t0\n" "$data_root"
-			# Optional
-			if yesish "$WANT_HOME"; then
-				printf "%s/home\t/home\tzfs\trw,late\t0\t0\n" "$data_root"
-			fi
-			if yesish "$WANT_TMP"; then
-				printf "%s/tmp\t/tmp\tzfs\trw,late\t0\t0\n" "$data_root"
-			fi
-			# User homes
-			if [ -n "$USER_HOMES" ]; then
-				local old_ifs="$IFS" user
-				IFS=','
-				for user in $USER_HOMES; do
-					IFS="$old_ifs"
-					user=$(printf "%s" "$user" | tr -d '[:space:]')
-					[ -n "$user" ] || continue
-					printf "%s/home/%s\t/home/%s\tzfs\trw,late\t0\t0\n" \
-						"$data_root" "$user" "$user"
-				done
-				IFS="$old_ifs"
-			fi
-			# Custom mounts
-			[ -n "$SYSTEM_MOUNTS" ] && printf "%s\n" "$SYSTEM_MOUNTS"
-			[ -n "$RECIPE_MOUNTS" ] && printf "%s\n" "$RECIPE_MOUNTS"
-		} >> "${tablets}/etc/fstab"
-	else
-		printf "  [dry] append fstab entries to %s/etc/fstab\n" "$tablets" >&2
-	fi
+	# Minimal inaugural commit (mounts handled by host-side mount.fstab)
+	run git -C "$workspace" commit --allow-empty -m "container/${CONTAINER_NAME} inaugural"
+	run git -C "$workspace" push origin "container/${CONTAINER_NAME}"
 
-	# Commit and push
-	run git -C "$tablets" add etc/fstab
-	run git -C "$tablets" commit -m "container/${CONTAINER_NAME} inaugural"
-	run git -C "$tablets" push origin "container/${CONTAINER_NAME}"
-
-	# Wipe tablets
-	progress "Destroying tablets workspace"
-	if [ -d "$tablets" ] && ! $DRY_RUN; then
-		clear_mtree "$tablets"
+	# Destroy workspace
+	progress "Destroying workspace"
+	if [ -d "$workspace" ] && ! $DRY_RUN; then
+		clear_mtree "$workspace"
 	fi
-	if zfs_dataset_exists zshemot/tablets; then
-		run zfs destroy -r zshemot/tablets
+	if zfs_dataset_exists "zshemot/amim/${CONTAINER_NAME}"; then
+		run zfs destroy -r "zshemot/amim/${CONTAINER_NAME}"
 	fi
 }
 

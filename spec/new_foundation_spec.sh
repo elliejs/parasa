@@ -226,15 +226,15 @@ Describe "new_foundation.sh"
       The error should include "zmount zshemot/torah"
     End
 
-    It "creates tablets workspace"
+    It "creates amim workspace"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
       The error should include "Creating transient build workspace"
       The error should include "zfs create"
-      The error should include "zshemot/tablets"
+      The error should include "zshemot/amim"
     End
 
-    It "initializes git in tablets"
+    It "initializes git in workspace"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
       The error should include "Initializing git"

@@ -48,11 +48,11 @@ Execution flow:
   1. Collect foundation name and build config
   2. Create minhag/foundations/<name>/build.conf
   3. Ensure FreeBSD source tree is ready (zshemot/torah)
-  4. Create transient build workspace (zshemot/tablets)
+  4. Create transient build workspace (zshemot/amim/<name>)
   5. Build world + kernel (five make targets)
   6. Commit to foundation/<name> branch on zbamidbar/sinai.git
   7. Archive ZFS snapshot to zbamidbar/sinai.zfs/foundations/<name>
-  8. Destroy transient workspace
+  8. Destroy transient build workspace
 
 DANGER: This runs 'make buildworld' and 'make buildkernel', which are
         long-running and resource-intensive operations.
@@ -109,9 +109,9 @@ progress() {
 # ── Cleanup trap ────────────────────────────────────────────────────────────
 
 cleanup() {
-	if zfs_dataset_exists zshemot/tablets; then
-		printf "Cleaning up transient zshemot/tablets...\n" >&2
-		zfs destroy -r zshemot/tablets 2>/dev/null || true
+	if [ -n "$FOUNDATION_NAME" ] && zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
+		printf "Cleaning up transient zshemot/amim/%s...\n" "$FOUNDATION_NAME" >&2
+		zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}" 2>/dev/null || true
 	fi
 }
 
@@ -247,22 +247,26 @@ ensure_src_tree() {
 	run git -C /zshemot/torah pull --ff-only
 }
 
-prepare_tablets() {
-	progress "Creating transient build workspace (zshemot/tablets)"
+prepare_workspace() {
+	progress "Creating transient build workspace (zshemot/amim/${FOUNDATION_NAME})"
 
-	# Destroy any leftover tablets from a failed run
-	if zfs_dataset_exists zshemot/tablets; then
-		progress "Destroying leftover zshemot/tablets"
-		run zfs destroy -r zshemot/tablets
+	# Destroy any leftover workspace from a failed run
+	if zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
+		progress "Destroying leftover zshemot/amim/${FOUNDATION_NAME}"
+		run zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}"
 	fi
 
-	run zfs create -o mountpoint=/zshemot/tablets -o canmount=on zshemot/tablets
-	run zfs create -o mountpoint=/zshemot/tablets/var -o canmount=on zshemot/tablets/var
+	# Ensure parent dataset exists
+	run ztouch zshemot/amim
+
+	run zfs create -o mountpoint="/zshemot/amim/${FOUNDATION_NAME}" -o canmount=on "zshemot/amim/${FOUNDATION_NAME}"
+	run zfs create -o mountpoint="/zshemot/amim/${FOUNDATION_NAME}/var" -o canmount=on "zshemot/amim/${FOUNDATION_NAME}/var"
 }
 
-prepare_tablets_git() {
-	progress "Initializing git in tablets workspace"
+prepare_workspace_git() {
+	progress "Initializing git in workspace"
 	local sinai_git="/zbamidbar/sinai.git"
+	local workspace="/zshemot/amim/${FOUNDATION_NAME}"
 
 	# Ensure sinai.git is mounted and initialized
 	run zmount zbamidbar/sinai.git "$sinai_git"
@@ -270,21 +274,21 @@ prepare_tablets_git() {
 		run git init --bare "$sinai_git"
 	fi
 
-	# Initialize git in tablets
-	run git -C /zshemot/tablets init
-	run git -C /zshemot/tablets remote add origin "$sinai_git"
+	# Initialize git in workspace
+	run git -C "$workspace" init
+	run git -C "$workspace" remote add origin "$sinai_git"
 
 	# Fetch existing refs (needed for ref awareness, even on first run)
 	if ! $DRY_RUN; then
-		git -C /zshemot/tablets fetch origin 2>/dev/null || true
+		git -C "$workspace" fetch origin 2>/dev/null || true
 	fi
 
 	# Create orphan branch for this foundation
-	run git -C /zshemot/tablets checkout --orphan "foundation/${FOUNDATION_NAME}"
+	run git -C "$workspace" checkout --orphan "foundation/${FOUNDATION_NAME}"
 
 	# Clear index (orphan branch starts with whatever was staged)
 	if ! $DRY_RUN; then
-		git -C /zshemot/tablets rm -rf --cached . >/dev/null 2>&1 || true
+		git -C "$workspace" rm -rf --cached . >/dev/null 2>&1 || true
 	fi
 }
 
@@ -292,7 +296,7 @@ prepare_tablets_git() {
 
 run_build() {
 	local srcdir="/zshemot/torah"
-	local destdir="/zshemot/tablets"
+	local destdir="/zshemot/amim/${FOUNDATION_NAME}"
 	local jobs="$MAKE_JOBS"
 
 	progress "Building world (make -j${jobs} buildworld)"
@@ -314,30 +318,30 @@ run_build() {
 # ── Phase 4: Track ──────────────────────────────────────────────────────────
 
 commit_build() {
-	local tablets="/zshemot/tablets"
+	local workspace="/zshemot/amim/${FOUNDATION_NAME}"
 	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 
 	progress "Committing build to git"
 
 	# Stage everything first (including base var/ files)
-	run git -C "$tablets" add .
+	run git -C "$workspace" add .
 
 	# Create .gitignore: var/, usr/local/, tmp/ — NOT home/
 	if ! $DRY_RUN; then
-		cat > "${tablets}/.gitignore" <<-'GITIGNORE'
+		cat > "${workspace}/.gitignore" <<-'GITIGNORE'
 		var/
 		usr/local/
 		tmp/
 		GITIGNORE
 	fi
-	run git -C "$tablets" add .gitignore
+	run git -C "$workspace" add .gitignore
 
 	# Generate mtree
 	progress "Generating mtree baseline"
 	if ! $DRY_RUN; then
-		generate_mtree "$tablets" "$minhag" "${PARASA_DIR}/etc/mtree.ignore"
+		generate_mtree "$workspace" "$minhag" "${PARASA_DIR}/etc/mtree.ignore"
 	else
-		printf "  [dry] generate_mtree %s %s %s\n" "$tablets" "$minhag" "${PARASA_DIR}/etc/mtree.ignore" >&2
+		printf "  [dry] generate_mtree %s %s %s\n" "$workspace" "$minhag" "${PARASA_DIR}/etc/mtree.ignore" >&2
 	fi
 
 	# Build artifact name
@@ -349,14 +353,14 @@ commit_build() {
 	progress "Artifact: ${ARTIFACT_NAME}"
 
 	# Commit
-	run git -C "$tablets" commit -m "$ARTIFACT_NAME"
+	run git -C "$workspace" commit -m "$ARTIFACT_NAME"
 
 	# Push
-	run git -C "$tablets" push origin "foundation/${FOUNDATION_NAME}"
+	run git -C "$workspace" push origin "foundation/${FOUNDATION_NAME}"
 }
 
 archive_to_zbamidbar() {
-	local tablets="zshemot/tablets"
+	local workspace="zshemot/amim/${FOUNDATION_NAME}"
 	local dest="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
 
 	progress "Archiving to zbamidbar"
@@ -365,27 +369,27 @@ archive_to_zbamidbar() {
 	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
 
 	# Snapshot the build
-	run zfs snapshot -r "${tablets}@${ARTIFACT_NAME}"
+	run zfs snapshot -r "${workspace}@${ARTIFACT_NAME}"
 
 	# Create destination and send
 	run ztouch "$dest" -o mountpoint=none -o canmount=noauto
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "${tablets}@${ARTIFACT_NAME}" | zfs recv -F "$dest"
+		zfs send -R "${workspace}@${ARTIFACT_NAME}" | zfs recv -F "$dest"
 	else
 		printf "  [dry] zfs send -R %s@%s | zfs recv -F %s\n" \
-			"$tablets" "$ARTIFACT_NAME" "$dest" >&2
+			"$workspace" "$ARTIFACT_NAME" "$dest" >&2
 	fi
 }
 
-wipe_tablets() {
+wipe_workspace() {
 	progress "Destroying transient workspace"
-	if zfs_dataset_exists zshemot/tablets; then
+	if zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
 		# Clear schg flags before destroy
-		if [ -d "/zshemot/tablets" ] && ! $DRY_RUN; then
-			clear_mtree /zshemot/tablets
+		if [ -d "/zshemot/amim/${FOUNDATION_NAME}" ] && ! $DRY_RUN; then
+			clear_mtree "/zshemot/amim/${FOUNDATION_NAME}"
 		fi
-		run zfs destroy -r zshemot/tablets
+		run zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}"
 	fi
 }
 
@@ -407,8 +411,8 @@ main() {
 	# Phase 2: Preparation
 	create_minhag_dir
 	ensure_src_tree
-	prepare_tablets
-	prepare_tablets_git
+	prepare_workspace
+	prepare_workspace_git
 
 	# Phase 3: Build
 	run_build
@@ -416,7 +420,7 @@ main() {
 	# Phase 4: Track
 	commit_build
 	archive_to_zbamidbar
-	wipe_tablets
+	wipe_workspace
 
 	# Cleanup: unmount working datasets
 	run zunmount zbamidbar/sinai.git

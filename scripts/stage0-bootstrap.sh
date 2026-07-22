@@ -249,7 +249,7 @@ create_datasets() {
 	run zfs create -o mountpoint=/containers -o canmount=on  zbereshit/containers
 
 	# -- zshemot --
-	# Note: zshemot/tablets is transient — created by new_foundation, not bootstrap
+	# Note: zshemot/amim is transient — created on demand by new_foundation/new_system/new_container, not bootstrap
 	run zfs create -o mountpoint=/zshemot/torah    -o canmount=noauto  zshemot/torah
 	run zfs create -o mountpoint=/zshemot/parasa  -o canmount=noauto  zshemot/parasa
 

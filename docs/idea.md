@@ -87,15 +87,17 @@ These pools have the following meaning:
 Within these pools, parasa controls an authoritative layout of the system.
 
 - zbereshit/
+  - foundations/      Clone source for containers (replicated from zbamidbar/sinai.zfs)
   - systems/          Root dataset for the active boot system, and any other inactive, but cross-bootable, systems. The active dataset will be mounted at /, and the other datasets are unmounted, though could be mounted at /systems
-  - containers/       Root dataset for containers, mounted at /containers
+  - containers/       Root dataset for containers, mounted at /containers. Each container is a ZFS clone from zbereshit/foundations/
 - zshemot/
   - torah/            The FreeBSD src repository
   - parasa/          The parasa framework itself (public git repo clone)
     - minhag/         Literally "customs". User configuration per target. See below.
     - etc/            Defaults shipped with parasa (derivation databases, jail.conf template)
-  - tablets/          Transient build workspace (created on demand, destroyed after use)
-    - var/            Mounted separate var dataset (also transient)
+  - amim/             Literally "peoples". Per-name build workspaces (concurrent-safe)
+    - [name]/         One per foundation/system/container being built. Transient.
+      - var/          Separate var dataset (also transient)
 - zbamidbar/
   - container-data/   Root dataset for container data. Each container's dataset, eg container-data/[container-name]/home, lives under a child dataset of the container's name, and is mounted in under the container's real root after zbereshit has been properly configured. (more on this in later phases). Includes usr-local (packages), var, and home.
   - system-data/      Identical to container-data/ above, but for systems.
@@ -122,8 +124,8 @@ The three pools serve distinct roles:
   zbamidbar/sinai.git.
 - **zshemot** (config pool): Where the scaffolds and scripts live. Basically
   just a clone of the parasa repo, plus the FreeBSD src tree. The build
-  workspace (zshemot/tablets) is transient — created on demand by
-  new_foundation or new_system, destroyed after use. Its local remote is
+  workspaces live under zshemot/amim/ — one per build, named after the
+  target. Created on demand, destroyed after use. Concurrent-safe. Its local remote is
   zbamidbar/parasa.git.
 - **zbamidbar** (data lake): Heavy data and accountable foreign mounts.
   Container and system data datasets (usr-local for packages, var, home) are
@@ -195,21 +197,22 @@ zshemot/parasa/
                                 Two-tier: values here override parasa.conf.
     systems/                    Per-system target directories
       [system-name]/
-        [foundation].foundation Zero-byte file; filename = which foundation
+        [foundation].foundation Contains artifact name (patch level).
+                                Filename = foundation identity (stream+major.minor).
         compose.sh              Opaque replay commands (see drift_manifest.md, category 5)
         derivations.local       Custom text→binary derivation entries
-        fstab.local             Recipe-only mounts (container deps, shared data-pools)
         mtree.dist              Baseline mtree for the target
         pkg.list                Packages to install (auto-populated or manual)
     containers/                 Per-container target directories
       [container-name]/
-        [foundation].foundation Zero-byte file; filename = which foundation
+        [foundation].foundation Contains artifact name (patch level)
         compose.sh
         derivations.local
-        fstab.local             Recipe-only mounts
         mtree.dist
         pkg.list
         jail.conf               Jail configuration for this container
+        mount.fstab             All container mounts (processed by jail start/stop).
+                                Use `# shared` comment to mark cross-referenced datasets.
     jail.conf.d/                Symlinked or included by etc/jail.conf
 ```
 
@@ -221,15 +224,39 @@ lives in `minhag/foundations/<name>/build.conf`. Systems and containers
 are built **on top of** a foundation — they don't carry their own build
 config.
 
-Each system/container has exactly one zero-byte file named
-`<foundation-name>.foundation` in its minhag dir. The filename IS the
-data. Reading it: `basename "$(ls "$dir"/*.foundation)" .foundation`.
+Each system/container has exactly one file named
+`<foundation-name>.foundation` in its minhag dir. The filename encodes
+the foundation identity (stream + major.minor, e.g.,
+`generic-stable15.0.foundation`). The file **contains the artifact name**
+(patch level / ZFS snapshot tag). On a patch-level update, rewrite the
+contents. On a stream/major.minor change, rename the file and write the
+new artifact name.
+
+Reading: `basename "$(ls "$dir"/*.foundation)" .foundation` for the
+foundation name; `cat "$dir"/*.foundation` for the artifact name.
 Multiple `.foundation` files = error.
+
+Foundation names should include the FreeBSD major.minor version:
+`generic-stable15.0`, not `generic-stable15`.
 
 This eliminates the ideological difference between systems and
 containers. What differentiates them is how you use them, not how they
 are built. A container has a `jail.conf`; a system has a KERNCONF in its
 foundation's `build.conf`. These are not mutually exclusive.
+
+### zbereshit/foundations — clone hierarchy
+
+Each foundation exists in two places:
+
+- `zbamidbar/sinai.zfs/foundations/<name>@<artifact>` — canonical archive
+- `zbereshit/foundations/<name>@<artifact>` — deployment clone source
+  (replicated from zbamidbar via `zfs send | recv`)
+
+Containers (and optionally systems) are ZFS **clones** from the
+zbereshit copy. Two containers at the same patch level share all base
+blocks. Even containers at different patch levels share most blocks
+through the incremental snapshot chain. Old snapshots on
+zbereshit/foundations can be pruned once no clone references them.
 
 ### Git branch naming in sinai.git
 
@@ -237,21 +264,23 @@ foundation's `build.conf`. These are not mutually exclusive.
 - `system/<name>` — forks from a foundation commit; inaugural commit writes /etc/fstab
 - `container/<name>` — forks from a foundation commit
 
-### Two kinds of fstab entries
+### Mount architecture
 
-Normal data-lake mounts (var, tmp, usr/local, optionally home) go into
-the system's `/etc/fstab` as the inaugural commit on the system branch.
-These are deployment config — they vary per deployment.
+**Systems** use `/etc/fstab` inside the system (git-tracked). Data-lake
+mounts (var, tmp, usr/local, home, custom) are written during the
+inaugural commit. All mounts go in one place — no split.
 
-Recipe-only mounts (container dependencies, shared jail data-pools) go
-in `minhag/<name>/fstab.local`. These are part of the system's identity
-and will matter more when we implement container dependencies. Most
-systems will have an empty `fstab.local`.
+**Containers** use `minhag/containers/<name>/mount.fstab`, which is
+referenced by the container's jail.conf. The jail framework processes
+these entries at jail start and reverses them at jail stop. All
+container mounts — data-lake, custom, shared — go in this one file.
+Shared datasets (cross-referenced by multiple containers) are marked
+with `# shared` comments for parasa tooling to detect dependencies.
 
-Why fstab over `zfs set mountpoint=`: fstab is per-system (one value per
-system), `zfs set mountpoint=` is per-dataset (one value total). Shared
-datasets can mount at different paths on different systems. FreeBSD
-`mount -a` with `late` handles ZFS after pool import.
+Why fstab over `zfs set mountpoint=`: fstab is per-system/container
+(one value per consumer), `zfs set mountpoint=` is per-dataset (one
+value total). Shared datasets can mount at different paths on different
+containers. FreeBSD `mount -a` with `late` handles ZFS after pool import.
 
 ### Command family
 
@@ -277,10 +306,10 @@ effective config for any build is the maximal set of both, preferring
 Building is now a two-step process: first build a **foundation** (pristine
 world+kernel), then create **systems** or **containers** on top of it.
 
-`new_foundation` creates a transient `zshemot/tablets` workspace, builds
-from `zshemot/torah`, commits to an orphan `foundation/<name>` branch on
-`zbamidbar/sinai.git`, snapshots and archives to
-`zbamidbar/sinai.zfs/foundations/<name>`, then destroys tablets.
+`new_foundation` creates a transient `zshemot/amim/<name>` workspace,
+builds from `zshemot/torah`, commits to an orphan `foundation/<name>`
+branch on `zbamidbar/sinai.git`, snapshots and archives to
+`zbamidbar/sinai.zfs/foundations/<name>`, then destroys the workspace.
 
 The foundation .gitignore covers `var/`, `usr/local/`, `tmp/` only — NOT
 `home/`. Whether to gitignore home is per-system/container, decided during
@@ -301,9 +330,9 @@ branching from `foundation/<name>` that writes data-lake mount entries into
 `/etc/fstab` (var, tmp, usr/local are always included; home is optional).
 
 The ZFS flow: `zbamidbar/sinai.zfs/foundations/<name>` recv to
-`zshemot/tablets` (temporarily), branch and commit, push, destroy tablets.
-If there are no fstab changes, the branch is created on the bare repo
-without recv'ing tablets.
+`zshemot/amim/<system-name>` (temporarily), branch and commit, push,
+destroy workspace. If there are no fstab changes, the branch is created
+on the bare repo without recv'ing.
 
 ### Deployment (deploy_system)
 
@@ -348,26 +377,30 @@ readability only.
 
 Container target directories live at
 `/zshemot/parasa/minhag/containers/[container-name]/` and contain the same
-files as system targets: build.conf, compose.sh, derivations.local, mtree.dist,
-pkg.list, plus a jail.conf.
+files as system targets: compose.sh, derivations.local, mtree.dist,
+pkg.list, plus a jail.conf and mount.fstab.
 
 To appropriate the resources for a container, the foundation artifact
 is found via the container's `.foundation` file and resolved through
-`zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>`. We use zfs-send
-and zfs-recv to copy this pristine build artifact from zbamidbar to
-zbereshit/containers/[container-name]@[artifact-name]. The subordinate var/
-dataset is sent from zbamidbar/sinai.zfs to
-zbamidbar/container-data/[container-name]/var. Why not clone, since it's in
-the same pool? var/ doesn't relate to the release, and its tracking will be
-done via git. This container-data dataset is mounted into /containers so it
-overlays on top of the jail's root tree from
-zbereshit/containers/[container-name]. Two more container-data datasets are
-created: container-data/[container-name]/usr-local, which mounts at
-/containers/[container-name]/usr/local for packages, and
-container-data/[container-name]/home.
+`zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>`. The foundation
+is replicated to `zbereshit/foundations/<foundation>@<artifact>` if not
+already present, and the container is created as a ZFS **clone** from
+that snapshot. This gives block-level deduplication: containers at the
+same patch level share all base blocks.
 
-After resources are appropriated, start the jail with jail(8). Install
-packages from pkg.list, then run compose.sh commands.
+Data-lake datasets (var, usr-local, home) live under
+`zbamidbar/container-data/[container-name]/`. var is copied from the
+foundation archive (independent copy of pristine var). usr-local and
+home are created empty.
+
+Container data-lake mounts use jail(8)'s native `mount.fstab` mechanism.
+Each container's jail.conf references a mount.fstab file in minhag that
+maps zbamidbar data datasets into the container path. The jail framework
+processes these at jail start and reverses them at jail stop — no manual
+mount/unmount needed. The host's `/etc/jail.conf` includes container
+configs via `include "/zshemot/parasa/minhag/containers/*/jail.conf"`.
+
+See `docs/user_stories_containers.md` for the full container lifecycle.
 
 ## Zoom out and filling in the missing blanks
 
@@ -419,7 +452,7 @@ See [drift_manifest.md](drift_manifest.md) for the full design.
 
 # Addendum with context: Blending Concept 1 and 2
 
-Edit to Concept 1 Phase 1: When we recv a foundation from sinai.zfs to the transient tablets workspace, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
+Edit to Concept 1 Phase 1: When we recv a foundation from sinai.zfs to the transient amim workspace, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
 
 Edit 2 to Concept 1 Phase 1: We want to track all these foreign-mount files from the base system (eg in var. None exist in home/ or usr/local), but we don't want to track any further files in them. So we should:
 

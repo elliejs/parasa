@@ -137,8 +137,10 @@ zshemot/parasa
   databases, and user configuration (minhag/) per target. Mounted when
   parasa scripts need config or during builds.
 
-Note: zshemot/tablets is NOT created by bootstrap. It is transient —
-created on demand by new_foundation or new_system, destroyed after use.
+Note: zshemot/amim is NOT created by bootstrap. It is the parent for
+per-name build workspaces (e.g., zshemot/amim/generic-stable15.0),
+created on demand by new_foundation/new_system/new_container. Each
+child workspace is destroyed after use. Multiple can exist concurrently.
 ```
 
 ### zbamidbar

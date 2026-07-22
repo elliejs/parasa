@@ -1,5 +1,16 @@
 # Plan: Foundation Architecture — New-Era Stage 1
 
+> **Superseded decisions** (this plan predates later iterations):
+> - `zshemot/tablets` → `zshemot/amim/<name>` (per-name workspaces, concurrent-safe)
+> - `fstab.local` eliminated — systems use `/etc/fstab`, containers use `mount.fstab` in minhag
+> - Recipe vs non-recipe mount distinction removed — all mounts in one file
+> - `.foundation` file contains artifact name (not zero-byte)
+> - Foundation names include major.minor (e.g., `generic-stable15.0`)
+> - `zbereshit/foundations/` added as clone source for containers
+> - Container mounts use jail(8) native `mount.fstab`, not `/etc/fstab` inside the container
+>
+> See `docs/idea.md` and `docs/user_stories_containers.md` for current architecture.
+
 ## Context
 
 The build layer is separated from the system/container layer. A **foundation** is a build configuration (SRC_BRANCH, KERNCONF, etc.) that produces a pristine FreeBSD world+kernel. Systems and containers are built **on top of** a foundation via git branching. This eliminates `build.conf` from system/container dirs and reduces the ideological difference between systems and containers — what differentiates them is how you use them.
