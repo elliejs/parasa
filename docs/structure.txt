@@ -1,0 +1,110 @@
+# COMMON
+#   -> note
+... -> copies of template format of siblings possible.
+->  -> relates to ( just a tag, see next item )
+<-  -> relates from ( to avoid ambiguity )
+${} -> variable
+<   -> contains
+
+# ZFS
+/   -> has dataset children
+@   -> has snapshots
+
+# GIT
+~>  -> branches to
+
+
+zbereshit/
+	foundations/
+		15-stable-generic@
+			${ARTIFACT-1}
+			${ARTIFACT-2}
+			...
+		15.1-releng-gaming@
+			${ARTIFACT}
+			...
+		...
+	systems/
+		${NAME-1}
+		${NAME-2}
+		...
+	containers/
+		${NAME} <- CURRENT_CONTAINER_STATE
+		...
+
+zshemot/
+	build.cfg # The fallback sysrc target of kernel / build options for ALL foundations.
+	derivations.local
+	foundations/
+		${NAME-1}.cfg
+		${NAME-2}.cfg
+		...
+	systems/
+		${NAME}/
+			${BRANCH}.foundation < ${ARTIFACT}
+			pkg.list
+			compose.sh
+			derivations.local
+			mtree.dist
+		...
+	containers/
+		${NAME}/
+			pkg.list
+			compose.sh
+			derivations.local
+			mtree.dist # should we add this to systems/ ? we don't have a reason, but symmetry...
+			jail.conf
+			mount.fstab
+		...
+	src.git # The source tree git repo of FreeBSD source. Here instead of zbamidbar because it's not really datalake content
+	buildspace/ # nee "amim", it's where we build trees.
+
+zbamidbar/
+	foundation.git -> GIT_REPO
+	foundation.zfs/ # the above and this are the new names of the old sinai.
+		15-stable-generic@
+			${ARTIFACT-1} -> ARTIFACT_CHAIN_SOURCE
+			${ARTIFACT-2}
+			...
+		15.1-releng-gaming@
+			${ARTIFACT}
+			...
+		...
+	system-data/
+		${NAME}/
+			home/
+				alice # example
+				...
+			tmp
+			usr-local
+			var
+			... # any mounts can actually be defined here. They'd be defined in mount.fstab. mount.fstab can also define mounts which are not here
+		...
+	container-data/
+		${NAME}/
+			tmp
+			usr-local
+			var
+			... # eg home/
+		...
+
+
+
+foundations.git <- GIT_REPO # THIS IS NOT A ZPOOL like the prior root nodes, this is a git repo within the dataset that this relates from. The next tree is just branch hierarchy within this bare repo
+	15-stable-generic/ # orphan branch. all foundations are just orphan branches. There is a theoretical way to make these branches work right like the source tree, but it requires a build at the diverging commit, and that doesn't even take into account kernel / build config
+		${ARTIFACT-1} <- ARTIFACT_CHAIN_SOURCE # eg, these git artifacts and the foundation.zfs snapshots are the same filesystem state.
+		${ARTIFACT-2} ~> containers/${NAME}
+			${SAVE-1}
+			${SAVE-2}
+			${SAVE-3} <- CURRENT_CONTAINER_STATE # eg, this is the current save commit used by the container
+			...
+		${ARTIFACT-3}
+		...
+	15.1-releng-gaming/
+		${ARTIFACT} ~> systems/${NAME}
+			${SAVE-1}
+			...
+		...
+	...
+
+# This document does not handle tracking zshemot/

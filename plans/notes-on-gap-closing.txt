@@ -1,0 +1,39 @@
+Key design decisions: Derivation regen -- good point. all regen happens after git (which is itself last in the diff resolution process)
+
+is_text_file -- is relying on mime type right? Should we invert this so we look fo binary instead and then report not binary?
+
+Diffing, core algorithm --
+
+3: Remember, we have to do something about ignoring the git dir, most likely?
+
+5d: can you explain this again? if this means non-derivable semi-static binary, reword, and give the admin a "Consider moving this file to /var/" message along with marking git add.
+
+If it's derived but not in the derivation database, put it in the recipe's derivation database. Is that what is meant by "evnironment?"
+
+Classification:
+
+What's the difference between a command and a derivation, really? whether it has a text source that needs to be there first for ordering? if so, we should make this clearer.
+
+6. commit 2: nothing else should be in PARASA_DIR/minhag/{kind}s/{name} than what we add, so really it should be more like a negative check for other files in that dir than a narrow add.
+
+# Set up git in staging -- where are you getting this staging dir? it needs to be somewhere it can not collide with other systems/containers
+
+For systems: -- 
+you misunderstand systems. they should be like containers. you still do an incremental send to zbereshit/foundations/$FOUNDATION, and then clone from there and rebase, but now in the systems dataset. really the only difference is if the dataset gets mounted at / or at /containers/ and run as a jail.
+
+Step 3: pre_pkg() compose --
+what is TREE_ROOT? if it's /, won't this be a problem? systems need a staging area too.
+
+more generally, both systems and containers should both get a $OLD_ARTIFACT-pre-update snapshot, have a staging dir where they get all set up, with the foreign mounts attached and all the scripting run, and then the get a new $NEW_ARTIFACT-post-update snapshot, which is then used to rotate back to the real mounted dir (/containers/$NAME or / (on nextboot) (or unmounted if not a running system and just being updated for updating's sake). then they accumulate diffs of all kinds from there via save until the next update. (IMPORTANT NOTE: there may be a difficulty with implementing this in zfs... since I don't know if you can clone from a snapshot ahead of the clone source, or if you can keep future snapshots after a rollback to a previous one (to fix the potential clone source issue). RESEARCH REQUIRED + planned solution
+
+Step 3, 4, 5: make sure you understand TREE_ROOT and STAGING_ROOT. I believe you just want STAGING_ROOT for all? though really I think you want to bring up the container before doing pre-pkg, pkg, or post-pkg so that all the mounts are enabled. so really the above paragraph isn't quite right. you don't need a new staging area, you just need a recovery snapshot (which could even be stored as a binary file with zfs send-recv to file), and then you move the old container version to $NAME-old, and rebuild the container pristine from the recipe right after recreating $NAMEand re-upping the container (for mounts). For systems, you similarly want to do recipes with mounts enabled, but probably don't want to force a reboot to get into a mounted system. Consider solutions, possibly including upping them as a jail...
+
+step 6:
+
+shouldn't the artifact commit be the first commit on that container/ or system/ branch and entire rest of the commit chain is the chain we want to rebase onto the new foundation artifact commit? it's trivial to assume we just rebase the entire feature chain, right?
+
+IMPORTANT NOTE: really, the foundation commits should be on their own branches too, like foundation/generic-stable15.1. then the sub-version patches are applied in that chain. There is no such thing as a master branch here, just foundation branches, system branches, and container branches.
+
+Step 9 & 10, didn't read, since we have a lot to re-work here.
+
+

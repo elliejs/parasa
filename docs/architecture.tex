@@ -1,0 +1,354 @@
+\documentclass[border=16pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage{tikz}
+\usetikzlibrary{calc, fit, backgrounds, arrows.meta, positioning}
+
+% ── Pool colors ──
+\definecolor{zbereshit}{HTML}{2563EB}
+\definecolor{zshemot}{HTML}{059669}
+\definecolor{zbamidbar}{HTML}{D97706}
+
+% ── Wire colors ──
+\definecolor{wsendrecv}{HTML}{3B82F6}   % blue    — zfs send/recv
+\definecolor{wclone}{HTML}{10B981}      % green   — zfs clone
+\definecolor{wgit}{HTML}{8B5CF6}        % purple  — git push/pull
+\definecolor{wmount}{HTML}{F59E0B}      % amber   — foreign mount
+\definecolor{wrecipe}{HTML}{EF4444}     % red     — recipe drives
+\definecolor{wbuild}{HTML}{06B6D4}      % cyan    — build pipeline
+
+% ── Git branch colors ──
+\definecolor{gfound}{HTML}{7C3AED}
+\definecolor{gsys}{HTML}{DC2626}
+\definecolor{gctr}{HTML}{0891B2}
+
+% ── Neutral ──
+\definecolor{note}{HTML}{6B7280}
+\definecolor{cardbg}{HTML}{FAFBFC}
+
+\tikzset{
+  poolbox/.style={
+    draw=#1, line width=1.2pt, rounded corners=10pt,
+    fill=#1!4, inner sep=14pt,
+  },
+  pooltitle/.style={font=\Large\bfseries\sffamily, color=#1},
+  poolsub/.style={font=\small\itshape, color=note},
+  % Tree entry: monospaced, left-anchored
+  e/.style={font=\small\ttfamily, anchor=west, inner sep=0pt},
+  % Annotation (gray, smaller)
+  ann/.style={font=\scriptsize\color{note}},
+  % Wire label
+  wlabel/.style={font=\scriptsize\sffamily, fill=white, inner sep=2pt, rounded corners=2pt},
+  wire/.style={line width=1.6pt, -{Stealth[length=5pt]}},
+  biwire/.style={line width=1.6pt, {Stealth[length=5pt]}-{Stealth[length=5pt]}},
+  gbranch/.style={font=\small\bfseries\sffamily, anchor=west},
+  gcommit/.style={
+    draw=gray!50, rounded corners=2pt, fill=cardbg,
+    font=\small\ttfamily, inner sep=3pt, minimum width=1.8cm,
+  },
+  swatch/.style={line width=2pt, -{Stealth[length=5pt]}},
+}
+
+% Line spacing for tree entries
+\newcommand{\LS}{0.40}
+
+\begin{document}
+\begin{tikzpicture}
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  ZSHEMOT  (left column)                                                  ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\coordinate (ZS) at (0, 0);
+
+\node[e, font=\normalsize\ttfamily\bfseries] (zs-root) at (ZS) {zshemot/};
+\node[e] at ($(ZS)+(0, -1*\LS)$)  {\textcolor{gray}{├──} build.cfg};
+  \node[ann, anchor=west] at ($(ZS)+(0.15, -1.6*\LS)$) {\textcolor{gray}{│}\quad\quad fallback kernel \& build opts};
+\node[e] at ($(ZS)+(0, -2.3*\LS)$)  {\textcolor{gray}{├──} derivations.local};
+\node[e] at ($(ZS)+(0, -3.3*\LS)$)  {\textcolor{gray}{├──} foundations/};
+\node[e] at ($(ZS)+(0, -4.3*\LS)$)  {\textcolor{gray}{│\quad ├──} \$\{NAME\}.cfg};
+\node[e] at ($(ZS)+(0, -5.3*\LS)$)  {\textcolor{gray}{│\quad └──} \ldots};
+\node[e] (zs-sys) at ($(ZS)+(0, -6.5*\LS)$)  {\textcolor{gray}{├──} systems/\$\{NAME\}/};
+\node[e] at ($(ZS)+(0, -7.5*\LS)$)  {\textcolor{gray}{│\quad ├──} \$\{BRANCH\}.foundation};
+\node[e] at ($(ZS)+(0, -8.5*\LS)$)  {\textcolor{gray}{│\quad ├──} pkg.list};
+\node[e] at ($(ZS)+(0, -9.5*\LS)$)  {\textcolor{gray}{│\quad ├──} compose.sh};
+\node[e] at ($(ZS)+(0, -10.5*\LS)$)  {\textcolor{gray}{│\quad ├──} derivations.local};
+\node[e] at ($(ZS)+(0, -11.5*\LS)$)  {\textcolor{gray}{│\quad └──} mtree.dist};
+\node[e] (zs-ctr) at ($(ZS)+(0, -13*\LS)$)  {\textcolor{gray}{├──} containers/\$\{NAME\}/};
+\node[e] at ($(ZS)+(0, -14*\LS)$)  {\textcolor{gray}{│\quad ├──} pkg.list};
+\node[e] at ($(ZS)+(0, -15*\LS)$)  {\textcolor{gray}{│\quad ├──} compose.sh};
+\node[e] at ($(ZS)+(0, -16*\LS)$)  {\textcolor{gray}{│\quad ├──} derivations.local};
+\node[e] at ($(ZS)+(0, -17*\LS)$)  {\textcolor{gray}{│\quad ├──} mtree.dist};
+\node[e] at ($(ZS)+(0, -18*\LS)$)  {\textcolor{gray}{│\quad ├──} jail.conf};
+\node[e] at ($(ZS)+(0, -19*\LS)$)  {\textcolor{gray}{│\quad └──} mount.fstab};
+\node[e] (zs-src) at ($(ZS)+(0, -20.5*\LS)$) {\textcolor{gray}{├──} src.git};
+  \node[ann, anchor=west] at ($(ZS)+(1.6, -20.5*\LS)$) {FreeBSD source tree};
+\node[ann, anchor=west] at ($(ZS)+(0.5, -21.2*\LS)$) {\textcolor{wbuild}{$\downarrow$ make buildworld}};
+\node[e] (zs-build) at ($(ZS)+(0, -22*\LS)$) {\textcolor{gray}{└──} buildspace/};
+  \node[ann, anchor=west] at ($(ZS)+(2.5, -22*\LS)$) {transient workspaces};
+
+% Right-side padding to ensure box encompasses annotations
+\coordinate (zs-rpad) at ($(ZS)+(5.8, 0)$);
+\begin{pgfonlayer}{background}
+  \node[poolbox=zshemot,
+        fit=(zs-root)(zs-build)(zs-rpad),
+        inner xsep=16pt, inner ysep=12pt,
+        label={[pooltitle=zshemot, anchor=south]above:zshemot}] (ZSHEMOT) {};
+  \node[poolsub, anchor=north] at (ZSHEMOT.south) {recipe lake --- config, source, build};
+\end{pgfonlayer}
+
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  ZBERESHIT  (center column)                                              ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\coordinate (ZB) at (11, 0);
+
+\node[e, font=\normalsize\ttfamily\bfseries] (zb-root) at (ZB) {zbereshit/};
+\node[e] (zb-found) at ($(ZB)+(0, -1*\LS)$)  {\textcolor{gray}{├──} foundations/};
+\node[e] at ($(ZB)+(0, -2.3*\LS)$)  {\textcolor{gray}{│\quad ├──} 15-stable-generic@};
+\node[e] at ($(ZB)+(0, -3.3*\LS)$)  {\textcolor{gray}{│\quad │\quad ├──} \$\{ARTIFACT-1\}};
+\node[e] at ($(ZB)+(0, -4.3*\LS)$)  {\textcolor{gray}{│\quad │\quad ├──} \$\{ARTIFACT-2\}};
+\node[e] at ($(ZB)+(0, -5.3*\LS)$)  {\textcolor{gray}{│\quad │\quad └──} \ldots};
+\node[e] at ($(ZB)+(0, -6.3*\LS)$)  {\textcolor{gray}{│\quad ├──} 15.1-releng-gaming@};
+\node[e] at ($(ZB)+(0, -7.3*\LS)$)  {\textcolor{gray}{│\quad │\quad └──} \$\{ARTIFACT\}};
+\node[e] at ($(ZB)+(0, -8.3*\LS)$)  {\textcolor{gray}{│\quad └──} \ldots};
+  \node[ann, anchor=west] at ($(ZB)+(0.15, -1.6*\LS)$) {\textcolor{gray}{│}\quad\quad ZFS snapshots = build artifacts};
+\node[e] (zb-sys) at ($(ZB)+(0, -9.5*\LS)$)  {\textcolor{gray}{├──} systems/};
+\node[e] at ($(ZB)+(0, -10.5*\LS)$)  {\textcolor{gray}{│\quad ├──} \$\{NAME-1\}};
+  \node[ann, anchor=west] at ($(ZB)+(3.0, -9.5*\LS)$) {clones from foundations/};
+\node[e] at ($(ZB)+(0, -11.5*\LS)$)  {\textcolor{gray}{│\quad └──} \ldots};
+\node[e] (zb-ctr) at ($(ZB)+(0, -13*\LS)$)  {\textcolor{gray}{└──} containers/};
+\node[e] at ($(ZB)+(0, -14*\LS)$)  {\textcolor{gray}{\phantom{│}\quad ├──} \$\{NAME\}};
+  \node[ann, anchor=west] at ($(ZB)+(3.0, -13*\LS)$) {clones from foundations/};
+\node[e] (zb-last) at ($(ZB)+(0, -15*\LS)$) {\textcolor{gray}{\phantom{│}\quad └──} \ldots};
+
+% Right-side padding for "clones from foundations/" annotations
+\coordinate (zb-rpad) at ($(ZB)+(5.6, 0)$);
+\begin{pgfonlayer}{background}
+  \node[poolbox=zbereshit,
+        fit=(zb-root)(zb-last)(zb-rpad),
+        inner xsep=16pt, inner ysep=12pt,
+        label={[pooltitle=zbereshit, anchor=south]above:zbereshit}] (ZBERESHIT) {};
+  \node[poolsub, anchor=north] at (ZBERESHIT.south) {running pool --- fast NVMe, boot};
+\end{pgfonlayer}
+
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  ZBAMIDBAR  (right column)                                               ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\coordinate (ZA) at (22, 0);
+
+\node[e, font=\normalsize\ttfamily\bfseries] (za-root) at (ZA) {zbamidbar/};
+\node[e] (za-fgit) at ($(ZA)+(0, -1*\LS)$) {\textcolor{gray}{├──} foundation.git};
+  \node[ann, anchor=west] at ($(ZA)+(2.8, -1*\LS)$) {bare git remote};
+\node[e] (za-fzfs) at ($(ZA)+(0, -2.5*\LS)$) {\textcolor{gray}{├──} foundation.zfs/};
+  \node[ann, anchor=west] at ($(ZA)+(2.8, -2.5*\LS)$) {canonical archives};
+\node[e] at ($(ZA)+(0, -3.5*\LS)$)  {\textcolor{gray}{│\quad ├──} 15-stable-generic@};
+\node[e] at ($(ZA)+(0, -4.5*\LS)$)  {\textcolor{gray}{│\quad │\quad ├──} \$\{ARTIFACT-1\}};
+\node[e] at ($(ZA)+(0, -5.5*\LS)$)  {\textcolor{gray}{│\quad │\quad ├──} \$\{ARTIFACT-2\}};
+\node[e] at ($(ZA)+(0, -6.2*\LS)$)  {\textcolor{gray}{│\quad │\quad └──} \ldots};
+\node[e] at ($(ZA)+(0, -7.2*\LS)$)  {\textcolor{gray}{│\quad ├──} 15.1-releng-gaming@};
+\node[e] at ($(ZA)+(0, -8.2*\LS)$)  {\textcolor{gray}{│\quad │\quad ├──} \$\{ARTIFACT\}};
+\node[e] at ($(ZA)+(0, -8.9*\LS)$)  {\textcolor{gray}{│\quad │\quad └──} \ldots};
+\node[e] at ($(ZA)+(0, -9.9*\LS)$)  {\textcolor{gray}{│\quad └──} \ldots};
+\node[e] (za-sdata) at ($(ZA)+(0, -11.4*\LS)$) {\textcolor{gray}{├──} system-data/};
+\node[e] at ($(ZA)+(0, -12.4*\LS)$)  {\textcolor{gray}{│\quad └──} \$\{NAME\}/};
+\node[e] at ($(ZA)+(0, -13.4*\LS)$)  {\textcolor{gray}{│\quad\phantom{│}\quad ├──} home/};
+\node[e] at ($(ZA)+(0, -14.4*\LS)$)  {\textcolor{gray}{│\quad\phantom{│}\quad ├──} tmp};
+\node[e] at ($(ZA)+(0, -15.4*\LS)$)  {\textcolor{gray}{│\quad\phantom{│}\quad ├──} usr-local};
+\node[e] at ($(ZA)+(0, -16.4*\LS)$)  {\textcolor{gray}{│\quad\phantom{│}\quad └──} var};
+\node[e] (za-cdata) at ($(ZA)+(0, -18*\LS)$) {\textcolor{gray}{└──} container-data/};
+\node[e] at ($(ZA)+(0, -19*\LS)$)  {\textcolor{gray}{\phantom{│}\quad └──} \$\{NAME\}/};
+\node[e] at ($(ZA)+(0, -20*\LS)$)  {\textcolor{gray}{\phantom{│}\quad\phantom{│}\quad ├──} tmp};
+\node[e] at ($(ZA)+(0, -21*\LS)$)  {\textcolor{gray}{\phantom{│}\quad\phantom{│}\quad ├──} usr-local};
+\node[e] (za-last) at ($(ZA)+(0, -22*\LS)$) {\textcolor{gray}{\phantom{│}\quad\phantom{│}\quad └──} var};
+
+% Right-side padding for annotations ("bare git remote", "canonical archives")
+\coordinate (za-rpad) at ($(ZA)+(5.5, 0)$);
+\begin{pgfonlayer}{background}
+  \node[poolbox=zbamidbar,
+        fit=(za-root)(za-last)(za-rpad),
+        inner xsep=16pt, inner ysep=12pt,
+        label={[pooltitle=zbamidbar, anchor=south]above:zbamidbar}] (ZBAMIDBAR) {};
+  \node[poolsub, anchor=north] at (ZBAMIDBAR.south) {data lake --- archives, foreign mounts};
+\end{pgfonlayer}
+
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  WIRES                                                                   ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+% Pre-compute anchor coordinates on box edges for clean wiring.
+% Left/right anchors at the y-level of each key dataset.
+\path (ZSHEMOT.east  |- zs-sys)   coordinate (ZSR-sys);
+\path (ZSHEMOT.east  |- zs-ctr)   coordinate (ZSR-ctr);
+\path (ZSHEMOT.east  |- zs-build) coordinate (ZSR-build);
+\path (ZBERESHIT.west |- zb-found) coordinate (ZBL-found);
+\path (ZBERESHIT.west |- zb-sys)   coordinate (ZBL-sys);
+\path (ZBERESHIT.west |- zb-ctr)   coordinate (ZBL-ctr);
+\path (ZBERESHIT.east |- zb-found) coordinate (ZBR-found);
+\path (ZBERESHIT.east |- zb-sys)   coordinate (ZBR-sys);
+\path (ZBERESHIT.east |- zb-ctr)   coordinate (ZBR-ctr);
+\path (ZBAMIDBAR.west |- za-fgit)  coordinate (ZAL-fgit);
+\path (ZBAMIDBAR.west |- za-fzfs)  coordinate (ZAL-fzfs);
+\path (ZBAMIDBAR.west |- za-sdata) coordinate (ZAL-sdata);
+\path (ZBAMIDBAR.west |- za-cdata) coordinate (ZAL-cdata);
+
+% ── BUILD PIPELINE (cyan) ──
+
+% buildspace -> foundation.zfs: archive build output via ZFS
+% Route: S-curve into the gap between zshemot and zbereshit, then across above boxes
+\draw[wire, wbuild]
+  (ZSR-build) to[out=0, in=180] (8, 1.8) -- (19.5, 1.8) to[out=0, in=90] (20.5, 0.5)
+  to[out=-90, in=180] (ZAL-fzfs);
+\node[wlabel] at (12, 2.1) {zfs send -R (archive build output)};
+
+% buildspace -> foundation.git: push artifact commit
+% Route: same pattern, slightly lower arc
+\draw[wire, wgit]
+  (ZSR-build) ++(0, -0.15) to[out=0, in=180] (7.7, 1.2) -- (19.5, 1.2)
+  to[out=0, in=90] (20.2, 0.3)
+  to[out=-90, in=180] (ZAL-fgit);
+\node[wlabel] at (12, 1.5) {git push (new artifact commit)};
+
+
+% ── ZFS SEND/RECV (blue) ──
+
+% foundation.zfs -> zbereshit/foundations: replicate archives to running pool
+\draw[wire, wsendrecv]
+  (ZAL-fzfs) to[out=180, in=0] (ZBR-found);
+\node[wlabel] at ($(ZBR-found)!0.5!(ZAL-fzfs)+(0, 0.2)$) {zfs send/recv};
+
+
+% ── RECIPE DRIVES (red, dotted) ──
+
+% system recipe -> live system
+\draw[wire, wrecipe, densely dotted]
+  (ZSR-sys) to[out=0, in=180] (ZBL-sys);
+\node[wlabel] at ($(ZSR-sys)!0.5!(ZBL-sys)+(0, 0.2)$) {recipe drives composition};
+
+% container recipe -> live container
+\draw[wire, wrecipe, densely dotted]
+  (ZSR-ctr) to[out=0, in=180] (ZBL-ctr);
+\node[wlabel] at ($(ZSR-ctr)!0.5!(ZBL-ctr)+(0, 0.2)$) {recipe drives composition};
+
+
+% ── GIT PUSH/PULL for saves (purple) ──
+
+% systems <-> foundation.git (gentle curve staying in the gap between boxes)
+\draw[biwire, wgit]
+  (ZBR-sys) to[out=10, in=190] ($(ZAL-fgit)+(0, 0.1)$);
+\node[wlabel] at ($(ZBR-sys)!0.5!(ZAL-fgit)+(0, -0.6)$) {git push/pull (saves)};
+
+% containers <-> foundation.git
+\draw[biwire, wgit]
+  (ZBR-ctr) to[out=5, in=200] ($(ZAL-fgit)+(0, -0.1)$);
+\node[wlabel] at ($(ZBR-ctr)!0.5!(ZAL-fgit)+(0, -0.3)$) {git push/pull (saves)};
+
+
+% ── FOREIGN MOUNT (amber, dashed) ──
+
+% system-data -> systems (enter zbereshit from the right)
+\draw[wire, wmount, densely dashed]
+  (ZAL-sdata) to[out=180, in=-5] ($(ZBR-sys)+(0, -0.15)$);
+\node[wlabel] at ($(ZBR-sys)!0.5!(ZAL-sdata)+(0, 0.25)$) {nullfs via /etc/fstab};
+
+% container-data -> containers
+\draw[wire, wmount, densely dashed]
+  (ZAL-cdata) to[out=180, in=-5] ($(ZBR-ctr)+(0, -0.15)$);
+\node[wlabel] at ($(ZBR-ctr)!0.5!(ZAL-cdata)+(0, 0.25)$) {nullfs via mount.fstab};
+
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  GIT BRANCH TOPOLOGY                                                    ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\coordinate (gitorigin) at ($(ZSHEMOT.south west)+(0,-2.0)$);
+
+% Foundation branch 1
+\node[gbranch, color=gfound] (gb1t) at (gitorigin) {15-stable-generic/};
+\node[font=\scriptsize\itshape\color{note}, below=0pt of gb1t, anchor=north west] {orphan branch};
+
+\node[gcommit, below=0.5cm of gb1t.south west, anchor=west] (fa1) {ARTIFACT-1};
+\node[gcommit, below=0.3cm of fa1] (fa2) {ARTIFACT-2};
+\node[gcommit, below=0.3cm of fa2] (fa3) {ARTIFACT-3};
+\node[font=\small\ttfamily, below=0.15cm of fa3, anchor=north] {\ldots};
+
+\draw[-{Stealth[length=4pt]}, thin, gray] (fa1) -- (fa2);
+\draw[-{Stealth[length=4pt]}, thin, gray] (fa2) -- (fa3);
+
+% Container branch from ARTIFACT-2
+\node[gbranch, color=gctr, right=4.5cm of fa2] (cbrt) {containers/\$\{NAME\}};
+\node[gcommit, below=0.15cm of cbrt] (cs1) {SAVE-1};
+\node[gcommit, below=0.3cm of cs1] (cs2) {SAVE-2};
+\node[gcommit, below=0.3cm of cs2] (cs3) {SAVE-3};
+\node[font=\scriptsize\itshape\color{note}, right=3pt of cs3] {$\leftarrow$ current live state};
+\node[font=\small\ttfamily, below=0.15cm of cs3, anchor=north] {\ldots};
+
+\draw[-{Stealth[length=4pt]}, gctr, dashed, thick] (fa2.east) -- (cs1.west)
+  node[wlabel, midway, above] {forks at};
+\draw[-{Stealth[length=4pt]}, thin, gray] (cs1) -- (cs2);
+\draw[-{Stealth[length=4pt]}, thin, gray] (cs2) -- (cs3);
+
+% Foundation branch 2
+\node[gbranch, color=gfound, below=1.6cm of fa3.south west, anchor=west] (gb2t) {15.1-releng-gaming/};
+\node[font=\scriptsize\itshape\color{note}, below=0pt of gb2t, anchor=north west] {orphan branch};
+
+\node[gcommit, below=0.5cm of gb2t.south west, anchor=west] (fb1) {ARTIFACT-1};
+\node[font=\small\ttfamily, below=0.15cm of fb1, anchor=north] {\ldots};
+
+% System branch
+\node[gbranch, color=gsys, right=4.5cm of fb1] (sbrt) {systems/\$\{NAME\}};
+\node[gcommit, below=0.15cm of sbrt] (ss1) {SAVE-1};
+\node[gcommit, below=0.3cm of ss1] (ss2) {SAVE-2};
+\node[font=\small\ttfamily, below=0.15cm of ss2, anchor=north] {\ldots};
+
+\draw[-{Stealth[length=4pt]}, gsys, dashed, thick] (fb1.east) -- (ss1.west)
+  node[wlabel, midway, above] {forks at};
+\draw[-{Stealth[length=4pt]}, thin, gray] (ss1) -- (ss2);
+
+% Rebase note
+\node[font=\scriptsize\sffamily\color{note}, text width=5.8cm, anchor=north west,
+      draw=gray!30, rounded corners=3pt, fill=cardbg, inner sep=6pt]
+  (rebase-note) at ($(sbrt.east)+(0.8,-0.1)$)
+  {Save commits accumulate admin deltas\\
+   (config edits, package changes, etc).\\[3pt]
+   On update, the save chain is rebased\\
+   onto a newer foundation artifact:\\[2pt]
+   \texttt{git rebase --onto ARTIFACT-3}\\
+   \texttt{\quad ARTIFACT-2 containers/NAME}};
+
+\begin{pgfonlayer}{background}
+  \node[poolbox=gfound,
+        fit=(gb1t)(cs3)(gb2t)(ss2)(rebase-note),
+        inner sep=16pt,
+        label={[pooltitle=gfound, anchor=south]above:foundation.git branch topology}] (GITBOX) {};
+  \node[poolsub, anchor=north] at (GITBOX.south)
+    {no main branch --- only orphan foundation branches with forked system/container branches};
+\end{pgfonlayer}
+
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  LEGEND                                                                  ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\coordinate (leg) at ($(GITBOX.south west)+(0,-1.0)$);
+\node[font=\normalsize\bfseries\sffamily, anchor=west] at (leg) {Relationships:};
+
+\draw[swatch, wsendrecv] ($(leg)+(0,-0.55)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {zfs send/recv (replication)};
+\draw[swatch, wclone] ($(leg)+(6,-0.55)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {zfs clone (branching)};
+\draw[swatch, wgit] ($(leg)+(12,-0.55)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {git push/pull};
+
+\draw[swatch, wmount, densely dashed] ($(leg)+(0,-1.1)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {foreign mount (nullfs)};
+\draw[swatch, wrecipe, densely dotted] ($(leg)+(6,-1.1)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {recipe drives composition};
+\draw[swatch, wbuild] ($(leg)+(12,-1.1)$) -- ++(0.9,0)
+  node[right, font=\small\sffamily] {build pipeline};
+
+\end{tikzpicture}
+\end{document}
