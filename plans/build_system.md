@@ -1,7 +1,7 @@
 # Plan: Foundation Architecture — New-Era Stage 1
 
 > **Superseded decisions** (this plan predates later iterations):
-> - `zshemot/tablets` → `zshemot/amim/<name>` (per-name workspaces, concurrent-safe)
+> - `zshemot/tablets` → `zshemot/buildspace/<name>` (per-name workspaces, concurrent-safe)
 > - `fstab.local` eliminated — systems use `/etc/fstab`, containers use `mount.fstab` in minhag
 > - Recipe vs non-recipe mount distinction removed — all mounts in one file
 > - `.foundation` file contains artifact name (not zero-byte)
@@ -46,13 +46,13 @@ minhag/
     compose.sh / derivations.local / fstab.local / mtree.dist / pkg.list
     jail.conf                     Jail configuration
 
-sinai.git branches:             (bare repo at zbamidbar/sinai.git)
+foundation.git branches:        (bare repo at zbamidbar/foundation.git)
   foundation/<name>               Pristine build (world+kernel)
   system/<name>                   Forks from a foundation/ commit;
                                   inaugural commit writes /etc/fstab
   container/<name>                Forks from a foundation/ commit
 
-sinai.zfs:                      (zbamidbar/sinai.zfs/)
+foundation.zfs:                 (zbamidbar/foundation.zfs/)
   foundations/<name>              Pristine ZFS archive (includes var/)
   (NO systems/ or containers/ — tracked by git+mtree+compose)
 
@@ -90,7 +90,7 @@ Normal data-lake mounts go into the system's `/etc/fstab` as the first commit on
 | `docs/idea.md` | **Edit** | Foundation concept, fstab split, command family, dataset renames |
 | `docs/user_stories_build_system.md` | **Rewrite** | Split into foundation + system stories |
 | `docs/drift_manifest.md` | **Edit** | Update build.conf refs to foundations |
-| `scripts/stage0-bootstrap.sh` | **Edit** | Rename `tablets.git` → `sinai.git`, `tablets.zfs` → `sinai.zfs` |
+| `scripts/stage0-bootstrap.sh` | **Edit** | Rename `tablets.git` → `foundation.git`, `tablets.zfs` → `foundation.zfs` |
 
 ---
 
@@ -126,30 +126,30 @@ Mode detection:
 2. **`collect_foundation_name`** — prompt if interactive; validate
 3. **`check_name_available`** — must NOT exist in:
    - `minhag/foundations/<name>/`
-   - `zbamidbar/sinai.zfs/foundations/<name>`
-   - `sinai.git` branch `foundation/<name>`
+   - `zbamidbar/foundation.zfs/foundations/<name>`
+   - `foundation.git` branch `foundation/<name>`
    If exists, error suggesting `destroy_foundation` (future) or pick a new name.
 4. **`resolve_build_config`** — collect SRC_BRANCH (default `stable/15`), KERNCONF (default `GENERIC`), MAKE_JOBS (default `hw.ncpu`). In semi mode, `-o` values become pre-filled defaults; still ask every question. Enter = accept default.
 5. Print summary, confirm
 
 #### Phase 2: Preparation
 6. **`create_minhag_dir`** — create `minhag/foundations/<name>/build.conf` with collected values. In interactive mode (not `-q`), offer to open the foundation dir in `$EDITOR` before proceeding.
-7. **`ensure_src_tree`** — mount `zshemot/torah`, clone if missing, checkout SRC_BRANCH, pull
+7. **`ensure_src_tree`** — mount `zshemot/src.git`, clone if missing, checkout SRC_BRANCH, pull
 8. **`prepare_tablets`** — create `zshemot/tablets` + `zshemot/tablets/var` (transient). Ensure empty.
 9. **`prepare_tablets_git`**:
-   - Mount `zbamidbar/sinai.git`. Init bare if needed.
+   - Mount `zbamidbar/foundation.git`. Init bare if needed.
    - In `/zshemot/tablets`: `git init`, `git remote add origin <path>`, `git fetch` (fetch is needed to get remote refs — branch list, existing foundations. There is no lighter metadata-only option in git.)
    - `git checkout --orphan foundation/<name>`
    - Clear everything except `.git`
 
 #### Phase 3: Build
-10. **`run_build`** — five make targets from `zshemot/torah`:
+10. **`run_build`** — five make targets from `zshemot/src.git`:
     1. `make -j$N buildworld`
     2. `make -j$N buildkernel KERNCONF=$KERNCONF`
     3. `make -j$N DESTDIR=/zshemot/tablets installkernel KERNCONF=$KERNCONF`
     4. `make -j$N DESTDIR=/zshemot/tablets installworld`
     5. `make -j$N DESTDIR=/zshemot/tablets distribution`
-11. Generate artifact name: `get_artifact_name /zshemot/torah "$FOUNDATION_NAME"`
+11. Generate artifact name: `get_artifact_name /zshemot/src.git "$FOUNDATION_NAME"`
 
 #### Phase 4: Track
 12. **`commit_build`**:
@@ -162,8 +162,8 @@ Mode detection:
 
 13. **`archive_to_zbamidbar`**:
     1. `zfs snapshot -r zshemot/tablets@$ARTIFACT_NAME`
-    2. `ztouch zbamidbar/sinai.zfs/foundations/$FOUNDATION_NAME`
-    3. Full send to `zbamidbar/sinai.zfs/foundations/$FOUNDATION_NAME`
+    2. `ztouch zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME`
+    3. Full send to `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME`
 
 14. **`wipe_tablets`** — `zfs destroy -r zshemot/tablets`
 
@@ -211,7 +211,7 @@ The standard data-lake mounts (var, tmp, usr/local) are always auto-included in 
 3. **`check_name_available`** — must NOT exist in:
    - `minhag/systems/<name>/`
    - `zbereshit/systems/<name>`
-4. **`collect_foundation`** — if `-f` provided, validate it exists in `minhag/foundations/<name>/` AND `zbamidbar/sinai.zfs/foundations/<name>`. If not provided, list available foundations and prompt.
+4. **`collect_foundation`** — if `-f` provided, validate it exists in `minhag/foundations/<name>/` AND `zbamidbar/foundation.zfs/foundations/<name>`. If not provided, list available foundations and prompt.
 5. **`collect_build_options`** — boilerplate dataset questions + custom mounts. For each mount, ask if recipe-related (default: no). Defaults use `zbamidbar/system-data/<name>/<stem>`, user can override.
 6. Print summary, confirm
 
@@ -225,11 +225,11 @@ The standard data-lake mounts (var, tmp, usr/local) are always auto-included in 
    - `mtree.dist` (empty, populated later by parasa-diff)
 8. **`create_system_datasets`** — on zbamidbar:
    - `ztouch zbamidbar/system-data/$SYSTEM_NAME`
-   - Full `zfs send | recv` from `zbamidbar/sinai.zfs/foundations/$FOUNDATION_NAME/var` to `zbamidbar/system-data/$SYSTEM_NAME/var` (independent copy of pristine var)
+   - Full `zfs send | recv` from `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME/var` to `zbamidbar/system-data/$SYSTEM_NAME/var` (independent copy of pristine var)
    - `ztouch` for home, tmp, roothome, user homes per collected options
 9. **`create_inaugural_commit`** — the core operation:
-   1. Recv foundation from `zbamidbar/sinai.zfs/foundations/$FOUNDATION_NAME` to `zshemot/tablets` (temporarily — we need the filesystem to modify and commit)
-   2. Set up git: the recv'd dataset includes `.git` from the foundation build. Verify remote points to `sinai.git`. `git fetch origin`.
+   1. Recv foundation from `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME` to `zshemot/tablets` (temporarily — we need the filesystem to modify and commit)
+   2. Set up git: the recv'd dataset includes `.git` from the foundation build. Verify remote points to `foundation.git`. `git fetch origin`.
    3. Create branch: `git checkout -b system/$SYSTEM_NAME foundation/$FOUNDATION_NAME`
    4. Write non-recipe fstab entries into `/etc/fstab` inside tablets (append the generated mount lines in fstab format with `zfs` type and `late` option)
    5. If `fstab.local` has recipe-only mounts, also append those to `/etc/fstab`
@@ -264,18 +264,18 @@ getopts ":hs:a:nd" opt
 
 ### How deploy finds the right ZFS snapshot
 
-The system branch forks from a `foundation/<name>` commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/sinai.zfs/foundations/<name>`. So:
+The system branch forks from a `foundation/<name>` commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/foundations/<name>`. So:
 
 1. Read the system's foundation from `minhag/systems/<name>/*.foundation`
-2. In `sinai.git`, find which foundation commit `system/<name>` forks from (the merge base or first parent on the foundation branch)
+2. In `foundation.git`, find which foundation commit `system/<name>` forks from (the merge base or first parent on the foundation branch)
 3. Read that commit's message — it IS the artifact name
-4. Use that artifact name to locate `zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>`
+4. Use that artifact name to locate `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`
 
 ### Flow
 1. Look up foundation and resolve the ZFS snapshot (as above)
 2. Validate archive exists
-3. `zfs send | recv` from `zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>` to `zbereshit/systems/<name>`. For a new system this is always a full send (we verified it doesn't exist on zbereshit in `check_name_available`). For `update_system` (future), incremental sends apply.
-4. Mount `zbamidbar/sinai.git`
+3. `zfs send | recv` from `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>` to `zbereshit/systems/<name>`. For a new system this is always a full send (we verified it doesn't exist on zbereshit in `check_name_available`). For `update_system` (future), incremental sends apply.
+4. Mount `zbamidbar/foundation.git`
 5. Temporarily mount `zbereshit/systems/<name>`. The recv'd dataset includes `.git` from the foundation build. Fetch the system branch: `git fetch origin system/<name>`. Checkout: `git checkout system/<name>`. This applies the inaugural commit (fstab entries, etc.) on top of the foundation.
 6. Unmount `zbereshit/systems/<name>`
 7. If `-n` (nextboot):
@@ -355,7 +355,7 @@ Each system/container has exactly one zero-byte file named `<foundation-name>.fo
 
 1. **Foundations separate from systems/containers**: Build config lives in `minhag/foundations/`. Systems/containers point to a foundation. Difference between system and container = how you use it.
 
-2. **sinai.zfs only has foundations/**: No systems/containers in the archive. System/container state is tracked by git+mtree+compose.
+2. **foundation.zfs only has foundations/**: No systems/containers in the archive. System/container state is tracked by git+mtree+compose.
 
 3. **Inaugural commit creates the system branch**: `new_system` recv's the foundation to tablets, branches `system/<name>` from `foundation/<name>`, writes fstab entries into `/etc/fstab`, commits, pushes. Deploy just sends the ZFS + checks out the system branch.
 
@@ -379,15 +379,15 @@ Each system/container has exactly one zero-byte file named `<foundation-name>.fo
 
 13. **Interactive: offer `$EDITOR`**: After creating foundation minhag dir, offer to open it in `$EDITOR` before proceeding with the build.
 
-14. **sinai.git / sinai.zfs**: Renamed from `tablets.git` / `tablets.zfs` — dropped the extra nesting layer.
+14. **foundation.git / foundation.zfs**: Renamed from `tablets.git` / `tablets.zfs` — dropped the extra nesting layer.
 
 ---
 
 ## Dataset Renames (bootstrap update) — DONE
 
 In `scripts/stage0-bootstrap.sh`:
-- `zbamidbar/sinai/tablets.git` → `zbamidbar/sinai.git` ✓
-- `zbamidbar/sinai/tablets.zfs` → `zbamidbar/sinai.zfs` ✓
+- `zbamidbar/sinai/tablets.git` → `zbamidbar/foundation.git` ✓
+- `zbamidbar/sinai/tablets.zfs` → `zbamidbar/foundation.zfs` ✓
 - `zbamidbar/sinai/parasa.git` → `zbamidbar/parasa.git` (flattened) ✓
 - `zbamidbar/sinai` parent dataset removed (no longer needed) ✓
 - `zshemot/tablets` + `zshemot/tablets/var` removed from bootstrap (transient) ✓

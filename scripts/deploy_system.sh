@@ -31,7 +31,7 @@ Options:
 
 This command:
   1. Reads the system's foundation from minhag/systems/<name>/*.foundation
-  2. Resolves the foundation's ZFS snapshot via sinai.git commit history
+  2. Resolves the foundation's ZFS snapshot via foundation.git commit history
   3. Sends the foundation archive to zbereshit/systems/<name>
   4. Applies the system branch (git checkout) for system-specific state
   5. Optionally sets nextboot for one-shot boot with auto-revert
@@ -90,34 +90,34 @@ resolve_snapshot() {
 	progress "Foundation: ${FOUNDATION_NAME}"
 
 	# Validate foundation archive exists
-	local archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
+	local archive="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
 	zfs_dataset_exists "$archive" || \
 		die "Foundation archive not found: ${archive}"
 
-	# Mount sinai.git to read commit history
-	run zmount zbamidbar/sinai.git /zbamidbar/sinai.git
+	# Mount foundation.git to read commit history
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 
-	local sinai_git="/zbamidbar/sinai.git"
+	local foundation_git="/zbamidbar/foundation.git"
 	local system_branch="system/${SYSTEM_NAME}"
 	local foundation_branch="foundation/${FOUNDATION_NAME}"
 
 	# Find the foundation commit this system forks from
 	if ! $DRY_RUN; then
-		git_branch_exists "$sinai_git" "$system_branch" || \
-			die "System branch '${system_branch}' not found in sinai.git."
-		git_branch_exists "$sinai_git" "$foundation_branch" || \
-			die "Foundation branch '${foundation_branch}' not found in sinai.git."
+		git_branch_exists "$foundation_git" "$system_branch" || \
+			die "System branch '${system_branch}' not found in foundation.git."
+		git_branch_exists "$foundation_git" "$foundation_branch" || \
+			die "Foundation branch '${foundation_branch}' not found in foundation.git."
 
 		# The merge-base between the system branch and the foundation
 		# branch gives us the foundation commit the system forked from.
 		local fork_commit
-		fork_commit=$(git -C "$sinai_git" merge-base \
+		fork_commit=$(git -C "$foundation_git" merge-base \
 			"refs/heads/${system_branch}" \
 			"refs/heads/${foundation_branch}") || \
 			die "Cannot find fork point between ${system_branch} and ${foundation_branch}"
 
 		# The commit message IS the artifact name
-		ARTIFACT_NAME=$(git -C "$sinai_git" log -1 --format='%s' "$fork_commit")
+		ARTIFACT_NAME=$(git -C "$foundation_git" log -1 --format='%s' "$fork_commit")
 	else
 		ARTIFACT_NAME="[dry-run-artifact]"
 	fi
@@ -135,7 +135,7 @@ resolve_snapshot() {
 # ── Deploy ──────────────────────────────────────────────────────────────────
 
 deploy() {
-	local src="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
+	local src="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
 	local dest="zbereshit/systems/${SYSTEM_NAME}"
 
 	progress "Deploying ${SYSTEM_NAME} to zbereshit"
@@ -145,8 +145,8 @@ deploy() {
 		die "Dataset ${dest} already exists. Use update_system (future) for re-deploy."
 	fi
 
-	# Ensure sinai.zfs is mounted
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+	# Ensure foundation.zfs is mounted
+	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
 	# Full send (new system)
 	progress "ZFS send → ${dest}"
@@ -214,8 +214,8 @@ main() {
 	fi
 
 	# Cleanup mounts
-	run zunmount zbamidbar/sinai.git
-	run zunmount zbamidbar/sinai.zfs
+	run zunmount zbamidbar/foundation.git
+	run zunmount zbamidbar/foundation.zfs
 
 	progress "Deploy complete."
 }

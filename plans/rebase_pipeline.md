@@ -17,14 +17,14 @@ The update flow is therefore **identical** for both at the ZFS level: destroy ol
 ### Git topology: three branch families, no master
 
 ```
-foundation/generic-stable15.0   ← artifact-v1 ← artifact-v2 (patch commits)
-system/wonderland               ← inaugural ← admin-delta-1 ← admin-delta-2
-container/webserver              ← inaugural ← admin-delta-1
+15-stable-generic               ← artifact-v1 ← artifact-v2 (patch commits)
+systems/wonderland              ← inaugural ← admin-delta-1 ← admin-delta-2
+containers/webserver            ← inaugural ← admin-delta-1
 ```
 
-Foundation branches are orphan. System/container branches fork from a foundation commit. The entire delta chain gets rebased onto the new foundation tip:
+Foundation branches are orphan (named after their foundation, e.g. `15-stable-generic`). System/container branches use `systems/<name>` or `containers/<name>` and fork from a foundation artifact commit. The entire delta chain gets rebased onto the new foundation tip:
 ```
-git rebase --onto foundation/<name> <old-fork-point> {kind}/<name>
+git rebase --onto <new-artifact-commit> <old-artifact-commit> {kind}s/<name>
 ```
 
 ### Mounts must be active during recipe replay
@@ -191,7 +191,7 @@ Getopts: `-h -d -s NAME -k KIND -m MSG -q`.
 5. Commit 1 — state:
    git -C TREE_ROOT add -A
    git -C TREE_ROOT commit -m "$ARTIFACT\n$ADMIN_MSG"
-   git -C TREE_ROOT push origin {kind}/{name}
+   git -C TREE_ROOT push origin {kind}s/{name}
 6. Commit 2 — recipe:
    git -C PARASA_DIR add minhag/{kind}s/{name}/
    git -C PARASA_DIR commit -m "{name}: $ADMIN_MSG"
@@ -238,7 +238,7 @@ Step 1: Pre-flight
   ├─ Resolve NEW_ARTIFACT (latest on foundation archive, or -a flag)
   ├─ Verify NEW_ARTIFACT != OLD_ARTIFACT
   ├─ Run diff.sh -q to verify no unsaved changes
-  ├─ Mount sinai.git, verify git branches exist
+  ├─ Mount foundation.git, verify git branches exist
   └─ Container running? Ask to stop (LAST check, after all blockers)
 
 Step 2: Beam down new foundation
@@ -253,9 +253,10 @@ Step 2: Beam down new foundation
 
 Step 3: Mount + start
   ├─ Container: start jail (jail -c $NAME)
-  │   → jail framework processes mount.fstab, mounts all data-lake datasets
-  └─ System: mount data-lake datasets manually from /etc/fstab entries
-      (or temporarily start as a jail for mount + execution context)
+  │   → jail framework processes mount.fstab
+  │   → nullfs only needed if cross-mounting another container's/system's datasets
+  └─ System: mount data-lake ZFS datasets (zfs mount zbamidbar/system-data/$NAME/*)
+      (these are direct ZFS mounts, not nullfs — systems own their datasets)
 
 Step 4: Run recipe
   ├─ Source compose.sh, call pre_pkg()
@@ -270,7 +271,7 @@ Step 4: Run recipe
 
 Step 5: Git rebase
   ├─ The tree's .git (inherited from foundation) has all branches via fetch
-  ├─ git rebase --onto <new-foundation-tip> <old-fork-point> {kind}/$NAME
+  ├─ git rebase --onto <new-artifact-commit> <old-artifact-commit> {kind}s/$NAME
   │   The entire delta chain (inaugural + all admin commits) replays
   ├─ Conflict in quiet mode: git rebase --abort, die
   └─ Conflict in interactive: pause, prompt admin to resolve, loop
@@ -292,7 +293,7 @@ Step 7: Validate
 
 Step 8: Finalize
   ├─ Container: stop jail (jail -r $NAME)
-  ├─ System: unmount data-lake datasets (or stop temp jail)
+  ├─ System: unmount data-lake ZFS datasets
   ├─ Destroy old: zfs destroy -r zbereshit/{kind}s/${NAME}-old
   ├─ Update .foundation file contents with NEW_ARTIFACT
   ├─ Save (delegate to save.sh)
@@ -315,11 +316,10 @@ update_cleanup() {
 
 For containers, the jail framework handles mounts and provides jexec. For systems, the options are:
 
-1. **chroot + manual mounts**: Parse /etc/fstab, mount data-lake datasets into the system tree, use chroot for commands. Simpler but fragile (fstab parsing).
-2. **Temporary jail**: Generate a minimal jail.conf, start the system as a jail during update. The jail framework handles mounts via mount.fstab (which systems don't currently have).
-3. **Hybrid**: Mount data-lake datasets manually (they're ZFS, we know the paths from minhag), use chroot for commands. No jail needed.
+1. **chroot + ZFS mounts**: Mount data-lake datasets directly (they're ZFS datasets under `zbamidbar/system-data/$NAME/` with known mountpoints), use chroot for commands. Systems don't use nullfs — they own their datasets and mount them directly via ZFS.
+2. **Temporary jail**: Generate a minimal jail.conf, start the system as a jail during update. Provides jexec but adds complexity.
 
-Option 3 (hybrid) is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention. Mount them, chroot, unmount.
+Option 1 is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention (`var`, `tmp`, `usr_local`, `home`). Mount them into the system tree, chroot, unmount.
 
 ### Create: `spec/update_spec.sh`
 

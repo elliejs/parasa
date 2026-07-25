@@ -17,7 +17,7 @@
 # Variables set by workspace functions (available to caller after call):
 #   WS_MINHAG        full path to minhag/${WS_KIND}s/$WS_NAME
 #   WS_DATA_ROOT     zbamidbar/$WS_DATA_POOL/$WS_NAME
-#   WS_PATH          /zshemot/amim/$WS_NAME (workspace mount path)
+#   WS_PATH          /zshemot/buildspace/$WS_NAME (workspace mount path)
 
 # ── Dry-run wrapper ──────────────────────────────────────────────────────────
 
@@ -39,9 +39,9 @@ progress() {
 # ── Cleanup trap ─────────────────────────────────────────────────────────────
 
 ws_cleanup() {
-	if [ -n "${WS_NAME:-}" ] && zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
-		printf "Cleaning up transient zshemot/amim/%s workspace...\n" "$WS_NAME" >&2
-		zfs destroy -r "zshemot/amim/${WS_NAME}" 2>/dev/null || true
+	if [ -n "${WS_NAME:-}" ] && zfs_dataset_exists "zshemot/buildspace/${WS_NAME}"; then
+		printf "Cleaning up transient zshemot/buildspace/%s workspace...\n" "$WS_NAME" >&2
+		zfs destroy -r "zshemot/buildspace/${WS_NAME}" 2>/dev/null || true
 	fi
 }
 
@@ -95,8 +95,8 @@ collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
 		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
-		zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}" || \
-			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/sinai.zfs."
+		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}" || \
+			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/foundation.zfs."
 		return
 	fi
 	FOUNDATION_NAME=$(select_foundation "$QUIET")
@@ -152,12 +152,12 @@ create_minhag_boilerplate() {
 }
 
 # Create data datasets on zbamidbar.
-# Creates: parent, var (copied from foundation), usr-local, optional home/tmp/roothome,
+# Creates: parent, var (copied from foundation), usr_local, optional home/tmp/roothome,
 # and per-user home datasets.
 # Sets WS_DATA_ROOT.
 create_data_datasets() {
 	WS_DATA_ROOT="zbamidbar/${WS_DATA_POOL}/${WS_NAME}"
-	local foundation_var="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}/var"
+	local foundation_var="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}/var"
 
 	progress "Creating data datasets"
 
@@ -165,7 +165,7 @@ create_data_datasets() {
 
 	# var: copy pristine var from foundation
 	progress "Copying pristine var from foundation"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 	if ! $DRY_RUN; then
 		local snap
 		snap=$(get_current_artifact "$foundation_var")
@@ -180,8 +180,8 @@ create_data_datasets() {
 			"$foundation_var" "$WS_DATA_ROOT" >&2
 	fi
 
-	# usr-local: always created
-	run ztouch "${WS_DATA_ROOT}/usr-local" -o mountpoint=none -o canmount=noauto
+	# usr_local: always created
+	run ztouch "${WS_DATA_ROOT}/usr_local" -o mountpoint=none -o canmount=noauto
 
 	# Optional datasets
 	if yesish "$WANT_HOME"; then
@@ -211,24 +211,24 @@ create_data_datasets() {
 # ── Phase 3: Inaugural commit lifecycle ──────────────────────────────────────
 
 # Set up the transient workspace for the inaugural commit.
-# Mounts sinai.git/sinai.zfs, recvs foundation to amim, sets up git branch.
+# Mounts foundation.git/foundation.zfs, recvs foundation to buildspace, sets up git branch.
 # Sets WS_PATH.
 ws_begin() {
-	local sinai_git="/zbamidbar/sinai.git"
-	local foundation_archive="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
-	WS_PATH="/zshemot/amim/${WS_NAME}"
+	local foundation_git="/zbamidbar/foundation.git"
+	local foundation_archive="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+	WS_PATH="/zshemot/buildspace/${WS_NAME}"
 
 	progress "Creating inaugural commit"
 
-	run zmount zbamidbar/sinai.git "$sinai_git"
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+	run zmount zbamidbar/foundation.git "$foundation_git"
+	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
-	# Ensure amim parent dataset exists
-	run ztouch zshemot/amim -o mountpoint=none -o canmount=noauto
+	# Ensure buildspace parent dataset exists
+	run ztouch zshemot/buildspace -o mountpoint=none -o canmount=noauto
 
 	# Destroy any leftover workspace
-	if zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${WS_NAME}"
+	if zfs_dataset_exists "zshemot/buildspace/${WS_NAME}"; then
+		run zfs destroy -r "zshemot/buildspace/${WS_NAME}"
 	fi
 
 	# Recv foundation to workspace
@@ -237,11 +237,11 @@ ws_begin() {
 		local snap
 		snap=$(get_current_artifact "$foundation_archive")
 		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
-		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/amim/${WS_NAME}"
-		zfs mount "zshemot/amim/${WS_NAME}"
-		zfs mount "zshemot/amim/${WS_NAME}/var" 2>/dev/null || true
+		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/buildspace/${WS_NAME}"
+		zfs mount "zshemot/buildspace/${WS_NAME}"
+		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
 	else
-		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/amim/%s\n" \
+		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/buildspace/%s\n" \
 			"$foundation_archive" "$WS_NAME" >&2
 	fi
 
@@ -250,9 +250,9 @@ ws_begin() {
 	if ! $DRY_RUN; then
 		local current_remote
 		current_remote=$(git -C "$WS_PATH" config remote.origin.url 2>/dev/null || echo "")
-		if [ "$current_remote" != "$sinai_git" ]; then
-			git -C "$WS_PATH" remote set-url origin "$sinai_git" 2>/dev/null || \
-				git -C "$WS_PATH" remote add origin "$sinai_git"
+		if [ "$current_remote" != "$foundation_git" ]; then
+			git -C "$WS_PATH" remote set-url origin "$foundation_git" 2>/dev/null || \
+				git -C "$WS_PATH" remote add origin "$foundation_git"
 		fi
 		git -C "$WS_PATH" fetch origin
 
@@ -278,10 +278,10 @@ ws_end() {
 	if [ -d "$WS_PATH" ] && ! $DRY_RUN; then
 		clear_mtree "$WS_PATH"
 	fi
-	if zfs_dataset_exists "zshemot/amim/${WS_NAME}"; then
-		run zfs destroy -r "zshemot/amim/${WS_NAME}"
+	if zfs_dataset_exists "zshemot/buildspace/${WS_NAME}"; then
+		run zfs destroy -r "zshemot/buildspace/${WS_NAME}"
 	fi
 
-	run zunmount zbamidbar/sinai.git
-	run zunmount zbamidbar/sinai.zfs
+	run zunmount zbamidbar/foundation.git
+	run zunmount zbamidbar/foundation.zfs
 }

@@ -47,11 +47,11 @@ Examples:
 Execution flow:
   1. Collect foundation name and build config
   2. Create minhag/foundations/<name>/build.conf
-  3. Ensure FreeBSD source tree is ready (zshemot/torah)
-  4. Create transient build workspace (zshemot/amim/<name>)
+  3. Ensure FreeBSD source tree is ready (zshemot/src.git)
+  4. Create transient build workspace (zshemot/buildspace/<name>)
   5. Build world + kernel (five make targets)
-  6. Commit to foundation/<name> branch on zbamidbar/sinai.git
-  7. Archive ZFS snapshot to zbamidbar/sinai.zfs/foundations/<name>
+  6. Commit to foundation/<name> branch on zbamidbar/foundation.git
+  7. Archive ZFS snapshot to zbamidbar/foundation.zfs/foundations/<name>
   8. Destroy transient build workspace
 
 DANGER: This runs 'make buildworld' and 'make buildkernel', which are
@@ -109,9 +109,9 @@ progress() {
 # ── Cleanup trap ────────────────────────────────────────────────────────────
 
 cleanup() {
-	if [ -n "$FOUNDATION_NAME" ] && zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
-		printf "Cleaning up transient zshemot/amim/%s...\n" "$FOUNDATION_NAME" >&2
-		zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}" 2>/dev/null || true
+	if [ -n "$FOUNDATION_NAME" ] && zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}"; then
+		printf "Cleaning up transient zshemot/buildspace/%s...\n" "$FOUNDATION_NAME" >&2
+		zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
 	fi
 }
 
@@ -141,22 +141,22 @@ check_foundation_available() {
 	if [ -d "$minhag" ]; then
 		die "Foundation '${FOUNDATION_NAME}' already exists in minhag. Use destroy_foundation (future) or pick a new name."
 	fi
-	if zfs_dataset_exists "zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"; then
-		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/sinai.zfs. Use destroy_foundation (future) or pick a new name."
+	if zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"; then
+		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/foundation.zfs. Use destroy_foundation (future) or pick a new name."
 	fi
-	# Check sinai.git branch (must mount temporarily)
-	if zfs_dataset_exists "zbamidbar/sinai.git"; then
-		local sinai_mounted=false
-		if yesish "$(zfs get -H -o value mounted zbamidbar/sinai.git 2>/dev/null)"; then
-			sinai_mounted=true
+	# Check foundation.git branch (must mount temporarily)
+	if zfs_dataset_exists "zbamidbar/foundation.git"; then
+		local foundation_git_mounted=false
+		if yesish "$(zfs get -H -o value mounted zbamidbar/foundation.git 2>/dev/null)"; then
+			foundation_git_mounted=true
 		else
-			run zmount zbamidbar/sinai.git /zbamidbar/sinai.git
+			run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 		fi
-		if [ -d "/zbamidbar/sinai.git/refs" ] && \
-		   git_branch_exists /zbamidbar/sinai.git "foundation/${FOUNDATION_NAME}"; then
-			die "Branch 'foundation/${FOUNDATION_NAME}' already exists in sinai.git."
+		if [ -d "/zbamidbar/foundation.git/refs" ] && \
+		   git_branch_exists /zbamidbar/foundation.git "foundation/${FOUNDATION_NAME}"; then
+			die "Branch 'foundation/${FOUNDATION_NAME}' already exists in foundation.git."
 		fi
-		$sinai_mounted || run zunmount zbamidbar/sinai.git
+		$foundation_git_mounted || run zunmount zbamidbar/foundation.git
 	fi
 }
 
@@ -222,61 +222,61 @@ create_minhag_dir() {
 }
 
 ensure_src_tree() {
-	progress "Preparing source tree (zshemot/torah)"
-	run zmount zshemot/torah /zshemot/torah
+	progress "Preparing source tree (zshemot/src.git)"
+	run zmount zshemot/src.git /zshemot/src.git
 
-	if [ ! -d "/zshemot/torah/.git" ]; then
+	if [ ! -d "/zshemot/src.git/.git" ]; then
 		if [ "$QUIET" -eq 0 ]; then
-			confirm "No source tree found. Clone FreeBSD src into zshemot/torah?" \
+			confirm "No source tree found. Clone FreeBSD src into zshemot/src.git?" \
 				|| die "Cannot proceed without a source tree."
 		fi
 		progress "Cloning FreeBSD source (this will take a while)"
-		run git clone https://git.freebsd.org/src.git /zshemot/torah
+		run git clone https://git.freebsd.org/src.git /zshemot/src.git
 	fi
 
 	progress "Checking out ${SRC_BRANCH}"
-	run git -C /zshemot/torah fetch origin
+	run git -C /zshemot/src.git fetch origin
 	# Check if branch exists on remote
 	if ! $DRY_RUN; then
-		if ! git -C /zshemot/torah rev-parse --verify "origin/${SRC_BRANCH}" >/dev/null 2>&1; then
+		if ! git -C /zshemot/src.git rev-parse --verify "origin/${SRC_BRANCH}" >/dev/null 2>&1; then
 			die "Branch '${SRC_BRANCH}' not found on remote. Available branches:"
-			git -C /zshemot/torah branch -r | head -20 >&2
+			git -C /zshemot/src.git branch -r | head -20 >&2
 		fi
 	fi
-	run git -C /zshemot/torah checkout "$SRC_BRANCH"
-	run git -C /zshemot/torah pull --ff-only
+	run git -C /zshemot/src.git checkout "$SRC_BRANCH"
+	run git -C /zshemot/src.git pull --ff-only
 }
 
 prepare_workspace() {
-	progress "Creating transient build workspace (zshemot/amim/${FOUNDATION_NAME})"
+	progress "Creating transient build workspace (zshemot/buildspace/${FOUNDATION_NAME})"
 
 	# Destroy any leftover workspace from a failed run
-	if zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
-		progress "Destroying leftover zshemot/amim/${FOUNDATION_NAME}"
-		run zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}"
+	if zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}"; then
+		progress "Destroying leftover zshemot/buildspace/${FOUNDATION_NAME}"
+		run zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}"
 	fi
 
 	# Ensure parent dataset exists
-	run ztouch zshemot/amim
+	run ztouch zshemot/buildspace
 
-	run zfs create -o mountpoint="/zshemot/amim/${FOUNDATION_NAME}" -o canmount=on "zshemot/amim/${FOUNDATION_NAME}"
-	run zfs create -o mountpoint="/zshemot/amim/${FOUNDATION_NAME}/var" -o canmount=on "zshemot/amim/${FOUNDATION_NAME}/var"
+	run zfs create -o mountpoint="/zshemot/buildspace/${FOUNDATION_NAME}" -o canmount=on "zshemot/buildspace/${FOUNDATION_NAME}"
+	run zfs create -o mountpoint="/zshemot/buildspace/${FOUNDATION_NAME}/var" -o canmount=on "zshemot/buildspace/${FOUNDATION_NAME}/var"
 }
 
 prepare_workspace_git() {
 	progress "Initializing git in workspace"
-	local sinai_git="/zbamidbar/sinai.git"
-	local workspace="/zshemot/amim/${FOUNDATION_NAME}"
+	local foundation_git="/zbamidbar/foundation.git"
+	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
 
-	# Ensure sinai.git is mounted and initialized
-	run zmount zbamidbar/sinai.git "$sinai_git"
-	if [ ! -d "${sinai_git}/refs" ] && ! $DRY_RUN; then
-		run git init --bare "$sinai_git"
+	# Ensure foundation.git is mounted and initialized
+	run zmount zbamidbar/foundation.git "$foundation_git"
+	if [ ! -d "${foundation_git}/refs" ] && ! $DRY_RUN; then
+		run git init --bare "$foundation_git"
 	fi
 
 	# Initialize git in workspace
 	run git -C "$workspace" init
-	run git -C "$workspace" remote add origin "$sinai_git"
+	run git -C "$workspace" remote add origin "$foundation_git"
 
 	# Fetch existing refs (needed for ref awareness, even on first run)
 	if ! $DRY_RUN; then
@@ -295,8 +295,8 @@ prepare_workspace_git() {
 # ── Phase 3: Build ──────────────────────────────────────────────────────────
 
 run_build() {
-	local srcdir="/zshemot/torah"
-	local destdir="/zshemot/amim/${FOUNDATION_NAME}"
+	local srcdir="/zshemot/src.git"
+	local destdir="/zshemot/buildspace/${FOUNDATION_NAME}"
 	local jobs="$MAKE_JOBS"
 
 	progress "Building world (make -j${jobs} buildworld)"
@@ -318,7 +318,7 @@ run_build() {
 # ── Phase 4: Track ──────────────────────────────────────────────────────────
 
 commit_build() {
-	local workspace="/zshemot/amim/${FOUNDATION_NAME}"
+	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
 	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
 
 	progress "Committing build to git"
@@ -346,7 +346,7 @@ commit_build() {
 
 	# Build artifact name
 	if ! $DRY_RUN; then
-		ARTIFACT_NAME=$(get_artifact_name /zshemot/torah "$FOUNDATION_NAME")
+		ARTIFACT_NAME=$(get_artifact_name /zshemot/src.git "$FOUNDATION_NAME")
 	else
 		ARTIFACT_NAME="[dry-run-artifact]"
 	fi
@@ -360,13 +360,13 @@ commit_build() {
 }
 
 archive_to_zbamidbar() {
-	local workspace="zshemot/amim/${FOUNDATION_NAME}"
-	local dest="zbamidbar/sinai.zfs/foundations/${FOUNDATION_NAME}"
+	local workspace="zshemot/buildspace/${FOUNDATION_NAME}"
+	local dest="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
 
 	progress "Archiving to zbamidbar"
 
-	# Ensure sinai.zfs is mounted
-	run zmount zbamidbar/sinai.zfs /zbamidbar/sinai.zfs
+	# Ensure foundation.zfs is mounted
+	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
 	# Snapshot the build
 	run zfs snapshot -r "${workspace}@${ARTIFACT_NAME}"
@@ -384,12 +384,12 @@ archive_to_zbamidbar() {
 
 wipe_workspace() {
 	progress "Destroying transient workspace"
-	if zfs_dataset_exists "zshemot/amim/${FOUNDATION_NAME}"; then
+	if zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}"; then
 		# Clear schg flags before destroy
-		if [ -d "/zshemot/amim/${FOUNDATION_NAME}" ] && ! $DRY_RUN; then
-			clear_mtree "/zshemot/amim/${FOUNDATION_NAME}"
+		if [ -d "/zshemot/buildspace/${FOUNDATION_NAME}" ] && ! $DRY_RUN; then
+			clear_mtree "/zshemot/buildspace/${FOUNDATION_NAME}"
 		fi
-		run zfs destroy -r "zshemot/amim/${FOUNDATION_NAME}"
+		run zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}"
 	fi
 }
 
@@ -423,14 +423,14 @@ main() {
 	wipe_workspace
 
 	# Cleanup: unmount working datasets
-	run zunmount zbamidbar/sinai.git
-	run zunmount zbamidbar/sinai.zfs
-	run zunmount zshemot/torah
+	run zunmount zbamidbar/foundation.git
+	run zunmount zbamidbar/foundation.zfs
+	run zunmount zshemot/src.git
 
 	progress "Foundation '${FOUNDATION_NAME}' created successfully."
 	printf "  Artifact: %s\n" "$ARTIFACT_NAME" >&2
 	printf "  Branch:   foundation/%s\n" "$FOUNDATION_NAME" >&2
-	printf "  Archive:  zbamidbar/sinai.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
+	printf "  Archive:  zbamidbar/foundation.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
 }
 
 main

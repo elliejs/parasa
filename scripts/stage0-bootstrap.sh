@@ -249,15 +249,15 @@ create_datasets() {
 	run zfs create -o mountpoint=/containers -o canmount=on  zbereshit/containers
 
 	# -- zshemot --
-	# Note: zshemot/amim is transient — created on demand by new_foundation/new_system/new_container, not bootstrap
-	run zfs create -o mountpoint=/zshemot/torah    -o canmount=noauto  zshemot/torah
+	# Note: zshemot/buildspace is transient — created on demand by new_foundation/new_system/new_container, not bootstrap
+	run zfs create -o mountpoint=/zshemot/src.git   -o canmount=noauto  zshemot/src.git
 	run zfs create -o mountpoint=/zshemot/parasa  -o canmount=noauto  zshemot/parasa
 
 	# -- zbamidbar --
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/container-data
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/system-data
-	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/sinai.git
-	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/sinai.zfs
+	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/foundation.git
+	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/foundation.zfs
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/parasa.git
 }
 

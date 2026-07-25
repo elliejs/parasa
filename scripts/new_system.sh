@@ -3,7 +3,7 @@
 #
 # Takes an existing foundation and creates a system: minhag directory,
 # data datasets on zbamidbar, and an inaugural commit on a system/<name>
-# branch in sinai.git. Optionally deploys to zbereshit.
+# branch in foundation.git. Optionally deploys to zbereshit.
 #
 # See plans/build_system.md Part 2 for the full design.
 set -eu
@@ -133,7 +133,7 @@ build_fstab_lines() {
 	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
 
 	FSTAB_LINES="${data_root}/var	/var	zfs	rw,late	0	0
-${data_root}/usr-local	/usr/local	zfs	rw,late	0	0"
+${data_root}/usr_local	/usr/local	zfs	rw,late	0	0"
 
 	if yesish "$WANT_HOME"; then
 		FSTAB_LINES="${FSTAB_LINES}
@@ -176,7 +176,7 @@ print_summary() {
 	System: ${SYSTEM_NAME}
 	  Foundation:  ${FOUNDATION_NAME}
 	  var:         ${data_root}/var (always)
-	  usr/local:   ${data_root}/usr-local (always)
+	  usr/local:   ${data_root}/usr_local (always)
 	  home:        $(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")
 	  tmp:         $(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")
 	  home/root:   $(yesish "$WANT_ROOTHOME" && echo "${data_root}/home/root" || echo "no")
