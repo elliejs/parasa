@@ -1,0 +1,187 @@
+# Parasa Architecture — Visual
+#
+# Visual box-art companion to architecture.txt.
+# See architecture.txt for the reference-style version with full detail.
+# See structure.txt for canonical dataset/branch naming.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ POOLS
+═══════════════════════════════════════════════════════════════════════════════
+
+                           ┌─────────────────┐
+                           │   zshemot (SSD)  │
+                           │   config + build │
+                           └─────────────────┘
+
+src.git/	FreeBSD source tree (git clone)
+build.cfg	fallback build options
+foundations/
+	${NAME}.cfg	per-foundation build config
+	...
+systems/
+	${NAME}/
+		${FOUNDATION}.foundation	< ${ARTIFACT}
+		pkg.list
+		compose.sh	pre_pkg() + post_pkg()
+		derivations.local
+		mtree.dist
+	...
+containers/
+	${NAME}/
+		${FOUNDATION}.foundation	< ${ARTIFACT}
+		pkg.list
+		compose.sh	pre_pkg() + post_pkg()
+		derivations.local
+		mtree.dist
+		jail.conf
+		mount.fstab
+	...
+buildspace/	transient (created/destroyed per build)
+	${NAME}/
+		var/
+
+
+                           ┌────────────────────┐
+                           │  zbamidbar (HDD)   │
+                           │  data lake/archive │
+                           └────────────────────┘
+
+foundation.git	bare git repo (see git topology below)
+foundation.zfs/
+	${FOUNDATION}@	e.g. 15-stable-generic
+		${ARTIFACT-1}	snapshot chain (patch builds)
+		${ARTIFACT-2}
+		...
+	...
+system-data/
+	${NAME}/
+		var/
+		home/
+			${USER}/
+			...
+		tmp/
+		usr-local/
+		...
+	...
+container-data/
+	${NAME}/
+		var/
+		home/
+		tmp/
+		usr-local/
+		...
+	...
+parasa.git
+
+
+                           ┌─────────────────────┐
+                           │  zbereshit (NVMe)    │
+                           │  running / bootable  │
+                           └─────────────────────┘
+
+foundations/
+	${FOUNDATION}@	clone source (recv'd from zbamidbar)
+		${ARTIFACT-1}
+		${ARTIFACT-2}
+		...
+	...
+systems/
+	${NAME}	ZFS clone from foundations/${FOUNDATION}@${ARTIFACT}
+	...	mounted at / via nextboot(8)
+containers/
+	${NAME}	ZFS clone from foundations/${FOUNDATION}@${ARTIFACT}
+	...	mounted at /containers/${NAME}, run as jail
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ RUNTIME MOUNT TOPOLOGY
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  System (mounted at /)                                              │
+│                                                                     │
+│  /var          <── zbamidbar/system-data/${NAME}/var       (zfs)    │
+│  /home         <── zbamidbar/system-data/${NAME}/home      (zfs)    │
+│  /tmp          <── zbamidbar/system-data/${NAME}/tmp       (zfs)    │
+│  /usr/local    <── zbamidbar/system-data/${NAME}/usr-local (zfs)    │
+│                                                                     │
+│  All mounts via /etc/fstab (zfs, rw,late). No nullfs.              │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  Container (jailed at /containers/${NAME})                          │
+│                                                                     │
+│  /var          <── zbamidbar/container-data/${NAME}/var       (zfs) │
+│  /home         <── zbamidbar/container-data/${NAME}/home      (zfs) │
+│  /tmp          <── zbamidbar/container-data/${NAME}/tmp       (zfs) │
+│  /usr/local    <── zbamidbar/container-data/${NAME}/usr-local (zfs) │
+│                                                                     │
+│  Cross-mounts (another container/system's data):            (nullfs)│
+│  /shared/foo   <── /containers/other/shared/foo                     │
+│                                                                     │
+│  All mounts via mount.fstab in minhag, processed by jail(8).       │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ GIT BRANCH TOPOLOGY (foundation.git)
+═══════════════════════════════════════════════════════════════════════════════
+
+Foundation branches are orphans — no shared root.
+
+15-stable-generic	(orphan branch)
+	├── ${ARTIFACT-1}	commit msg = artifact name = ZFS snap tag
+	├── ${ARTIFACT-2}
+	│	├~> containers/webserver
+	│	│	├── inaugural
+	│	│	├── admin-delta-1
+	│	│	└── admin-delta-2	<── current container state
+	│	└~> systems/wonderland
+	│		├── inaugural	writes /etc/fstab
+	│		└── admin-delta-1
+	├── ${ARTIFACT-3}
+	└── ...
+
+15.1-releng-gaming	(orphan branch)
+	├── ${ARTIFACT}
+	│	└~> systems/gamebox
+	│		├── inaugural
+	│		└── admin-delta-1
+	└── ...
+
+...	(more foundation orphans)
+
+
+Rebase (parasa_update):
+	git rebase --onto ${NEW-ARTIFACT} ${OLD-ARTIFACT} systems/${NAME}
+	The entire delta chain (inaugural + all admin commits) replays onto the new foundation.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ COMMAND PIPELINE
+═══════════════════════════════════════════════════════════════════════════════
+
+┌──────────────────┐     ┌──────────────┐     ┌────────────────────┐
+│ new_foundation   │     │ new_system   │     │ deploy_system      │
+│                  │     │              │     │                    │
+│ make buildworld  │     │ branch from  │     │ zfs send/recv to   │
+│ make buildkernel │     │ foundation   │     │ zbereshit          │
+│ git commit       │────>│ write fstab  │────>│ git checkout       │
+│ zfs snapshot     │     │ git push     │     │ systems/${NAME}    │
+│ zfs send to      │     │              │     │ nextboot (opt)     │
+│ zbamidbar        │     │ new_container│     │                    │
+└──────────────────┘     │ (same, +jail)│     └────────────────────┘
+                         └──────────────┘
+
+┌──────────────────┐     ┌──────────────┐     ┌────────────────────┐
+│ parasa_diff      │     │ parasa_save  │     │ parasa_update      │
+│                  │     │              │     │                    │
+│ mtree compare    │     │ diff + pkg   │     │ zfs send -i new    │
+│ classify changes │────>│ mtree regen  │     │ rename old clone   │
+│ derivation/cmd/  │     │ git commit   │     │ clone from new     │
+│ preserve/skip    │     │ state+recipe │     │ replay recipe      │
+└──────────────────┘     └──────────────┘     │ git rebase         │
+                                              │ regen derivations  │
+                                              │ validate + save    │
+                                              └────────────────────┘

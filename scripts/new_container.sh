@@ -3,7 +3,7 @@
 #
 # Mirrors new_system but for containers: creates a minhag directory with
 # jail.conf and mount.fstab, data datasets on zbamidbar/container-data,
-# and an inaugural commit on a container/<name> branch in foundation.git.
+# and an inaugural commit on a containers/<name> branch in foundation.git.
 # Containers are started by jail(8), not the boot loader.
 #
 # See plans/build_system.md and docs/idea.md Concept 2 for design context.
@@ -65,7 +65,7 @@ Execution flow:
   2. Ask dataset/mount questions
   3. Create minhag/containers/<name>/ with .foundation, jail.conf, mount.fstab, etc.
   4. Create data datasets on zbamidbar/container-data/<name>/
-  5. Create inaugural commit on container/<name> branch
+  5. Create inaugural commit on containers/<name> branch
 EOF
 	exit 0
 }
@@ -108,15 +108,20 @@ shift $((OPTIND - 1))
 collect_container_options() {
 	collect_build_options
 
-	# Format custom mounts as nullfs lines with container path prefix
+	# Format custom mounts with container path prefix.
+	# ZFS dataset paths use zfs type; absolute paths use nullfs (cross-mounts).
 	CUSTOM_MOUNT_LINES=""
 	if [ -n "$CUSTOM_MOUNTS" ]; then
-		local m dataset mountpoint
+		local m dataset mountpoint fstype
 		for m in $CUSTOM_MOUNTS; do
 			dataset="${m%%:*}"
 			mountpoint="${m#*:}"
+			case "$dataset" in
+				/*) fstype="nullfs" ;;
+				*)  fstype="zfs" ;;
+			esac
 			CUSTOM_MOUNT_LINES="${CUSTOM_MOUNT_LINES}${CUSTOM_MOUNT_LINES:+
-}${dataset}	/containers/${CONTAINER_NAME}${mountpoint}	nullfs	rw	0	0"
+}${dataset}	/containers/${CONTAINER_NAME}${mountpoint}	${fstype}	rw	0	0"
 		done
 	fi
 }
@@ -133,7 +138,7 @@ create_container_minhag_extras() {
 		{
 			printf "# source\tdestination\tfstype\toptions\tdump\tpass\n"
 			printf "%s/var\t%s/var\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
-			printf "%s/usr_local\t%s/usr/local\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			printf "%s/usr-local\t%s/usr/local\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
 			if yesish "$WANT_HOME"; then
 				printf "%s/home\t%s/home\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
 			fi
@@ -191,7 +196,7 @@ print_summary() {
 	Container: ${CONTAINER_NAME}
 	  Foundation:  ${FOUNDATION_NAME}
 	  var:         ${data_root}/var (always)
-	  usr/local:   ${data_root}/usr_local (always)
+	  usr/local:   ${data_root}/usr-local (always)
 	  home:        $(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")
 	  tmp:         $(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")
 	  user homes:  ${USER_HOMES:-none}
@@ -228,7 +233,7 @@ main() {
 	progress "Container '${CONTAINER_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2
 	printf "  Minhag:     minhag/containers/%s/\n" "$CONTAINER_NAME" >&2
-	printf "  Branch:     container/%s\n" "$CONTAINER_NAME" >&2
+	printf "  Branch:     containers/%s\n" "$CONTAINER_NAME" >&2
 	printf "  jail.conf:  minhag/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
 	printf "\nEdit jail.conf and use jail(8) to start the container.\n" >&2
 }

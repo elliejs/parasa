@@ -196,7 +196,7 @@ Describe "workspace.sh"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*base15*) exit 0 ;;
+            *foundation.zfs*base15*) exit 0 ;;
             *)                  exit 1 ;;
           esac
           ;;
@@ -224,7 +224,7 @@ Describe "workspace.sh"
       The error should include "not found"
     End
 
-    It "rejects a foundation not archived in sinai.zfs"
+    It "rejects a foundation not archived in foundation.zfs"
       mkdir -p "$PARASA_DIR/minhag/foundations/unarchived"
       FOUNDATION_NAME="unarchived"
       When call try_collect_foundation
@@ -427,7 +427,7 @@ Describe "workspace.sh"
 
       It "mentions var copy from foundation"
         When call create_data_datasets
-        The error should include "sinai.zfs/foundations/base15/var"
+        The error should include "foundation.zfs/foundations/base15/var"
       End
 
       It "mentions usr-local"
@@ -551,19 +551,19 @@ Describe "workspace.sh"
         QUIET=2
         WS_NAME="wonderland"
         WS_KIND="system"
-        WS_PATH="/zshemot/amim/wonderland"
+        WS_PATH="/zshemot/buildspace/wonderland"
       }
       Before 'setup_commit'
 
       It "commits with kind/name inaugural message"
         When call ws_commit
         The error should include "commit"
-        The error should include "system/wonderland inaugural"
+        The error should include "systems/wonderland inaugural"
       End
 
       It "pushes the branch"
         When call ws_commit
-        The error should include "push origin system/wonderland"
+        The error should include "push origin systems/wonderland"
       End
     End
 
@@ -573,19 +573,19 @@ Describe "workspace.sh"
         QUIET=2
         WS_NAME="nginx"
         WS_KIND="container"
-        WS_PATH="/zshemot/amim/nginx"
+        WS_PATH="/zshemot/buildspace/nginx"
       }
       Before 'setup_commit_empty'
 
       It "passes --allow-empty to git commit"
         When call ws_commit --allow-empty
         The error should include "allow-empty"
-        The error should include "container/nginx inaugural"
+        The error should include "containers/nginx inaugural"
       End
 
       It "pushes the container branch"
         When call ws_commit --allow-empty
-        The error should include "push origin container/nginx"
+        The error should include "push origin containers/nginx"
       End
     End
   End
@@ -602,7 +602,7 @@ Describe "workspace.sh"
 
     Mock git
       case "$*" in
-        *config*remote.origin.url*) printf "/zbamidbar/sinai.git\n" ;;
+        *config*remote.origin.url*) printf "/zbamidbar/foundation.git\n" ;;
         *) exit 0 ;;
       esac
     End
@@ -622,30 +622,30 @@ Describe "workspace.sh"
 
     It "sets WS_PATH and shows progress"
       When call ws_begin
-      The variable WS_PATH should equal "/zshemot/amim/testbox"
+      The variable WS_PATH should equal "/zshemot/buildspace/testbox"
       The error should include "Creating inaugural commit"
     End
 
-    It "mounts sinai.git and sinai.zfs"
+    It "mounts foundation.git and foundation.zfs"
       When call ws_begin
-      The error should include "sinai.git"
-      The error should include "sinai.zfs"
+      The error should include "foundation.git"
+      The error should include "foundation.zfs"
     End
 
-    It "ensures amim parent exists"
+    It "ensures buildspace parent exists"
       When call ws_begin
-      The error should include "zshemot/amim"
+      The error should include "zshemot/buildspace"
     End
 
-    It "recvs foundation to amim workspace"
+    It "recvs foundation to buildspace"
       When call ws_begin
       The error should include "zfs send -R"
-      The error should include "amim/testbox"
+      The error should include "buildspace/testbox"
     End
 
     It "creates the correct branch"
       When call ws_begin
-      The error should include "checkout -b system/testbox foundation/base15"
+      The error should include "checkout -b systems/testbox base15"
     End
 
     It "shows workspace receiving progress"
@@ -681,7 +681,7 @@ Describe "workspace.sh"
 
     It "creates container branch"
       When call ws_begin
-      The error should include "checkout -b container/webjar foundation/stable15"
+      The error should include "checkout -b containers/webjar stable15"
     End
 
     It "shows container branch setup progress"
@@ -712,7 +712,7 @@ Describe "workspace.sh"
       DRY_RUN=true
       QUIET=0
       WS_NAME="testbox"
-      WS_PATH="/zshemot/amim/testbox"
+      WS_PATH="/zshemot/buildspace/testbox"
     }
     Before 'setup_end'
 
@@ -721,14 +721,14 @@ Describe "workspace.sh"
       The error should include "Destroying workspace"
     End
 
-    It "unmounts sinai.git"
+    It "unmounts foundation.git"
       When call ws_end
-      The error should include "zunmount zbamidbar/sinai.git"
+      The error should include "zunmount zbamidbar/foundation.git"
     End
 
-    It "unmounts sinai.zfs"
+    It "unmounts foundation.zfs"
       When call ws_end
-      The error should include "zunmount zbamidbar/sinai.zfs"
+      The error should include "zunmount zbamidbar/foundation.zfs"
     End
   End
 
@@ -741,7 +741,7 @@ Describe "workspace.sh"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *amim/active*) exit 0 ;;
+            *buildspace/active*) exit 0 ;;
             *)             exit 1 ;;
           esac
           ;;
@@ -754,7 +754,7 @@ Describe "workspace.sh"
       WS_NAME="active"
       When call ws_cleanup
       The error should include "Cleaning up"
-      The error should include "zshemot/amim/active"
+      The error should include "zshemot/buildspace/active"
     End
 
     It "does nothing when WS_NAME is empty"

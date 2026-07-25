@@ -140,7 +140,7 @@ create_minhag_boilerplate() {
 	run mkdir -p "$WS_MINHAG"
 
 	if ! $DRY_RUN; then
-		: > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"
+		: > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"  # artifact written by ws_begin
 		: > "${WS_MINHAG}/compose.sh"
 		: > "${WS_MINHAG}/derivations.local"
 		: > "${WS_MINHAG}/pkg.list"
@@ -152,7 +152,7 @@ create_minhag_boilerplate() {
 }
 
 # Create data datasets on zbamidbar.
-# Creates: parent, var (copied from foundation), usr_local, optional home/tmp/roothome,
+# Creates: parent, var (copied from foundation), usr-local, optional home/tmp/roothome,
 # and per-user home datasets.
 # Sets WS_DATA_ROOT.
 create_data_datasets() {
@@ -180,8 +180,8 @@ create_data_datasets() {
 			"$foundation_var" "$WS_DATA_ROOT" >&2
 	fi
 
-	# usr_local: always created
-	run ztouch "${WS_DATA_ROOT}/usr_local" -o mountpoint=none -o canmount=noauto
+	# usr-local: always created
+	run ztouch "${WS_DATA_ROOT}/usr-local" -o mountpoint=none -o canmount=noauto
 
 	# Optional datasets
 	if yesish "$WANT_HOME"; then
@@ -240,6 +240,8 @@ ws_begin() {
 		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/buildspace/${WS_NAME}"
 		zfs mount "zshemot/buildspace/${WS_NAME}"
 		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
+		# Record artifact name in .foundation file
+		printf "%s\n" "$snap" > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"
 	else
 		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/buildspace/%s\n" \
 			"$foundation_archive" "$WS_NAME" >&2
@@ -256,10 +258,10 @@ ws_begin() {
 		fi
 		git -C "$WS_PATH" fetch origin
 
-		git -C "$WS_PATH" checkout -b "${WS_KIND}/${WS_NAME}" \
-			"foundation/${FOUNDATION_NAME}"
+		git -C "$WS_PATH" checkout -b "${WS_KIND}s/${WS_NAME}" \
+			"${FOUNDATION_NAME}"
 	else
-		printf "  [dry] git -C %s checkout -b %s/%s foundation/%s\n" \
+		printf "  [dry] git -C %s checkout -b %ss/%s %s\n" \
 			"$WS_PATH" "$WS_KIND" "$WS_NAME" "$FOUNDATION_NAME" >&2
 	fi
 }
@@ -268,8 +270,8 @@ ws_begin() {
 # Extra args (e.g. --allow-empty) are passed to git commit before -m.
 ws_commit() {
 	progress "Committing inaugural"
-	run git -C "$WS_PATH" commit "$@" -m "${WS_KIND}/${WS_NAME} inaugural"
-	run git -C "$WS_PATH" push origin "${WS_KIND}/${WS_NAME}"
+	run git -C "$WS_PATH" commit "$@" -m "${WS_KIND}s/${WS_NAME} inaugural"
+	run git -C "$WS_PATH" push origin "${WS_KIND}s/${WS_NAME}"
 }
 
 # Destroy the transient workspace and unmount working datasets.

@@ -60,7 +60,7 @@ Execution flow:
   2. Ask dataset/mount questions
   3. Create minhag/systems/<name>/ with .foundation, boilerplate files
   4. Create data datasets on zbamidbar/system-data/<name>/
-  5. Create inaugural commit on system/<name> branch (writes /etc/fstab)
+  5. Create inaugural commit on systems/<name> branch (writes /etc/fstab)
   6. Optionally deploy to zbereshit (via deploy_system)
 EOF
 	exit 0
@@ -133,7 +133,7 @@ build_fstab_lines() {
 	local data_root="zbamidbar/system-data/${SYSTEM_NAME}"
 
 	FSTAB_LINES="${data_root}/var	/var	zfs	rw,late	0	0
-${data_root}/usr_local	/usr/local	zfs	rw,late	0	0"
+${data_root}/usr-local	/usr/local	zfs	rw,late	0	0"
 
 	if yesish "$WANT_HOME"; then
 		FSTAB_LINES="${FSTAB_LINES}
@@ -176,7 +176,7 @@ print_summary() {
 	System: ${SYSTEM_NAME}
 	  Foundation:  ${FOUNDATION_NAME}
 	  var:         ${data_root}/var (always)
-	  usr/local:   ${data_root}/usr_local (always)
+	  usr/local:   ${data_root}/usr-local (always)
 	  home:        $(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")
 	  tmp:         $(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")
 	  home/root:   $(yesish "$WANT_ROOTHOME" && echo "${data_root}/home/root" || echo "no")
@@ -236,7 +236,7 @@ main() {
 	progress "System '${SYSTEM_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2
 	printf "  Minhag:     minhag/systems/%s/\n" "$SYSTEM_NAME" >&2
-	printf "  Branch:     system/%s\n" "$SYSTEM_NAME" >&2
+	printf "  Branch:     systems/%s\n" "$SYSTEM_NAME" >&2
 
 	# Phase 4: Deploy (optional)
 	if [ "$BOOT" -gt 0 ] || { [ "$QUIET" -eq 0 ] && confirm "Deploy system now?"; }; then

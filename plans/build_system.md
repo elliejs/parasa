@@ -34,23 +34,22 @@ minhag/
   foundations/<name>/
     build.conf                    SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
   systems/<name>/
-    <foundation-name>.foundation  Zero-byte file; filename = foundation
-    compose.sh                    Opaque replay commands
+    <foundation-name>.foundation  Contains artifact name; filename = foundation
+    compose.sh                    Opaque replay commands (pre_pkg/post_pkg)
     derivations.local             Custom text→binary derivations
-    fstab.local                   Recipe-only mounts (container deps, shared
-                                  jail data-pools — NOT normal system mounts)
     mtree.dist                    Baseline mtree
     pkg.list                      Package list
   containers/<name>/
     <foundation-name>.foundation  Same as systems
-    compose.sh / derivations.local / fstab.local / mtree.dist / pkg.list
+    compose.sh / derivations.local / mtree.dist / pkg.list
     jail.conf                     Jail configuration
+    mount.fstab                   Container mounts (data-lake + cross-mounts)
 
 foundation.git branches:        (bare repo at zbamidbar/foundation.git)
-  foundation/<name>               Pristine build (world+kernel)
-  system/<name>                   Forks from a foundation/ commit;
+  <foundation-name>               Orphan branch; pristine build (world+kernel)
+  systems/<name>                  Forks from a foundation commit;
                                   inaugural commit writes /etc/fstab
-  container/<name>                Forks from a foundation/ commit
+  containers/<name>               Forks from a foundation commit
 
 foundation.zfs:                 (zbamidbar/foundation.zfs/)
   foundations/<name>              Pristine ZFS archive (includes var/)
@@ -58,22 +57,19 @@ foundation.zfs:                 (zbamidbar/foundation.zfs/)
 
 zbereshit:
   zbereshit/systems/<name>        Deployed from a foundation via zfs send,
-                                  then git checkout system/<name> applies
+                                  then git checkout systems/<name> applies
                                   system-specific state (fstab, etc.)
-  zbereshit/containers/<name>     Same
+  zbereshit/containers/<name>     Same (git checkout containers/<name>)
 
 zbamidbar/system-data/<name>/     Per-system data datasets (var, home, etc.)
 zbamidbar/container-data/<name>/  Per-container data datasets
 ```
 
-### Two kinds of fstab entries
+### Mount configuration
 
-| Kind | Where it lives | Examples | When written |
-|------|---------------|----------|--------------|
-| **System fstab** | `/etc/fstab` inside the system (git-tracked) | var, home, tmp, user homes | Inaugural system commit during `new_system` |
-| **Recipe fstab** | `minhag/systems/<name>/fstab.local` | Container deps, shared jail data-pools | When the recipe requires it (future) |
+**Systems** write data-lake mounts into `/etc/fstab` inside the system tree (git-tracked) as the inaugural commit. These are ZFS direct mounts (`rw,late`). Systems do not need nullfs — they own their datasets and mount them directly via ZFS.
 
-Normal data-lake mounts go into the system's `/etc/fstab` as the first commit on the system branch. `fstab.local` in minhag is reserved for recipe-critical mounts that are part of the system's identity (e.g., a container that depends on another container's shared dataset). This distinction will matter more when we get to container dependencies.
+**Containers** use `mount.fstab` in the minhag directory, processed by jail(8). Own-dataset mounts (data-lake) use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
 
 ---
 
@@ -127,7 +123,7 @@ Mode detection:
 3. **`check_name_available`** — must NOT exist in:
    - `minhag/foundations/<name>/`
    - `zbamidbar/foundation.zfs/foundations/<name>`
-   - `foundation.git` branch `foundation/<name>`
+   - `foundation.git` branch `<name>` (orphan branch)
    If exists, error suggesting `destroy_foundation` (future) or pick a new name.
 4. **`resolve_build_config`** — collect SRC_BRANCH (default `stable/15`), KERNCONF (default `GENERIC`), MAKE_JOBS (default `hw.ncpu`). In semi mode, `-o` values become pre-filled defaults; still ask every question. Enter = accept default.
 5. Print summary, confirm
@@ -139,7 +135,7 @@ Mode detection:
 9. **`prepare_tablets_git`**:
    - Mount `zbamidbar/foundation.git`. Init bare if needed.
    - In `/zshemot/tablets`: `git init`, `git remote add origin <path>`, `git fetch` (fetch is needed to get remote refs — branch list, existing foundations. There is no lighter metadata-only option in git.)
-   - `git checkout --orphan foundation/<name>`
+   - `git checkout --orphan <name>` (orphan branch)
    - Clear everything except `.git`
 
 #### Phase 3: Build
@@ -158,7 +154,7 @@ Mode detection:
     3. `git add .gitignore`
     4. Generate mtree: `generate_mtree /zshemot/tablets $MINHAG_DIR $PARASA_DIR/etc/mtree.ignore`
     5. `git commit -m "$ARTIFACT_NAME"`
-    6. `git push origin foundation/$FOUNDATION_NAME`
+    6. `git push origin $FOUNDATION_NAME`
 
 13. **`archive_to_zbamidbar`**:
     1. `zfs snapshot -r zshemot/tablets@$ARTIFACT_NAME`
@@ -171,7 +167,7 @@ Mode detection:
 
 ## Part 2: `new_system`
 
-Takes an existing foundation and creates a system on top of it. The key operation is creating the **inaugural system commit** — a commit on `system/<name>` branching from `foundation/<name>` that writes the system's mount configuration into `/etc/fstab`. If no etc/fstab configuration needs writing, simply generate the branch name as a branch from the foundation commit.
+Takes an existing foundation and creates a system on top of it. The key operation is creating the **inaugural system commit** — a commit on `systems/<name>` branching from the foundation's orphan branch that writes the system's mount configuration into `/etc/fstab`. If no etc/fstab configuration needs writing, simply generate the branch name as a branch from the foundation commit.
 
 ### Arguments
 
@@ -199,7 +195,7 @@ getopts ":hs:f:o:qdb" opt
 | `user_homes` | "" | Comma-separated → `home/<user>` each |
 | `mount_map` | "" | Custom non-recipe mount entries |
 
-The standard data-lake mounts (var, tmp, usr/local) are always auto-included in the system's inaugural `/etc/fstab` — these are not optional and not asked as questions. Home is optional (asked). For each additional custom mount, ask: **is this recipe-related?** If yes → goes in `minhag/<name>/fstab.local`. If no → goes in `/etc/fstab` via the inaugural commit.
+The standard data-lake mounts (var, usr/local) are always auto-included in the system's inaugural `/etc/fstab` — these are not optional and not asked as questions. Home and tmp are optional (asked). Custom mounts go into `/etc/fstab` via the inaugural commit.
 
 ### Execution Flow
 
@@ -221,7 +217,7 @@ The standard data-lake mounts (var, tmp, usr/local) are always auto-included in 
    - `compose.sh` (empty)
    - `derivations.local` (empty)
    - `pkg.list` (empty)
-   - `fstab.local` (recipe-only mounts, or empty if none)
+   - (no fstab.local — eliminated; see superseded notes)
    - `mtree.dist` (empty, populated later by parasa-diff)
 8. **`create_system_datasets`** — on zbamidbar:
    - `ztouch zbamidbar/system-data/$SYSTEM_NAME`
@@ -230,12 +226,11 @@ The standard data-lake mounts (var, tmp, usr/local) are always auto-included in 
 9. **`create_inaugural_commit`** — the core operation:
    1. Recv foundation from `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME` to `zshemot/tablets` (temporarily — we need the filesystem to modify and commit)
    2. Set up git: the recv'd dataset includes `.git` from the foundation build. Verify remote points to `foundation.git`. `git fetch origin`.
-   3. Create branch: `git checkout -b system/$SYSTEM_NAME foundation/$FOUNDATION_NAME`
+   3. Create branch: `git checkout -b systems/$SYSTEM_NAME $FOUNDATION_NAME`
    4. Write non-recipe fstab entries into `/etc/fstab` inside tablets (append the generated mount lines in fstab format with `zfs` type and `late` option)
-   5. If `fstab.local` has recipe-only mounts, also append those to `/etc/fstab`
-   6. `git add etc/fstab`
-   7. `git commit -m "system/$SYSTEM_NAME inaugural"` (or a more descriptive message)
-   8. `git push origin system/$SYSTEM_NAME`
+   5. `git add etc/fstab`
+   7. `git commit -m "systems/$SYSTEM_NAME inaugural"` (or a more descriptive message)
+   8. `git push origin systems/$SYSTEM_NAME`
    9. Wipe tablets: `zfs destroy -r zshemot/tablets`
    If there are no fstab changes to commit (no home dataset, no custom mounts, no recipe mounts), simply create the branch on the bare repo without recv'ing tablets.
 
@@ -264,10 +259,10 @@ getopts ":hs:a:nd" opt
 
 ### How deploy finds the right ZFS snapshot
 
-The system branch forks from a `foundation/<name>` commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/foundations/<name>`. So:
+The system branch forks from a foundation orphan branch commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/foundations/<name>`. So:
 
 1. Read the system's foundation from `minhag/systems/<name>/*.foundation`
-2. In `foundation.git`, find which foundation commit `system/<name>` forks from (the merge base or first parent on the foundation branch)
+2. In `foundation.git`, find which foundation commit `systems/<name>` forks from (the merge base or first parent on the foundation branch)
 3. Read that commit's message — it IS the artifact name
 4. Use that artifact name to locate `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`
 
@@ -276,7 +271,7 @@ The system branch forks from a `foundation/<name>` commit. The artifact name is 
 2. Validate archive exists
 3. `zfs send | recv` from `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>` to `zbereshit/systems/<name>`. For a new system this is always a full send (we verified it doesn't exist on zbereshit in `check_name_available`). For `update_system` (future), incremental sends apply.
 4. Mount `zbamidbar/foundation.git`
-5. Temporarily mount `zbereshit/systems/<name>`. The recv'd dataset includes `.git` from the foundation build. Fetch the system branch: `git fetch origin system/<name>`. Checkout: `git checkout system/<name>`. This applies the inaugural commit (fstab entries, etc.) on top of the foundation.
+5. Temporarily mount `zbereshit/systems/<name>`. The recv'd dataset includes `.git` from the foundation build. Fetch the system branch: `git fetch origin systems/<name>`. Checkout: `git checkout systems/<name>`. This applies the inaugural commit (fstab entries, etc.) on top of the foundation.
 6. Unmount `zbereshit/systems/<name>`
 7. If `-n` (nextboot):
    - Set root mountpoint: `zfs set -u mountpoint=/ zbereshit/systems/<name>`
@@ -303,13 +298,9 @@ zbamidbar/alice-home                        /home/alice      zfs      rw,late   
 
 These are deployment config, not recipe material. They vary per deployment and don't affect the system's identity.
 
-### Recipe fstab (`minhag/systems/<name>/fstab.local`)
+### Container mount.fstab
 
-Reserved for recipe-critical mounts that are part of the system's identity:
-- Container dependencies (container A needs data from container B's shared pool)
-- Shared jail data-pools
-
-This will matter more when we implement container dependencies. For now, most systems will have an empty `fstab.local`.
+Containers use `mount.fstab` in the minhag directory, processed by jail(8). Own-dataset mounts use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
 
 ### Why fstab over `zfs set mountpoint=`
 
@@ -321,13 +312,13 @@ This will matter more when we implement container dependencies. For now, most sy
 
 ## .foundation File Convention
 
-Each system/container has exactly one zero-byte file named `<foundation-name>.foundation` in its minhag dir.
+Each system/container has exactly one file named `<foundation-name>.foundation` in its minhag dir. The filename encodes the foundation name; the file **contains** the artifact name (snapshot tag).
 
-**Reading**: `basename "$(ls "$dir"/*.foundation)" .foundation`
+**Reading foundation**: `basename "$(ls "$dir"/*.foundation)" .foundation`
+
+**Reading artifact**: `cat "$dir"/*.foundation`
 
 **Guard**: Multiple `.foundation` files = error (corruption or mistake).
-
-**Why zero-byte**: Filename IS the data. Visible in `ls`/`tree`. No parsing.
 
 ---
 
@@ -357,11 +348,11 @@ Each system/container has exactly one zero-byte file named `<foundation-name>.fo
 
 2. **foundation.zfs only has foundations/**: No systems/containers in the archive. System/container state is tracked by git+mtree+compose.
 
-3. **Inaugural commit creates the system branch**: `new_system` recv's the foundation to tablets, branches `system/<name>` from `foundation/<name>`, writes fstab entries into `/etc/fstab`, commits, pushes. Deploy just sends the ZFS + checks out the system branch.
+3. **Inaugural commit creates the system branch**: `new_system` recv's the foundation to tablets, branches `systems/<name>` from the foundation orphan branch, writes fstab entries into `/etc/fstab`, commits, pushes. Deploy just sends the ZFS + checks out the system branch.
 
-4. **Two kinds of fstab**: Normal mounts → `/etc/fstab` (git-tracked, inaugural commit). Recipe mounts → `minhag/<name>/fstab.local` (for container deps, future).
+4. **System mounts in `/etc/fstab`** (git-tracked, inaugural commit). **Container mounts in `mount.fstab`** (minhag dir, processed by jail(8)). No fstab.local.
 
-5. **Zero-byte `.foundation` file**: Filename is the data.
+5. **`.foundation` file**: Filename = foundation name, contents = artifact name.
 
 6. **`git add .` BEFORE `.gitignore`**: Stages base var/ files, then gitignore prevents future additions.
 
@@ -414,5 +405,5 @@ In `scripts/stage0-bootstrap.sh`:
 5. `parasa_deploy_system -s wonderland -n` — standalone deploy + nextboot
 6. Name collision → clear error
 7. Missing foundation → error listing available foundations
-8. Verify inaugural commit: after `new_system`, check `system/<name>` branch has fstab changes
+8. Verify inaugural commit: after `new_system`, check `systems/<name>` branch has fstab changes
 9. Verify deploy: after `deploy_system`, check `/etc/fstab` on zbereshit has the mount entries

@@ -98,8 +98,8 @@ resolve_snapshot() {
 	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 
 	local foundation_git="/zbamidbar/foundation.git"
-	local system_branch="system/${SYSTEM_NAME}"
-	local foundation_branch="foundation/${FOUNDATION_NAME}"
+	local system_branch="systems/${SYSTEM_NAME}"
+	local foundation_branch="${FOUNDATION_NAME}"
 
 	# Find the foundation commit this system forks from
 	if ! $DRY_RUN; then
@@ -164,11 +164,11 @@ deploy() {
 	if ! $DRY_RUN; then
 		# The recv'd dataset includes .git from the foundation build.
 		# Fetch the system branch and check it out.
-		git -C "$system_mount" fetch origin "system/${SYSTEM_NAME}"
-		git -C "$system_mount" checkout "system/${SYSTEM_NAME}"
+		git -C "$system_mount" fetch origin "systems/${SYSTEM_NAME}"
+		git -C "$system_mount" checkout "systems/${SYSTEM_NAME}"
 	else
-		printf "  [dry] git -C %s fetch origin system/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
-		printf "  [dry] git -C %s checkout system/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
+		printf "  [dry] git -C %s fetch origin systems/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
+		printf "  [dry] git -C %s checkout systems/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
 	fi
 
 	run zunmount "$dest"

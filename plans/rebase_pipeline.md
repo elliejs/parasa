@@ -319,7 +319,7 @@ For containers, the jail framework handles mounts and provides jexec. For system
 1. **chroot + ZFS mounts**: Mount data-lake datasets directly (they're ZFS datasets under `zbamidbar/system-data/$NAME/` with known mountpoints), use chroot for commands. Systems don't use nullfs — they own their datasets and mount them directly via ZFS.
 2. **Temporary jail**: Generate a minimal jail.conf, start the system as a jail during update. Provides jexec but adds complexity.
 
-Option 1 is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention (`var`, `tmp`, `usr_local`, `home`). Mount them into the system tree, chroot, unmount.
+Option 1 is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention (`var`, `tmp`, `usr-local`, `home`). Mount them into the system tree, chroot, unmount.
 
 ### Create: `spec/update_spec.sh`
 

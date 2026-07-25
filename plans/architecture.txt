@@ -1,0 +1,200 @@
+# Parasa Architecture
+#
+# Three ZFS pools, one git bare repo, and how they relate.
+#
+# See structure.txt for the canonical dataset/branch naming reference.
+# This file shows the flows and relationships between components.
+
+# COMMON
+#   -> note
+... -> copies of template format of siblings possible.
+->  -> relates to ( just a tag, see next item )
+<-  -> relates from ( to avoid ambiguity )
+${} -> variable
+<   -> contains
+
+# ZFS
+/   -> has dataset children
+@   -> has snapshots
+
+# GIT
+~>  -> branches to
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# POOL 1: zshemot (SSD) — config, recipes, build workspace
+# ═══════════════════════════════════════════════════════════════════════
+
+zshemot/
+	src.git/	# FreeBSD source tree (git clone of freebsd-src)
+	build.cfg	# fallback sysrc target for ALL foundation builds
+	foundations/
+		${NAME}.cfg	# per-foundation build config (SRC_BRANCH, KERNCONF, MAKE_JOBS)
+		...
+	systems/
+		${NAME}/	# recipe directory ("minhag") for a system
+			${FOUNDATION}.foundation	< ${ARTIFACT}	# filename=foundation, contents=artifact
+			pkg.list
+			compose.sh	# pre_pkg() + post_pkg()
+			derivations.local
+			mtree.dist
+		...
+	containers/
+		${NAME}/	# recipe directory for a container
+			${FOUNDATION}.foundation	< ${ARTIFACT}
+			pkg.list
+			compose.sh	# pre_pkg() + post_pkg()
+			derivations.local
+			mtree.dist
+			jail.conf
+			mount.fstab
+		...
+	buildspace/	# transient — created per build, destroyed after
+		${NAME}/
+			var/
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# POOL 2: zbamidbar (HDD) — data lake, archive, authoritative store
+# ═══════════════════════════════════════════════════════════════════════
+
+zbamidbar/
+	foundation.git -> GIT_REPO	# bare repo, see git topology below
+	foundation.zfs/	# ZFS archives of pristine builds
+		${FOUNDATION}@	# e.g. 15-stable-generic
+			${ARTIFACT-1} -> ARTIFACT_CHAIN_SOURCE
+			${ARTIFACT-2}
+			...
+		...
+	system-data/	# persistent data for systems (survives rebase)
+		${NAME}/
+			var/
+			home/
+				${USER}/	# per-user home datasets
+				...
+			tmp/
+			usr-local/
+			...
+		...
+	container-data/	# persistent data for containers (survives rebase)
+		${NAME}/
+			var/
+			home/
+			tmp/
+			usr-local/
+			...
+		...
+	parasa.git	# parasa repo mirror
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# POOL 3: zbereshit (NVMe) — running / bootable state
+# ═══════════════════════════════════════════════════════════════════════
+
+zbereshit/
+	foundations/	# clone source, recv'd from zbamidbar/foundation.zfs
+		${FOUNDATION}@
+			${ARTIFACT-1}
+			${ARTIFACT-2}
+			...
+		...
+	systems/	# ZFS clones from foundations/${FOUNDATION}@${ARTIFACT}
+		${NAME}	# nextboot(8) sets mountpoint=/ for boot
+		...
+	containers/	# ZFS clones from foundations/${FOUNDATION}@${ARTIFACT}
+		${NAME}	# mounted at /containers/${NAME}, run as jail
+		...
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# GIT TOPOLOGY (foundation.git)
+# ═══════════════════════════════════════════════════════════════════════
+
+# Foundation branches are orphans — no shared root, no main branch.
+# System and container branches fork from foundation artifact commits.
+
+foundation.git <- GIT_REPO
+	15-stable-generic/	# orphan branch
+		${ARTIFACT-1} <- ARTIFACT_CHAIN_SOURCE	# commit msg = artifact name = ZFS snap tag
+		${ARTIFACT-2} ~> containers/${NAME}
+			${SAVE-1}
+			${SAVE-2}
+			${SAVE-3} <- CURRENT_CONTAINER_STATE
+			...
+		${ARTIFACT-3}
+		...
+	15.1-releng-gaming/	# orphan branch
+		${ARTIFACT} ~> systems/${NAME}
+			${SAVE-1}
+			...
+		...
+	...
+
+# Rebase (parasa_update):
+#	git rebase --onto ${NEW-ARTIFACT} ${OLD-ARTIFACT} systems/${NAME}
+#	The entire delta chain (inaugural + all admin commits) replays.
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# DATA FLOWS
+# ═══════════════════════════════════════════════════════════════════════
+
+# Build pipeline (new_foundation):
+#	zshemot/src.git         → make buildworld/buildkernel into zshemot/buildspace/${NAME}
+#	zshemot/buildspace      → zfs snapshot + zfs send -R  → zbamidbar/foundation.zfs/${FOUNDATION}
+#	zshemot/buildspace      → git push                    → zbamidbar/foundation.git (orphan branch)
+#	zshemot/buildspace      → destroyed after archive
+
+# Deploy pipeline (new_system/new_container → deploy_system):
+#	zbamidbar/foundation.zfs → zfs send                   → zbereshit/foundations/${FOUNDATION}
+#	zbereshit/foundations    → zfs clone                   → zbereshit/systems/${NAME}
+#	zbamidbar/foundation.git → git checkout systems/${NAME} applies inaugural + admin deltas
+
+# State sync (parasa_save):
+#	zbereshit/systems/${NAME}  → git push                  → zbamidbar/foundation.git
+#	zshemot/systems/${NAME}/   → git commit recipe changes → parasa repo
+
+# Update pipeline (parasa_update):
+#	zbamidbar/foundation.zfs → zfs send -i @old @new      → zbereshit/foundations/${FOUNDATION}
+#	zbereshit/foundations    → zfs clone from @new         → zbereshit/systems/${NAME}  (old renamed to ${NAME}-old)
+#	compose.sh               → pre_pkg, packages, post_pkg replayed in jail/chroot
+#	foundation.git           → git rebase --onto new old systems/${NAME}
+#	derivations              → regen any changed derived binaries
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MOUNT TOPOLOGY
+# ═══════════════════════════════════════════════════════════════════════
+
+# Systems mount their data-lake datasets via /etc/fstab (zfs, rw,late).
+# No nullfs — systems own their datasets and mount them directly via ZFS.
+#
+#	/var         <- zbamidbar/system-data/${NAME}/var
+#	/home        <- zbamidbar/system-data/${NAME}/home
+#	/tmp         <- zbamidbar/system-data/${NAME}/tmp
+#	/usr/local   <- zbamidbar/system-data/${NAME}/usr-local
+
+# Containers mount via mount.fstab in minhag, processed by jail(8).
+# Own-dataset mounts use zfs type. Cross-mounts use nullfs.
+#
+#	/var         <- zbamidbar/container-data/${NAME}/var          (zfs)
+#	/home        <- zbamidbar/container-data/${NAME}/home         (zfs)
+#	/tmp         <- zbamidbar/container-data/${NAME}/tmp          (zfs)
+#	/usr/local   <- zbamidbar/container-data/${NAME}/usr-local    (zfs)
+#	/shared/foo  <- /containers/other/shared/foo                  (nullfs, cross-mount)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# COMMAND FAMILY
+# ═══════════════════════════════════════════════════════════════════════
+
+# Creation:
+#	new_foundation    build world+kernel, archive to zbamidbar
+#	new_system        branch from foundation, write fstab, create data datasets
+#	new_container     same as new_system + jail.conf + mount.fstab
+#	deploy_system     zfs send/recv to zbereshit, git checkout, optional nextboot
+
+# Maintenance (planned):
+#	parasa_diff       mtree compare, classify changed files
+#	parasa_save       capture state: pkg list + mtree + git commit (state + recipe)
+#	parasa_update     rebase onto new foundation patch level

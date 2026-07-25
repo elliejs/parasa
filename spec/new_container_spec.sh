@@ -255,10 +255,10 @@ ${CUSTOM_MOUNT_LINES}"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*)       exit 0 ;;
-            *sinai.git*)       exit 0 ;;
+            *foundation.zfs*)       exit 0 ;;
+            *foundation.git*)       exit 0 ;;
             *containers*)      exit 1 ;;
-            *amim*)            exit 1 ;;
+            *buildspace*)            exit 1 ;;
             *container-data*)  exit 1 ;;
             *)                 exit 1 ;;
           esac
@@ -274,7 +274,7 @@ ${CUSTOM_MOUNT_LINES}"
       case "$*" in
         *rev-parse*--abbrev-ref*) printf "stable/15\n" ;;
         *rev-parse*--short*)     printf "abc1234\n" ;;
-        *config*remote.origin.url*) printf "/zbamidbar/sinai.git\n" ;;
+        *config*remote.origin.url*) printf "/zbamidbar/foundation.git\n" ;;
         *) exit 0 ;;
       esac
     End
@@ -326,10 +326,10 @@ ${CUSTOM_MOUNT_LINES}"
       The error should include "container-data/dryjar"
     End
 
-    It "uses amim workspace for inaugural commit"
+    It "uses buildspace workspace for inaugural commit"
       When run script scripts/new_container.sh -s dryjar -f testfound -q -d
-      The error should include "zshemot/amim"
-      The error should include "amim/dryjar"
+      The error should include "zshemot/buildspace"
+      The error should include "buildspace/dryjar"
     End
 
     It "creates the inaugural commit step"
@@ -399,10 +399,10 @@ ${CUSTOM_MOUNT_LINES}"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*)       exit 0 ;;
-            *sinai.git*)       exit 0 ;;
+            *foundation.zfs*)       exit 0 ;;
+            *foundation.git*)       exit 0 ;;
             *containers*)      exit 1 ;;
-            *amim*)            exit 1 ;;
+            *buildspace*)            exit 1 ;;
             *container-data*)  exit 1 ;;
             *)                 exit 1 ;;
           esac
@@ -418,7 +418,7 @@ ${CUSTOM_MOUNT_LINES}"
       case "$*" in
         *rev-parse*--abbrev-ref*) printf "stable/15\n" ;;
         *rev-parse*--short*)     printf "abc1234\n" ;;
-        *config*remote.origin.url*) printf "/zbamidbar/sinai.git\n" ;;
+        *config*remote.origin.url*) printf "/zbamidbar/foundation.git\n" ;;
         *) exit 0 ;;
       esac
     End
@@ -490,7 +490,7 @@ ${CUSTOM_MOUNT_LINES}"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*)     exit 0 ;;
+            *foundation.zfs*)     exit 0 ;;
             *containers*)    exit 0 ;;
             *)               exit 1 ;;
           esac

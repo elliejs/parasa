@@ -195,7 +195,7 @@ Describe "new_foundation.sh"
     After 'cleanup_dry_foundation'
 
     # NOTE: dry-run currently fails at commit_build because
-    # get_artifact_name checks [ -d /zshemot/torah/.git ] outside
+    # get_artifact_name checks [ -d /zshemot/src.git/.git ] outside
     # the DRY_RUN guard. Tests verify it reaches the expected stages
     # before that failure point.
 
@@ -223,22 +223,22 @@ Describe "new_foundation.sh"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
       The error should include "Preparing source tree"
-      The error should include "zmount zshemot/torah"
+      The error should include "zmount zshemot/src.git"
     End
 
-    It "creates amim workspace"
+    It "creates buildspace workspace"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
       The error should include "Creating transient build workspace"
       The error should include "zfs create"
-      The error should include "zshemot/amim"
+      The error should include "zshemot/buildspace"
     End
 
     It "initializes git in workspace"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
       The error should include "Initializing git"
-      The error should include "checkout --orphan foundation/dryfound"
+      The error should include "checkout --orphan dryfound"
     End
 
     It "shows all five make targets"
@@ -288,7 +288,7 @@ Describe "new_foundation.sh"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*dryfound*) exit 0 ;;
+            *foundation.zfs*dryfound*) exit 0 ;;
             *)                    exit 1 ;;
           esac
           ;;
@@ -312,7 +312,7 @@ Describe "new_foundation.sh"
       exit 0
     End
 
-    It "rejects a name that exists in sinai.zfs"
+    It "rejects a name that exists in foundation.zfs"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be failure
       The error should include "already archived"

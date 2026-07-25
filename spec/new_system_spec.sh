@@ -275,14 +275,14 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
     Mock zfs
       case "$1" in
         list)
-          # Foundation archives exist; systems and amim workspaces don't
+          # Foundation archives exist; systems and buildspace workspaces don't
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*)    exit 0 ;;
-            *sinai.git*)    exit 0 ;;
+            *foundation.zfs*)    exit 0 ;;
+            *foundation.git*)    exit 0 ;;
             *systems*)      exit 1 ;;
-            *amim*)         exit 1 ;;
+            *buildspace*)         exit 1 ;;
             *system-data*)  exit 1 ;;
             *)              exit 1 ;;
           esac
@@ -298,7 +298,7 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
       case "$*" in
         *rev-parse*--abbrev-ref*) printf "stable/15\n" ;;
         *rev-parse*--short*)     printf "abc1234\n" ;;
-        *config*remote.origin.url*) printf "/zbamidbar/sinai.git\n" ;;
+        *config*remote.origin.url*) printf "/zbamidbar/foundation.git\n" ;;
         *) exit 0 ;;
       esac
     End
@@ -384,10 +384,10 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
       The error should include "created successfully"
     End
 
-    It "uses amim workspace for inaugural commit"
+    It "uses buildspace workspace for inaugural commit"
       When run script scripts/new_system.sh -s drybox -f testfound -q -d
-      The error should include "zshemot/amim"
-      The error should include "amim/drybox"
+      The error should include "zshemot/buildspace"
+      The error should include "buildspace/drybox"
     End
 
     It "does not create or mention fstab.local"
@@ -415,7 +415,7 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
           _last=""
           for _a in "$@"; do _last="$_a"; done
           case "$_last" in
-            *sinai.zfs*) exit 0 ;;
+            *foundation.zfs*) exit 0 ;;
             *)           exit 1 ;;
           esac
           ;;

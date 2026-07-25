@@ -50,7 +50,7 @@ Execution flow:
   3. Ensure FreeBSD source tree is ready (zshemot/src.git)
   4. Create transient build workspace (zshemot/buildspace/<name>)
   5. Build world + kernel (five make targets)
-  6. Commit to foundation/<name> branch on zbamidbar/foundation.git
+  6. Commit to <name> orphan branch on zbamidbar/foundation.git
   7. Archive ZFS snapshot to zbamidbar/foundation.zfs/foundations/<name>
   8. Destroy transient build workspace
 
@@ -153,8 +153,8 @@ check_foundation_available() {
 			run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 		fi
 		if [ -d "/zbamidbar/foundation.git/refs" ] && \
-		   git_branch_exists /zbamidbar/foundation.git "foundation/${FOUNDATION_NAME}"; then
-			die "Branch 'foundation/${FOUNDATION_NAME}' already exists in foundation.git."
+		   git_branch_exists /zbamidbar/foundation.git "${FOUNDATION_NAME}"; then
+			die "Branch '${FOUNDATION_NAME}' already exists in foundation.git."
 		fi
 		$foundation_git_mounted || run zunmount zbamidbar/foundation.git
 	fi
@@ -284,7 +284,7 @@ prepare_workspace_git() {
 	fi
 
 	# Create orphan branch for this foundation
-	run git -C "$workspace" checkout --orphan "foundation/${FOUNDATION_NAME}"
+	run git -C "$workspace" checkout --orphan "${FOUNDATION_NAME}"
 
 	# Clear index (orphan branch starts with whatever was staged)
 	if ! $DRY_RUN; then
@@ -356,7 +356,7 @@ commit_build() {
 	run git -C "$workspace" commit -m "$ARTIFACT_NAME"
 
 	# Push
-	run git -C "$workspace" push origin "foundation/${FOUNDATION_NAME}"
+	run git -C "$workspace" push origin "${FOUNDATION_NAME}"
 }
 
 archive_to_zbamidbar() {
@@ -429,7 +429,7 @@ main() {
 
 	progress "Foundation '${FOUNDATION_NAME}' created successfully."
 	printf "  Artifact: %s\n" "$ARTIFACT_NAME" >&2
-	printf "  Branch:   foundation/%s\n" "$FOUNDATION_NAME" >&2
+	printf "  Branch:   %s\n" "$FOUNDATION_NAME" >&2
 	printf "  Archive:  zbamidbar/foundation.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
 }
 
