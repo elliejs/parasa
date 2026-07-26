@@ -3,7 +3,7 @@
 #
 # A foundation is a pristine build that systems and containers branch from.
 # Build config (SRC_BRANCH, KERNCONF, MAKE_JOBS) is collected interactively
-# or via flags and stored in minhag/foundations/<name>/build.conf.
+# or via flags and stored in recipes/foundations/<name>/build.conf.
 #
 # See plans/build_system.md for the full design.
 set -eu
@@ -46,7 +46,7 @@ Examples:
 
 Execution flow:
   1. Collect foundation name and build config
-  2. Create minhag/foundations/<name>/build.conf
+  2. Create recipes/foundations/<name>/build.conf
   3. Ensure FreeBSD source tree is ready (zshemot/src.git)
   4. Create transient build workspace (zshemot/buildspace/<name>)
   5. Build world + kernel (five make targets)
@@ -137,9 +137,9 @@ collect_foundation_name() {
 }
 
 check_foundation_available() {
-	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
-	if [ -d "$minhag" ]; then
-		die "Foundation '${FOUNDATION_NAME}' already exists in minhag. Use destroy_foundation (future) or pick a new name."
+	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
+	if [ -d "$recipes" ]; then
+		die "Foundation '${FOUNDATION_NAME}' already exists in recipes. Use destroy_foundation (future) or pick a new name."
 	fi
 	if zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"; then
 		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/foundation.zfs. Use destroy_foundation (future) or pick a new name."
@@ -161,7 +161,7 @@ check_foundation_available() {
 }
 
 resolve_build_config() {
-	local build_conf="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}/build.conf"
+	local build_conf="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}/build.conf"
 	local default_jobs
 	default_jobs=$(sysctl -n hw.ncpu 2>/dev/null || printf "4")
 
@@ -191,14 +191,14 @@ print_summary() {
 
 # ── Phase 2: Preparation ───────────────────────────────────────────────────
 
-create_minhag_dir() {
-	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
-	progress "Creating minhag dir: ${minhag}"
-	run mkdir -p "$minhag"
+create_recipe_dir() {
+	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
+	progress "Creating recipes dir: ${recipes}"
+	run mkdir -p "$recipes"
 
 	# Write build.conf
 	if ! $DRY_RUN; then
-		cat > "${minhag}/build.conf" <<-EOF
+		cat > "${recipes}/build.conf" <<-EOF
 		# build.conf for foundation: ${FOUNDATION_NAME}
 		# Per-foundation overrides. Falls back to parasa.conf.
 		SRC_BRANCH="${SRC_BRANCH}"
@@ -206,17 +206,17 @@ create_minhag_dir() {
 		MAKE_JOBS="${MAKE_JOBS}"
 		EOF
 	else
-		printf "  [dry] write %s/build.conf\n" "$minhag" >&2
+		printf "  [dry] write %s/build.conf\n" "$recipes" >&2
 	fi
 
 	# Offer $EDITOR in interactive mode
 	if [ "$QUIET" -eq 0 ] && [ -n "${EDITOR:-}" ]; then
 		if confirm "Open foundation directory in \$EDITOR before building?"; then
-			"$EDITOR" "$minhag"
+			"$EDITOR" "$recipes"
 			# Re-read config in case user changed it
-			SRC_BRANCH=$(msysrc "${minhag}/build.conf" SRC_BRANCH "$SRC_BRANCH")
-			KERNCONF=$(msysrc "${minhag}/build.conf" KERNCONF "$KERNCONF")
-			MAKE_JOBS=$(msysrc "${minhag}/build.conf" MAKE_JOBS "$MAKE_JOBS")
+			SRC_BRANCH=$(msysrc "${recipes}/build.conf" SRC_BRANCH "$SRC_BRANCH")
+			KERNCONF=$(msysrc "${recipes}/build.conf" KERNCONF "$KERNCONF")
+			MAKE_JOBS=$(msysrc "${recipes}/build.conf" MAKE_JOBS "$MAKE_JOBS")
 		fi
 	fi
 }
@@ -319,7 +319,7 @@ run_build() {
 
 commit_build() {
 	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
-	local minhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
+	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
 
 	progress "Committing build to git"
 
@@ -339,9 +339,9 @@ commit_build() {
 	# Generate mtree
 	progress "Generating mtree baseline"
 	if ! $DRY_RUN; then
-		generate_mtree "$workspace" "$minhag" "${PARASA_DIR}/etc/mtree.ignore"
+		generate_mtree "$workspace" "$recipes" "${PARASA_DIR}/etc/mtree.ignore"
 	else
-		printf "  [dry] generate_mtree %s %s %s\n" "$workspace" "$minhag" "${PARASA_DIR}/etc/mtree.ignore" >&2
+		printf "  [dry] generate_mtree %s %s %s\n" "$workspace" "$recipes" "${PARASA_DIR}/etc/mtree.ignore" >&2
 	fi
 
 	# Build artifact name
@@ -409,7 +409,7 @@ main() {
 	fi
 
 	# Phase 2: Preparation
-	create_minhag_dir
+	create_recipe_dir
 	ensure_src_tree
 	prepare_workspace
 	prepare_workspace_git

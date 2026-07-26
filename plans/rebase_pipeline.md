@@ -55,7 +55,7 @@ Check for binary instead of text. More specific: detect ELF, `data`, etc. Report
 
 ### Commit 2 (recipe) uses broad add
 
-`git add minhag/{kind}s/{name}/` — everything in the minhag dir, not a narrow file list. Nothing should be in that dir that shouldn't be committed.
+`git add recipes/{kind}s/{name}/` — everything in the recipes dir, not a narrow file list. Nothing should be in that dir that shouldn't be committed.
 
 ### .git exclusion
 
@@ -65,11 +65,13 @@ mtree comparison must exclude `.git/` directory. The existing `etc/mtree.ignore`
 
 ## Key design decisions
 
-- **Rebase order**: beam down → start with mounts → pre_pkg → packages → post_pkg → git rebase → derivation regen → validate → save
+- **Never destroy the running clone during update.** Build into `${NAME}-new`, verify, then swap with `finalize_update`.
+- **Rebase order**: beam down → clone -new → start with mounts → pre_pkg → packages → post_pkg → git rebase → derivation regen → validate → offer swap
 - **Derivation regen** happens after git rebase (depends on knowing which text sources changed), but is conceptually pre_pkg
-- **Git conflicts**: pause inline in interactive mode, abort in quiet mode
+- **Git conflicts**: pause inline in interactive mode, abort in quiet mode (old clone untouched either way)
 - **Classification prompt** asks pre_pkg/post_pkg phase for `[c]` entries
-- **Rollback**: rename old clone to `$NAME-old`, rebuild pristine from new artifact, start jail/mounts, run recipe. If bad, destroy new, rename old back.
+- **Rollback**: just `zfs destroy -r {kind}s/${NAME}-new` — old clone was never touched
+- **Finalize**: separate command `finalize_update` does: destroy old → rename -new → save. This is the only destructive step.
 
 ---
 
@@ -98,8 +100,8 @@ get_tree_root(kind, name)
   # system → /zbereshit/systems/$name
   # container → /containers/$name
 
-get_minhag_dir(kind, name)
-  # → $PARASA_DIR/minhag/${kind}s/$name
+get_recipes_dir(kind, name)
+  # → $PARASA_DIR/recipes/${kind}s/$name
 
 is_binary_file(path)
   # Inverted check: look for binary indicators (ELF, data, etc.)
@@ -109,16 +111,16 @@ lookup_derivation(relpath, db, local_db)
   # Check if relpath is a known derived binary in db or local_db
   # Print "source\tcommand" if found, return 1 if not
 
-read_artifact_name(minhag_dir)
+read_artifact_name(recipes_dir)
   # Read contents of *.foundation file (the artifact name)
 
 detect_kind(name)
-  # Auto-detect system/container from minhag directory existence
+  # Auto-detect system/container from recipes directory existence
 ```
 
 ### Modify: `scripts/workspace.sh`
 
-`create_minhag_boilerplate()`: write compose.sh with pre_pkg/post_pkg skeleton instead of empty file.
+`create_recipes_boilerplate()`: write compose.sh with pre_pkg/post_pkg skeleton instead of empty file.
 
 ### Modify: `spec/helpers_spec.sh`
 
@@ -137,9 +139,9 @@ Follows `deploy_system.sh` pattern. Getopts: `-h -d -s NAME -k KIND -q`.
 **Algorithm:**
 
 ```
-1. Resolve target: TREE_ROOT, MINHAG_DIR, FOUNDATION_NAME
+1. Resolve target: TREE_ROOT, RECIPE_DIR, FOUNDATION_NAME
 2. Load derivation databases: stable-15.db + derivations.local
-3. mtree -f MINHAG_DIR/mtree.dist -p TREE_ROOT
+3. mtree -f RECIPE_DIR/mtree.dist -p TREE_ROOT
    (mtree.ignore already excludes .git — verify)
 4. Parse mtree output → list of changed relative paths
 5. For each changed path:
@@ -184,8 +186,8 @@ Getopts: `-h -d -s NAME -k KIND -m MSG -q`.
 ```
 1. Run diff.sh (same quiet/dry-run flags)
 2. Capture package list:
-   system:    pkg info -o > MINHAG_DIR/pkg.list
-   container: pkg -j NAME info -o > MINHAG_DIR/pkg.list
+   system:    pkg info -o > RECIPE_DIR/pkg.list
+   container: pkg -j NAME info -o > RECIPE_DIR/pkg.list
 3. Regenerate mtree.dist
 4. Prompt for admin message (required in quiet mode via -m)
 5. Commit 1 — state:
@@ -193,7 +195,7 @@ Getopts: `-h -d -s NAME -k KIND -m MSG -q`.
    git -C TREE_ROOT commit -m "$ARTIFACT\n$ADMIN_MSG"
    git -C TREE_ROOT push origin {kind}s/{name}
 6. Commit 2 — recipe:
-   git -C PARASA_DIR add minhag/{kind}s/{name}/
+   git -C PARASA_DIR add recipes/{kind}s/{name}/
    git -C PARASA_DIR commit -m "{name}: $ADMIN_MSG"
 7. Cleanup
 ```
@@ -230,85 +232,113 @@ zfs send -i pool/ds@snap1 pool/ds@snap2 | zfs recv destpool/ds
 
 Getopts: `-h -d -s NAME -k KIND -a ARTIFACT -q -n`.
 
+### Create: `scripts/finalize_update.sh`
+
+Getopts: `-h -d -s NAME -k KIND`.
+
+---
+
+**Core principle: never destroy the running clone during update.** Build
+`{kind}s/${NAME}-new` alongside the live clone. The old box keeps running
+until the admin verifies the new one works. Then `finalize_update` swaps.
+
 **The update flow (unified for systems and containers):**
 
 ```
 Step 1: Pre-flight
-  ├─ Resolve OLD_FOUNDATION, OLD_ARTIFACT from minhag
+  ├─ Resolve OLD_FOUNDATION, OLD_ARTIFACT from recipes
   ├─ Resolve NEW_ARTIFACT (latest on foundation archive, or -a flag)
   ├─ Verify NEW_ARTIFACT != OLD_ARTIFACT
+  ├─ Verify ${NAME}-new does not already exist (name collision check)
   ├─ Run diff.sh -q to verify no unsaved changes
-  ├─ Mount foundation.git, verify git branches exist
-  └─ Container running? Ask to stop (LAST check, after all blockers)
+  └─ Mount foundation.git, verify git branches exist
 
 Step 2: Beam down new foundation
   ├─ Ensure new artifact on zbereshit:
   │   zfs send -i @OLD zbamidbar/.../foundation@NEW |
   │     zfs recv zbereshit/foundations/$FOUNDATION
-  ├─ Rename old clone:
-  │   zfs rename zbereshit/{kind}s/$NAME zbereshit/{kind}s/${NAME}-old
-  └─ Clone from new artifact:
+  └─ Clone from new artifact into -new:
       zfs clone zbereshit/foundations/$FOUNDATION@$NEW_ARTIFACT \
-        zbereshit/{kind}s/$NAME
+        zbereshit/{kind}s/${NAME}-new
 
-Step 3: Mount + start
-  ├─ Container: start jail (jail -c $NAME)
-  │   → jail framework processes mount.fstab
+Step 3: Mount + start the -new clone
+  ├─ Container: start jail ${NAME}-new (temporary jail.conf pointing at -new path)
+  │   → mount data-lake datasets into -new container path
   │   → nullfs only needed if cross-mounting another container's/system's datasets
-  └─ System: mount data-lake ZFS datasets (zfs mount zbamidbar/system-data/$NAME/*)
-      (these are direct ZFS mounts, not nullfs — systems own their datasets)
+  └─ System: mount data-lake ZFS datasets into -new tree
+      (chroot into /zbereshit/systems/${NAME}-new)
 
-Step 4: Run recipe
+Step 4: Run recipe on -new
   ├─ Source compose.sh, call pre_pkg()
-  │   Container: jexec $NAME pre_pkg (jail is running)
-  │   System: chroot /zbereshit/systems/$NAME pre_pkg (or jexec if temp jail)
+  │   Container: jexec ${NAME}-new pre_pkg
+  │   System: chroot /zbereshit/systems/${NAME}-new pre_pkg
   ├─ Install packages from pkg.list
-  │   Interactive: confirm "Install/upgrade packages?"
-  │   Container: pkg -j $NAME install -y $(cat pkg.list)
+  │   Container: pkg -j ${NAME}-new install -y $(cat pkg.list)
   │   System: chroot ... pkg install -y $(cat pkg.list)
   └─ Source compose.sh, call post_pkg()
-      Same execution context as pre_pkg
 
 Step 5: Git rebase
-  ├─ The tree's .git (inherited from foundation) has all branches via fetch
+  ├─ The -new tree's .git (inherited from foundation) has all branches via fetch
   ├─ git rebase --onto <new-artifact-commit> <old-artifact-commit> {kind}s/$NAME
   │   The entire delta chain (inaugural + all admin commits) replays
-  ├─ Conflict in quiet mode: git rebase --abort, die
+  ├─ Conflict in quiet mode: git rebase --abort, die (old clone untouched)
   └─ Conflict in interactive: pause, prompt admin to resolve, loop
       until git rebase --continue succeeds or admin types 'abort'
 
 Step 6: Regenerate derived binaries
   ├─ For each entry in derivations.db + derivations.local:
-  │   Did source file change? (git diff <old-foundation-tip> HEAD -- $source)
-  │   If yes: run regen command via jexec/chroot
-  │   If no: binary from compose step is correct, skip
-  └─ Verify hash after regen (flag mismatch immediately)
+  │   Did source file change? (git diff <old-artifact> HEAD -- $source)
+  │   If yes: run regen command via jexec/chroot on -new
+  │   If no: skip
+  └─ Verify hash after regen
 
 Step 7: Validate
   ├─ Regenerate mtree.dist
-  ├─ Run diff.sh -q
+  ├─ Run diff.sh -q against the -new tree
   │   Clean → proceed
-  │   Unclassified in quiet → die
+  │   Unclassified in quiet → die (old clone untouched)
   └─ Unclassified in interactive → run diff.sh interactively
 
-Step 8: Finalize
-  ├─ Container: stop jail (jail -r $NAME)
-  ├─ System: unmount data-lake ZFS datasets
-  ├─ Destroy old: zfs destroy -r zbereshit/{kind}s/${NAME}-old
-  ├─ Update .foundation file contents with NEW_ARTIFACT
-  ├─ Save (delegate to save.sh)
-  ├─ Container: offer to restart (jail -c $NAME)
-  └─ System with -n: set_nextboot (same as deploy_system.sh)
+Step 8: Offer swap
+  ├─ Stop -new jail / unmount -new data datasets
+  ├─ Print: "Update built successfully at {kind}s/${NAME}-new"
+  ├─ Interactive: "Stop the old box and try the new one? [y/N]"
+  │   If yes → stop old container (jail -r $NAME) / (system: no-op, it's running)
+  │            → offer finalize_update
+  │   If no  → print: "Run finalize_update -s $NAME when ready."
+  └─ System with -n: "WARNING: Cannot nextboot -new without finalizing first."
 ```
 
-**Cleanup trap:**
+**`finalize_update` flow (separate command):**
+
+```
+1. Verify ${NAME}-new exists
+2. Verify ${NAME} exists (the old clone)
+3. If old container is running: stop it (jail -r $NAME)
+4. zfs destroy -r zbereshit/{kind}s/$NAME
+5. zfs rename zbereshit/{kind}s/${NAME}-new zbereshit/{kind}s/$NAME
+6. Update .foundation file contents with NEW_ARTIFACT
+7. Save (delegate to save.sh)
+8. Container: offer to start (jail -c $NAME)
+9. System with -n: set_nextboot (same as deploy_system.sh)
+```
+
+**Rollback (if -new is bad):**
+
+```
+# Simply destroy the -new clone — old box is untouched
+zfs destroy -r zbereshit/{kind}s/${NAME}-new
+```
+
+**Cleanup trap (for update.sh failures):**
 
 ```
 update_cleanup() {
-    if ${NAME}-old exists:
-        "WARNING: Old clone preserved at {kind}s/${NAME}-old"
-        "To rollback: zfs destroy {kind}s/$NAME && zfs rename {kind}s/${NAME}-old {kind}s/$NAME"
-    zunmount shared datasets
+    if ${NAME}-new exists and update didn't complete:
+        "WARNING: Partial update at {kind}s/${NAME}-new"
+        "To rollback: zfs destroy -r zbereshit/{kind}s/${NAME}-new"
+    stop -new jail if running
+    zunmount datasets
 }
 ```
 
@@ -316,24 +346,34 @@ update_cleanup() {
 
 For containers, the jail framework handles mounts and provides jexec. For systems, the options are:
 
-1. **chroot + ZFS mounts**: Mount data-lake datasets directly (they're ZFS datasets under `zbamidbar/system-data/$NAME/` with known mountpoints), use chroot for commands. Systems don't use nullfs — they own their datasets and mount them directly via ZFS.
-2. **Temporary jail**: Generate a minimal jail.conf, start the system as a jail during update. Provides jexec but adds complexity.
+1. **chroot + ZFS mounts**: Mount data-lake datasets directly into the -new tree (they're ZFS datasets under `zbamidbar/system-data/$NAME/` with known mountpoints), use chroot for commands. Systems don't use nullfs — they own their datasets and mount them directly via ZFS.
+2. **Temporary jail**: Generate a minimal jail.conf, start the -new tree as a jail during update. Provides jexec but adds complexity.
+3. **kenv + reboot**: Set `vfs.root.mountfrom` to the -new dataset and reboot into it. Most realistic test, but heavy — requires two reboots (one to test, one to finalize or rollback).
 
-Option 1 is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention (`var`, `tmp`, `usr-local`, `home`). Mount them into the system tree, chroot, unmount.
+Option 1 is simplest for v1. We know the dataset paths from `create_data_datasets()` in workspace.sh — they follow a fixed naming convention (`var`, `tmp`, `usr-local`, `home`). Mount them into the -new system tree, chroot, unmount.
+
+Option 3 is the most correct for systems (you can't truly test a system without booting it), but it's a v2 feature. For v1, chroot is sufficient for recipe replay and validation.
 
 ### Create: `spec/update_spec.sh`
 
 Tests:
-- Pre-flight: already at latest → die, unsaved changes → die, container running in quiet → die
+- Pre-flight: already at latest → die, unsaved changes → die, ${NAME}-new exists → die
 - Step isolation: each named function with mocks
-- Correct ZFS commands (clone, rename, destroy)
+- Correct ZFS commands (clone into -new, no rename of running clone)
 - Compose replay order (pre_pkg before packages before post_pkg)
 - Derivation regen: only when source changed
-- Git rebase conflict: quiet → abort + die
+- Git rebase conflict: quiet → abort + die (old clone untouched)
 - Dry-run: all steps in output in order
-- Cleanup trap: old clone mentioned
+- Cleanup trap: -new clone mentioned
 
-### Modify: `index.sh` — add `parasa_update()` wrapper
+### Create: `spec/finalize_update_spec.sh`
+
+Tests:
+- -new exists → rename to plain name, destroy old
+- -new does not exist → die
+- Running container → stop before destroy
+
+### Modify: `index.sh` — add `parasa_update()`, `parasa_finalize_update()` wrappers
 
 ### Verification: `shellspec spec/update_spec.sh && shellspec`
 
@@ -357,25 +397,28 @@ Tests:
 
 ## Files summary
 
-### New (6 scripts/specs + 3 man pages):
+### New (8 scripts/specs + 4 man pages):
 
 | File | Purpose |
 |------|---------|
 | `scripts/diff.sh` | parasa_diff — drift detection + classification |
 | `scripts/save.sh` | parasa_save — two-commit state capture |
-| `scripts/update.sh` | parasa_update — rebase onto new patch level |
+| `scripts/update.sh` | parasa_update — rebase onto new patch level (builds -new) |
+| `scripts/finalize_update.sh` | parasa_finalize_update — swap -new into place |
 | `spec/diff_spec.sh` | Tests for diff |
 | `spec/save_spec.sh` | Tests for save |
 | `spec/update_spec.sh` | Tests for update |
+| `spec/finalize_update_spec.sh` | Tests for finalize_update |
 | `man/man8/diff.8` | Man page |
 | `man/man8/save.8` | Man page |
 | `man/man8/update.8` | Man page |
+| `man/man8/finalize_update.8` | Man page |
 
 ### Modified (4):
 
 | File | Change |
 |------|--------|
-| `scripts/helpers.sh` | Add get_tree_root, get_minhag_dir, is_binary_file, lookup_derivation, read_artifact_name, detect_kind |
+| `scripts/helpers.sh` | Add get_tree_root, get_recipes_dir, is_binary_file, lookup_derivation, read_artifact_name, detect_kind |
 | `scripts/workspace.sh` | compose.sh boilerplate with pre_pkg/post_pkg |
 | `spec/helpers_spec.sh` | Tests for new helpers |
 | `index.sh` | Add parasa_diff, parasa_save, parasa_update wrappers |

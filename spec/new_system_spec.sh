@@ -320,13 +320,13 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
     End
 
     setup_dry_system() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound/build.conf"
     }
 
     cleanup_dry_system() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/systems/drybox"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/drybox"
     }
 
     Before 'setup_dry_system'
@@ -373,7 +373,7 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
       The error should include "bob"
     End
 
-    It "fails when foundation minhag does not exist"
+    It "fails when foundation recipes does not exist"
       When run script scripts/new_system.sh -s drybox -f nonexistent -q -d
       The status should be failure
       The error should include "not found"
@@ -396,10 +396,10 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
       The error should not include "fstab.local"
     End
 
-    It "does not mention recipe mounts"
+    It "does not mention fstab.local recipe mounts"
       When run script scripts/new_system.sh -s drybox -f testfound -q -d
       The status should be success
-      The error should not include "recipe"
+      The error should not include "recipe mount"
     End
   End
 
@@ -440,19 +440,19 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
     End
 
     setup_collision() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/systems/taken"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/systems/taken"
     }
 
     cleanup_collision() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/systems/taken"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/taken"
     }
 
     Before 'setup_collision'
     After 'cleanup_collision'
 
-    It "rejects a system name that already exists in minhag"
+    It "rejects a system name that already exists in recipes"
       When run script scripts/new_system.sh -s taken -f testfound -q -d
       The status should be failure
       The error should include "already exists"

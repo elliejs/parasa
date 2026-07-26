@@ -93,7 +93,7 @@ Within these pools, parasa controls an authoritative layout of the system.
 - zshemot/
   - torah/            The FreeBSD src repository
   - parasa/          The parasa framework itself (public git repo clone)
-    - minhag/         Literally "customs". User configuration per target. See below.
+    - recipes/         Literally "customs". User configuration per target. See below.
     - etc/            Defaults shipped with parasa (derivation databases, jail.conf template)
   - amim/             Literally "peoples". Per-name build workspaces (concurrent-safe)
     - [name]/         One per foundation/system/container being built. Transient.
@@ -153,7 +153,7 @@ Packages live on zbamidbar in the target's data dataset:
 `/usr/local` (systems) or `/containers/[name]/usr/local` (containers).
 
 On save, `parasa-diff` collects the full package list into `pkg.list` in
-the target's minhag directory. On rebase or fresh start, if the usr-local
+the target's recipes directory. On rebase or fresh start, if the usr-local
 dataset already exists, `pkg upgrade` / `pkg install` updates it
 incrementally rather than reinstalling from scratch.
 
@@ -167,17 +167,17 @@ See [save_workflow.md](save_workflow.md) for the full save workflow design.
 
 The next thing we have to do after bootstrapping our entire layout is build a system template (or at least provide the functionality).
 
-### Minhag config layout
+### Recipe config layout
 
 To properly drive parasa for anything other than bootstrapping, we need
 configuration files. Because zbereshit is ephemeral (it's a system that can
 be torn down or rebuilt *through* the parasa framework), the standard
 ~/.config/ location isn't durable enough. Configuration lives under
-`zshemot/parasa/minhag/`, inside the parasa repo clone.
+`zshemot/parasa/recipes/`, inside the parasa repo clone.
 
 The repo itself is cloned into `zshemot/parasa/`. It ships with default
 derivation databases, a jail.conf template, and stage scripts. User
-configuration lives under `minhag/` within the repo — separated visually
+configuration lives under `recipes/` within the repo — separated visually
 into systems and containers but structurally identical to the framework.
 
 ```
@@ -188,9 +188,9 @@ zshemot/parasa/
     derivations/                Default text→binary derivation databases
       stable-14.db              per FreeBSD branch
       stable-15.db
-    jail.conf                   Default jail.conf, includes minhag/jail.conf.d/*
+    jail.conf                   Default jail.conf, includes recipes/jail.conf.d/*
     mtree.ignore                Paths to exclude from mtree (ships with parasa)
-  minhag/
+  recipes/
     foundations/                 Build configurations (shared across systems/containers)
       [foundation-name]/
         build.conf              SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
@@ -220,12 +220,12 @@ zshemot/parasa/
 
 A **foundation** is a build configuration that produces a pristine
 FreeBSD world+kernel. Build config (SRC_BRANCH, KERNCONF, MAKE_JOBS)
-lives in `minhag/foundations/<name>/build.conf`. Systems and containers
+lives in `recipes/foundations/<name>/build.conf`. Systems and containers
 are built **on top of** a foundation — they don't carry their own build
 config.
 
 Each system/container has exactly one file named
-`<foundation-name>.foundation` in its minhag dir. The filename encodes
+`<foundation-name>.foundation` in its recipes dir. The filename encodes
 the foundation identity (stream + major.minor, e.g.,
 `generic-stable15.0.foundation`). The file **contains the artifact name**
 (patch level / ZFS snapshot tag). On a patch-level update, rewrite the
@@ -270,7 +270,7 @@ zbereshit/foundations can be pruned once no clone references them.
 mounts (var, tmp, usr/local, home, custom) are written during the
 inaugural commit. All mounts go in one place — no split.
 
-**Containers** use `minhag/containers/<name>/mount.fstab`, which is
+**Containers** use `recipes/containers/<name>/mount.fstab`, which is
 referenced by the container's jail.conf. The jail framework processes
 these entries at jail start and reverses them at jail stop. All
 container mounts — data-lake, custom, shared — go in this one file.
@@ -291,7 +291,7 @@ containers. FreeBSD `mount -a` with `late` handles ZFS after pool import.
 | `new_container` | Create a container on top of a foundation |
 | `deploy_system` | Deploy an archived system to zbereshit for boot |
 | `update_system` | Rebuild/upgrade an existing system onto a new foundation |
-| `edit_system` | Interactively edit system metadata, fstab, minhag config |
+| `edit_system` | Interactively edit system metadata, fstab, recipes config |
 | `destroy_system` | Tear down a system |
 
 See `plans/build_system.md` for the full implementation plan.
@@ -365,18 +365,18 @@ Containers and systems share the same tracking and rebase machinery.
 A container is structurally identical to a system — same delta chain, same
 stratified change tracking, same rebase procedure. The differences are:
 
-- A container has a `jail.conf` in its minhag target directory
+- A container has a `jail.conf` in its recipes target directory
 - A container does not build or install a kernel
 - A container lives on zbereshit/containers, not zbereshit/systems
 - A container is started by jail(8), not the boot loader
 
 In scripting, the distinction is detected by file presence (jail.conf =
 container, KERNCONF in build.conf = system), not by directory hierarchy.
-The hierarchy (minhag/systems/ vs minhag/containers/) is for human
+The hierarchy (recipes/systems/ vs recipes/containers/) is for human
 readability only.
 
 Container target directories live at
-`/zshemot/parasa/minhag/containers/[container-name]/` and contain the same
+`/zshemot/parasa/recipes/containers/[container-name]/` and contain the same
 files as system targets: compose.sh, derivations.local, mtree.dist,
 pkg.list, plus a jail.conf and mount.fstab.
 
@@ -394,11 +394,11 @@ foundation archive (independent copy of pristine var). usr-local and
 home are created empty.
 
 Container data-lake mounts use jail(8)'s native `mount.fstab` mechanism.
-Each container's jail.conf references a mount.fstab file in minhag that
+Each container's jail.conf references a mount.fstab file in recipes that
 maps zbamidbar data datasets into the container path. The jail framework
 processes these at jail start and reverses them at jail stop — no manual
 mount/unmount needed. The host's `/etc/jail.conf` includes container
-configs via `include "/zshemot/parasa/minhag/containers/*/jail.conf"`.
+configs via `include "/zshemot/parasa/recipes/containers/*/jail.conf"`.
 
 See `docs/user_stories_containers.md` for the full container lifecycle.
 
@@ -436,7 +436,7 @@ is where the burden comes from. In a perfect world we:
   irreducible commands — opaque binary producers that can't be auto-detected
   or derived.
 
-Detection uses mtree: the build phase produces `mtree.dist` (in the target's minhag directory) with
+Detection uses mtree: the build phase produces `mtree.dist` (in the target's recipes directory) with
 sha512 content hashes. A `parasa-diff` tool compares the live filesystem
 against this baseline and auto-classifies what it can (text → git, derived
 binary → derivations.db, already git-tracked → environment state). Only

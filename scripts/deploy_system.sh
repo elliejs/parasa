@@ -30,7 +30,7 @@ Options:
             is deployed but not made bootable.
 
 This command:
-  1. Reads the system's foundation from minhag/systems/<name>/*.foundation
+  1. Reads the system's foundation from recipes/systems/<name>/*.foundation
   2. Resolves the foundation's ZFS snapshot via foundation.git commit history
   3. Sends the foundation archive to zbereshit/systems/<name>
   4. Applies the system branch (git checkout) for system-specific state
@@ -83,10 +83,10 @@ progress() {
 # ── Resolve foundation and snapshot ─────────────────────────────────────────
 
 resolve_snapshot() {
-	local minhag="${PARASA_DIR}/minhag/systems/${SYSTEM_NAME}"
-	[ -d "$minhag" ] || die "System minhag dir not found: ${minhag}"
+	local recipes="${PARASA_DIR}/recipes/systems/${SYSTEM_NAME}"
+	[ -d "$recipes" ] || die "System recipes dir not found: ${recipes}"
 
-	FOUNDATION_NAME=$(get_foundation "$minhag")
+	FOUNDATION_NAME=$(get_foundation "$recipes")
 	progress "Foundation: ${FOUNDATION_NAME}"
 
 	# Validate foundation archive exists

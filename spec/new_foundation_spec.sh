@@ -50,7 +50,7 @@ Describe "new_foundation.sh"
 
     # Replicate resolve_build_config from new_foundation.sh for isolated testing
     resolve_build_config() {
-      local build_conf="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}/build.conf"
+      local build_conf="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}/build.conf"
       local default_jobs
       default_jobs=$(sysctl -n hw.ncpu 2>/dev/null || printf "4")
       local def_branch="${OPT_SRC_BRANCH}"
@@ -190,7 +190,7 @@ Describe "new_foundation.sh"
     End
 
     cleanup_dry_foundation() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/dryfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/dryfound"
     }
     After 'cleanup_dry_foundation'
 
@@ -212,10 +212,10 @@ Describe "new_foundation.sh"
       The error should include "GENERIC"
     End
 
-    It "shows minhag dir creation"
+    It "shows recipes dir creation"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
-      The error should include "Creating minhag dir"
+      The error should include "Creating recipes dir"
       The error should include "dryfound"
     End
 
@@ -318,12 +318,12 @@ Describe "new_foundation.sh"
       The error should include "already archived"
     End
 
-    It "rejects a name that exists in minhag"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/existing"
+    It "rejects a name that exists in recipes"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/existing"
       When run script scripts/new_foundation.sh -s existing -q -d
       The status should be failure
       The error should include "already exists"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/existing"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/existing"
     End
   End
 End

@@ -1,7 +1,7 @@
 #!/bin/sh
 # new_system -- Create a new system on top of a foundation.
 #
-# Takes an existing foundation and creates a system: minhag directory,
+# Takes an existing foundation and creates a system: recipes directory,
 # data datasets on zbamidbar, and an inaugural commit on a system/<name>
 # branch in foundation.git. Optionally deploys to zbereshit.
 #
@@ -58,7 +58,7 @@ Examples:
 Execution flow:
   1. Collect system name and foundation
   2. Ask dataset/mount questions
-  3. Create minhag/systems/<name>/ with .foundation, boilerplate files
+  3. Create recipes/systems/<name>/ with .foundation, boilerplate files
   4. Create data datasets on zbamidbar/system-data/<name>/
   5. Create inaugural commit on systems/<name> branch (writes /etc/fstab)
   6. Optionally deploy to zbereshit (via deploy_system)
@@ -210,7 +210,7 @@ main() {
 	fi
 
 	# Phase 2: Setup
-	create_minhag_boilerplate
+	create_recipe_boilerplate
 	create_data_datasets
 
 	# Phase 3: Inaugural commit
@@ -235,7 +235,7 @@ main() {
 
 	progress "System '${SYSTEM_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2
-	printf "  Minhag:     minhag/systems/%s/\n" "$SYSTEM_NAME" >&2
+	printf "  Recipe:     recipes/systems/%s/\n" "$SYSTEM_NAME" >&2
 	printf "  Branch:     systems/%s\n" "$SYSTEM_NAME" >&2
 
 	# Phase 4: Deploy (optional)

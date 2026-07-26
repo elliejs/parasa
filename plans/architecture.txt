@@ -32,7 +32,7 @@ zshemot/
 		${NAME}.cfg	# per-foundation build config (SRC_BRANCH, KERNCONF, MAKE_JOBS)
 		...
 	systems/
-		${NAME}/	# recipe directory ("minhag") for a system
+		${NAME}/	# recipe directory ("recipes") for a system
 			${FOUNDATION}.foundation	< ${ARTIFACT}	# filename=foundation, contents=artifact
 			pkg.list
 			compose.sh	# pre_pkg() + post_pkg()
@@ -174,7 +174,7 @@ foundation.git <- GIT_REPO
 #	/tmp         <- zbamidbar/system-data/${NAME}/tmp
 #	/usr/local   <- zbamidbar/system-data/${NAME}/usr-local
 
-# Containers mount via mount.fstab in minhag, processed by jail(8).
+# Containers mount via mount.fstab in recipes, processed by jail(8).
 # Own-dataset mounts use zfs type. Cross-mounts use nullfs.
 #
 #	/var         <- zbamidbar/container-data/${NAME}/var          (zfs)

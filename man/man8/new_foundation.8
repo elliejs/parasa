@@ -23,7 +23,7 @@ A foundation is a pristine base build from which systems and containers
 branch.
 .Pp
 Build configuration is stored in
-.Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf
+.Pa recipes/foundations/ Ns Ar name Ns Pa /build.conf
 and can be supplied interactively, via
 .Fl o
 overrides, or through defaults in
@@ -98,7 +98,7 @@ proceeds through the following stages:
 Collect the foundation name and build configuration.
 .It
 Create
-.Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf .
+.Pa recipes/foundations/ Ns Ar name Ns Pa /build.conf .
 .It
 Ensure the FreeBSD source tree is present at
 .Pa zshemot/torah .
@@ -125,8 +125,8 @@ Create a ZFS snapshot and archive to
 Destroy the transient workspace.
 .El
 .Sh FILES
-.Bl -tag -width "minhag/foundations/<name>/build.conf"
-.It Pa minhag/foundations/ Ns Ar name Ns Pa /build.conf
+.Bl -tag -width "recipes/foundations/<name>/build.conf"
+.It Pa recipes/foundations/ Ns Ar name Ns Pa /build.conf
 Per-foundation build configuration produced by
 .Nm .
 Contains

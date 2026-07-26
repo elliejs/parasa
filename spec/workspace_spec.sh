@@ -124,8 +124,8 @@ Describe "workspace.sh"
         WS_KIND="system"
         WS_NAME="fresh"
         PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-        rm -rf "$PARASA_DIR/minhag/systems"
-        mkdir -p "$PARASA_DIR/minhag/systems"
+        rm -rf "$PARASA_DIR/recipes/systems"
+        mkdir -p "$PARASA_DIR/recipes/systems"
       }
       Before 'setup_system_check'
 
@@ -134,8 +134,8 @@ Describe "workspace.sh"
         The status should be success
       End
 
-      It "dies when minhag dir exists"
-        mkdir -p "$PARASA_DIR/minhag/systems/fresh"
+      It "dies when recipes dir exists"
+        mkdir -p "$PARASA_DIR/recipes/systems/fresh"
         When call try_check_available
         The status should be failure
         The error should include "already exists"
@@ -156,8 +156,8 @@ Describe "workspace.sh"
         WS_KIND="container"
         WS_NAME="fresh"
         PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-        rm -rf "$PARASA_DIR/minhag/containers"
-        mkdir -p "$PARASA_DIR/minhag/containers"
+        rm -rf "$PARASA_DIR/recipes/containers"
+        mkdir -p "$PARASA_DIR/recipes/containers"
       }
       Before 'setup_container_check'
 
@@ -166,8 +166,8 @@ Describe "workspace.sh"
         The status should be success
       End
 
-      It "dies when minhag dir exists"
-        mkdir -p "$PARASA_DIR/minhag/containers/fresh"
+      It "dies when recipes dir exists"
+        mkdir -p "$PARASA_DIR/recipes/containers/fresh"
         When call try_check_available
         The status should be failure
         The error should include "already exists"
@@ -206,7 +206,7 @@ Describe "workspace.sh"
 
     setup_foundation() {
       PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-      mkdir -p "$PARASA_DIR/minhag/foundations/base15"
+      mkdir -p "$PARASA_DIR/recipes/foundations/base15"
       QUIET=1
     }
     Before 'setup_foundation'
@@ -217,7 +217,7 @@ Describe "workspace.sh"
       The status should be success
     End
 
-    It "rejects a foundation not in minhag"
+    It "rejects a foundation not in recipes"
       FOUNDATION_NAME="nonexistent"
       When call try_collect_foundation
       The status should be failure
@@ -225,7 +225,7 @@ Describe "workspace.sh"
     End
 
     It "rejects a foundation not archived in foundation.zfs"
-      mkdir -p "$PARASA_DIR/minhag/foundations/unarchived"
+      mkdir -p "$PARASA_DIR/recipes/foundations/unarchived"
       FOUNDATION_NAME="unarchived"
       When call try_collect_foundation
       The status should be failure
@@ -291,9 +291,9 @@ Describe "workspace.sh"
     End
   End
 
-  # ── create_minhag_boilerplate() ────────────────────────────────────────
+  # ── create_recipe_boilerplate() ────────────────────────────────────────
 
-  Describe "create_minhag_boilerplate()"
+  Describe "create_recipe_boilerplate()"
     Describe "creates the five standard files"
       setup_boilerplate() {
         DRY_RUN=false
@@ -302,49 +302,49 @@ Describe "workspace.sh"
         WS_KIND="system"
         FOUNDATION_NAME="stable15"
         PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-        mkdir -p "$PARASA_DIR/minhag/systems"
+        mkdir -p "$PARASA_DIR/recipes/systems"
       }
 
       cleanup_boilerplate() {
-        rm -rf "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws"
+        rm -rf "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws"
       }
 
       Before 'setup_boilerplate'
       After 'cleanup_boilerplate'
 
-      It "creates the minhag directory"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws" should be directory
+      It "creates the recipes directory"
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws" should be directory
       End
 
       It "creates the .foundation file"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws/stable15.foundation" should be file
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws/stable15.foundation" should be file
       End
 
       It "creates compose.sh"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws/compose.sh" should be file
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws/compose.sh" should be file
       End
 
       It "creates derivations.local"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws/derivations.local" should be file
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws/derivations.local" should be file
       End
 
       It "creates pkg.list"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws/pkg.list" should be file
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws/pkg.list" should be file
       End
 
       It "creates mtree.dist"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws/mtree.dist" should be file
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws/mtree.dist" should be file
       End
 
-      It "sets WS_MINHAG correctly"
-        When call create_minhag_boilerplate
-        The variable WS_MINHAG should equal "$SHELLSPEC_TMPDIR/parasa/minhag/systems/testws"
+      It "sets WS_RECIPE_DIR correctly"
+        When call create_recipe_boilerplate
+        The variable WS_RECIPE_DIR should equal "$SHELLSPEC_TMPDIR/parasa/recipes/systems/testws"
       End
     End
 
@@ -356,20 +356,20 @@ Describe "workspace.sh"
         WS_KIND="container"
         FOUNDATION_NAME="base15"
         PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-        mkdir -p "$PARASA_DIR/minhag/containers"
+        mkdir -p "$PARASA_DIR/recipes/containers"
       }
 
       cleanup_container_bp() {
-        rm -rf "$SHELLSPEC_TMPDIR/parasa/minhag/containers/nginx"
+        rm -rf "$SHELLSPEC_TMPDIR/parasa/recipes/containers/nginx"
       }
 
       Before 'setup_container_bp'
       After 'cleanup_container_bp'
 
       It "uses containers/ subdir when WS_KIND is container"
-        When call create_minhag_boilerplate
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/containers/nginx" should be directory
-        The variable WS_MINHAG should include "containers/nginx"
+        When call create_recipe_boilerplate
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/containers/nginx" should be directory
+        The variable WS_RECIPE_DIR should include "containers/nginx"
       End
     End
 
@@ -381,16 +381,16 @@ Describe "workspace.sh"
         WS_KIND="system"
         FOUNDATION_NAME="stable15"
         PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-        mkdir -p "$PARASA_DIR/minhag/systems"
+        mkdir -p "$PARASA_DIR/recipes/systems"
       }
       Before 'setup_dry_bp'
 
       It "prints [dry] and does not create files"
-        When call create_minhag_boilerplate
+        When call create_recipe_boilerplate
         The error should include "[dry]"
         The error should include "stable15.foundation"
         The error should include "compose.sh"
-        The path "$SHELLSPEC_TMPDIR/parasa/minhag/systems/drybox" should not be exist
+        The path "$SHELLSPEC_TMPDIR/parasa/recipes/systems/drybox" should not be exist
       End
     End
   End

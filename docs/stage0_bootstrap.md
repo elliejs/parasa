@@ -134,7 +134,7 @@ zshemot/torah
 zshemot/parasa
   mountpoint=/zshemot/parasa, canmount=noauto
   The parasa framework repo clone. Contains scripts, default derivation
-  databases, and user configuration (minhag/) per target. Mounted when
+  databases, and user configuration (recipes/) per target. Mounted when
   parasa scripts need config or during builds.
 
 Note: zshemot/amim is NOT created by bootstrap. It is the parent for

@@ -14,7 +14,7 @@ Classification:
 
 What's the difference between a command and a derivation, really? whether it has a text source that needs to be there first for ordering? if so, we should make this clearer.
 
-6. commit 2: nothing else should be in PARASA_DIR/minhag/{kind}s/{name} than what we add, so really it should be more like a negative check for other files in that dir than a narrow add.
+6. commit 2: nothing else should be in PARASA_DIR/recipes/{kind}s/{name} than what we add, so really it should be more like a negative check for other files in that dir than a narrow add.
 
 # Set up git in staging -- where are you getting this staging dir? it needs to be somewhere it can not collide with other systems/containers
 

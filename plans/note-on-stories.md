@@ -18,8 +18,8 @@ each foundation has a canonical dataset under zbamidbar/sinai.zfs/foundations/<k
 
 5: or, during bootstrap, we can set etc/jail.conf to
 ```
-include ${minhag_dir}/containers/*/jail.conf
-include ${minhag_dir}/systems/*/jail.conf
+include ${recipes_dir}/containers/*/jail.conf
+include ${recipes_dir}/systems/*/jail.conf
 ```
 
 Story D:

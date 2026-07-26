@@ -120,7 +120,7 @@ containers/
 │  Cross-mounts (another container/system's data):            (nullfs)│
 │  /shared/foo   <── /containers/other/shared/foo                     │
 │                                                                     │
-│  All mounts via mount.fstab in minhag, processed by jail(8).       │
+│  All mounts via mount.fstab in recipes, processed by jail(8).       │
 └─────────────────────────────────────────────────────────────────────┘
 
 

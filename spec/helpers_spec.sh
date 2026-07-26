@@ -104,7 +104,7 @@ Describe "helpers.sh"
   Describe "get_foundation()"
     Describe "with a single .foundation file"
       setup_single() {
-        _mdir="$SHELLSPEC_TMPDIR/minhag_single"
+        _mdir="$SHELLSPEC_TMPDIR/recipe_single"
         mkdir -p "$_mdir"
         touch "$_mdir/generic-stable15.foundation"
       }
@@ -118,7 +118,7 @@ Describe "helpers.sh"
 
     Describe "with no .foundation file"
       setup_none() {
-        _mdir="$SHELLSPEC_TMPDIR/minhag_none"
+        _mdir="$SHELLSPEC_TMPDIR/recipe_none"
         mkdir -p "$_mdir"
       }
       Before 'setup_none'
@@ -132,7 +132,7 @@ Describe "helpers.sh"
 
     Describe "with multiple .foundation files"
       setup_multi() {
-        _mdir="$SHELLSPEC_TMPDIR/minhag_multi"
+        _mdir="$SHELLSPEC_TMPDIR/recipe_multi"
         mkdir -p "$_mdir"
         touch "$_mdir/one.foundation"
         touch "$_mdir/two.foundation"

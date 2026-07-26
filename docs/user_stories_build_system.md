@@ -15,7 +15,7 @@ flag and launches in interactive mode.
 
 1. **Name**: The command asks for a foundation name. Alice types
    `generic-stable15`. The command checks that no
-   `minhag/foundations/generic-stable15/` directory exists, no
+   `recipes/foundations/generic-stable15/` directory exists, no
    `zbamidbar/sinai.zfs/foundations/generic-stable15` dataset exists, and no
    `foundation/generic-stable15` branch exists in sinai.git. All clear.
 
@@ -26,7 +26,7 @@ flag and launches in interactive mode.
 3. **Summary + confirm**: The command prints the foundation name and build
    config, asks to confirm.
 
-4. **Minhag setup**: Creates `minhag/foundations/generic-stable15/build.conf`
+4. **Recipe setup**: Creates `recipes/foundations/generic-stable15/build.conf`
    with the collected values. Since this is interactive mode, offers to open
    the foundation directory in `$EDITOR` before proceeding. Alice declines.
 
@@ -74,11 +74,11 @@ Alice has her `generic-stable15` foundation. She runs `parasa_new_system`
 with no arguments.
 
 1. **System name**: Prompted. She types `wonderland`. The command checks
-   `minhag/systems/wonderland/` and `zbereshit/systems/wonderland` don't
+   `recipes/systems/wonderland/` and `zbereshit/systems/wonderland` don't
    exist.
 
 2. **Foundation**: The command lists available foundations (reads from
-   `minhag/foundations/`). Alice selects `generic-stable15`.
+   `recipes/foundations/`). Alice selects `generic-stable15`.
 
 3. **Dataset questions**: The command asks the boilerplate questions:
    - Make a /home/ dataset? (default: yes) → `zbamidbar/system-data/wonderland/home`
@@ -95,7 +95,7 @@ with no arguments.
 
 4. **Summary + confirm**.
 
-5. **Minhag setup**: Creates `minhag/systems/wonderland/` with:
+5. **Recipe setup**: Creates `recipes/systems/wonderland/` with:
    - `generic-stable15.foundation` (zero-byte file)
    - `compose.sh` (empty)
    - `derivations.local` (empty)
@@ -162,7 +162,7 @@ yet deployed. She runs:
 parasa_deploy_system -s wonderland -n
 ```
 
-1. **Resolve**: The command reads `minhag/systems/wonderland/*.foundation`
+1. **Resolve**: The command reads `recipes/systems/wonderland/*.foundation`
    to find the foundation name. In sinai.git, it finds the foundation
    commit that `system/wonderland` forks from and reads its commit message
    — that IS the artifact name / ZFS snapshot tag.

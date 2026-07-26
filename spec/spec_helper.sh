@@ -20,12 +20,12 @@ setup_parasa_dir() {
   export PARASA_DIR
 }
 
-# Create a temporary minhag tree for testing.
-# Usage: setup_minhag_tree
-# Sets MINHAG_TMP to the temp dir path.
-setup_minhag_tree() {
-  MINHAG_TMP="$SHELLSPEC_TMPDIR/minhag"
-  mkdir -p "$MINHAG_TMP"
+# Create a temporary recipes tree for testing.
+# Usage: setup_recipes_tree
+# Sets RECIPES_TMP to the temp dir path.
+setup_recipes_tree() {
+  RECIPES_TMP="$SHELLSPEC_TMPDIR/recipes"
+  mkdir -p "$RECIPES_TMP"
 }
 
 # Record commands instead of executing them.

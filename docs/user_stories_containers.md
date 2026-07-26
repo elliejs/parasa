@@ -2,7 +2,7 @@
 
 These stories illustrate how containers are created, deployed, customized,
 saved, updated, and destroyed. They follow a container from birth to death
-and cover the interactions between the container's minhag config, its
+and cover the interactions between the container's recipes config, its
 sinai.git branch, its ZFS datasets, and the running jail.
 
 See `docs/user_stories_build_system.md` for foundation and system stories.
@@ -21,7 +21,7 @@ OS release a container is built on and distinguishes patch-level updates
 ### The .foundation file
 
 Each system/container has exactly one file named
-`<foundation-name>.foundation` in its minhag dir. The filename encodes
+`<foundation-name>.foundation` in its recipes dir. The filename encodes
 the foundation identity (stream + major.minor). The file **contains the
 artifact name** (patch level), which is the ZFS snapshot tag and sinai.git
 commit message for the foundation build.
@@ -58,13 +58,13 @@ anything in use, it can be pruned.
 
 Container data-lake mounts use jail(8)'s native `mount.fstab` mechanism,
 not `/etc/fstab` inside the container. Each container's jail.conf
-references a `mount.fstab` file in the minhag directory. The jail
+references a `mount.fstab` file in the recipes directory. The jail
 framework processes these entries at jail start and reverses them at
 jail stop — no manual mount/unmount scripts needed.
 
 The host's `/etc/jail.conf` includes container configs:
 ```
-include "/zshemot/parasa/minhag/containers/*/jail.conf";
+include "/zshemot/parasa/recipes/containers/*/jail.conf";
 ```
 
 This is set up during bootstrap.
@@ -116,12 +116,12 @@ Alice has a `generic-stable15.0` foundation. She runs
 `parasa_new_container` with no arguments.
 
 1. **Name**: Prompted. She types `webserver`. The command checks that:
-   - `minhag/containers/webserver/` doesn't exist
+   - `recipes/containers/webserver/` doesn't exist
    - `zbereshit/containers/webserver` doesn't exist
    - `zbamidbar/container-data/webserver` doesn't exist
 
 2. **Foundation**: The command lists available foundations (reads from
-   `minhag/foundations/`). Alice selects `generic-stable15.0`. The command
+   `recipes/foundations/`). Alice selects `generic-stable15.0`. The command
    verifies the foundation is archived in zbamidbar/sinai.zfs and that a
    matching artifact exists on zbereshit/foundations (or offers to
    replicate it).
@@ -134,7 +134,7 @@ Alice has a `generic-stable15.0` foundation. She runs
 
 4. **Summary + confirm**.
 
-5. **Minhag setup**: Creates `minhag/containers/webserver/` with:
+5. **Recipe setup**: Creates `recipes/containers/webserver/` with:
    - `generic-stable15.0.foundation` (contains the artifact name)
    - `compose.sh` (empty)
    - `derivations.local` (empty)
@@ -170,7 +170,7 @@ Alice wants to bring `webserver` online. She runs:
 parasa_deploy_container webserver
 ```
 
-1. **Resolve**: Reads `minhag/containers/webserver/*.foundation` to find
+1. **Resolve**: Reads `recipes/containers/webserver/*.foundation` to find
    `generic-stable15.0`. Reads the file's contents to get the artifact
    name. Verifies the artifact exists on
    `zbamidbar/sinai.zfs/foundations/generic-stable15.0@<artifact>`.
@@ -236,13 +236,13 @@ parasa_save webserver
 
 1. **Detect changes**: `parasa_diff` compares the live filesystem at
    `/containers/webserver` against the mtree baseline in
-   `minhag/containers/webserver/mtree.dist`. It finds:
+   `recipes/containers/webserver/mtree.dist`. It finds:
    - `etc/rc.conf` — text file, modified → auto-classified as git-tracked
    - `etc/nginx/` — new text files → auto-classified as git-tracked
    - Nothing unexpected in var/ or usr/local/ (gitignored, on separate datasets)
 
 2. **Package list**: `pkg -j webserver info -o` is captured into
-   `minhag/containers/webserver/pkg.list`. No admin input needed.
+   `recipes/containers/webserver/pkg.list`. No admin input needed.
 
 3. **Admin message**: The admin is prompted for a message describing
    what changed (e.g., "added nginx with default config").
@@ -319,7 +319,7 @@ parasa_update_container webserver -f generic-stable15.1
    finds zero unclassified changes, the update is clean. If anything
    is unexpected, the admin is prompted.
 
-9. **Update minhag**: For a patch-level update within the same
+9. **Update recipes**: For a patch-level update within the same
    major.minor, rewrite the `.foundation` file contents with the new
    artifact name (filename stays `generic-stable15.0.foundation`). For a
    stream/major.minor change (as in this example), rename the file
@@ -344,7 +344,7 @@ parasa_new_container postgres -f generic-stable15.0
 During dataset questions, Alice adds a custom mount:
 - `zbamidbar/shared-data/postgres:/var/db/postgres`
 
-This mount goes into `minhag/containers/postgres/mount.fstab` alongside
+This mount goes into `recipes/containers/postgres/mount.fstab` alongside
 the standard data-lake mounts. Alice marks it as shared:
 ```
 # mount.fstab for postgres
@@ -366,7 +366,7 @@ parasa_new_container app -f generic-stable15.0
 During custom mounts, Alice adds:
 - `zbamidbar/shared-data/postgres:/mnt/pgdata` (read-only)
 
-The entry in `minhag/containers/app/mount.fstab`:
+The entry in `recipes/containers/app/mount.fstab`:
 ```
 # shared
 /zbamidbar/shared-data/postgres  /containers/app/mnt/pgdata  nullfs  ro  0  0
@@ -410,13 +410,13 @@ parasa_destroy_container webserver
    - `zbamidbar/container-data/webserver` (all child datasets: var,
      usr-local, tmp)
    - `container/webserver` branch in sinai.git
-   - `minhag/containers/webserver/` directory
+   - `recipes/containers/webserver/` directory
    - `webserver` entry removed from jail.conf.d
 
 3. **Interactive confirmation**: Each item is listed and the admin
    can choose what to keep. For example:
    - Keep the git branch? (for history/audit) → Alice says no
-   - Keep the minhag recipe? (to recreate later) → Alice says yes
+   - Keep the recipes recipe? (to recreate later) → Alice says yes
    - Keep container-data datasets? → Alice says no
 
    In quiet mode, everything is destroyed.
@@ -427,7 +427,7 @@ parasa_destroy_container webserver
    - Unmount and destroy `zbereshit/containers/webserver`
    - Unmount and destroy `zbamidbar/container-data/webserver` recursively
    - Delete branch `container/webserver` from sinai.git
-   - Remove `minhag/containers/webserver/`
+   - Remove `recipes/containers/webserver/`
    - Commit removal to zshemot
 
 Nothing shared is touched. The `zbamidbar/web-content` dataset Alice
@@ -448,8 +448,8 @@ parasa_clone_container webserver webserver-staging
    (not from the foundation — from the current container state,
    preserving all commits).
 
-2. **Minhag**: Copy `minhag/containers/webserver/` to
-   `minhag/containers/webserver-staging/`. Update the jail.conf
+2. **Recipe**: Copy `recipes/containers/webserver/` to
+   `recipes/containers/webserver-staging/`. Update the jail.conf
    hostname. Review mount.fstab entries — remove any shared mounts
    that shouldn't be duplicated (interactive prompt).
 
@@ -484,7 +484,7 @@ start it separately.
 
 | Command | Purpose | Status |
 |---------|---------|--------|
-| `new_container` | Create minhag, datasets, inaugural commit | Implemented |
+| `new_container` | Create recipes, datasets, inaugural commit | Implemented |
 | `deploy_container` | Clone foundation to zbereshit, apply branch, start jail | Future |
 | `save` | Detect changes, commit state + recipe | Future |
 | `update_container` | Rebase onto new foundation, replay, reinstall | Future |

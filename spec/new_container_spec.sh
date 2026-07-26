@@ -43,13 +43,13 @@ Describe "new_container.sh"
   End
 
   # ── mount.fstab generation ─────────────────────────────────────────────
-  # Replicate the mount.fstab generation logic from create_minhag_dir()
+  # Replicate the mount.fstab generation logic from create_recipe_dir()
   # for isolated testing, same pattern as build_fstab_lines in new_system_spec.
 
   Describe "mount.fstab generation"
     Include scripts/helpers.sh
 
-    # Replicated from new_container.sh create_minhag_dir() -- the printf
+    # Replicated from new_container.sh create_recipe_dir() -- the printf
     # block that writes mount.fstab. Kept in sync manually.
     build_mount_fstab() {
       local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
@@ -296,13 +296,13 @@ ${CUSTOM_MOUNT_LINES}"
     End
 
     setup_dry_container() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound/build.conf"
     }
 
     cleanup_dry_container() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/containers/dryjar"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/dryjar"
     }
 
     Before 'setup_dry_container'
@@ -342,13 +342,13 @@ ${CUSTOM_MOUNT_LINES}"
       The error should include "allow-empty"
     End
 
-    It "creates mount.fstab in minhag dir (not fstab.local)"
+    It "creates mount.fstab in recipes dir (not fstab.local)"
       When run script scripts/new_container.sh -s dryjar -f testfound -q -d
       The error should include "mount.fstab"
       The error should not include "fstab.local"
     End
 
-    It "creates jail.conf in minhag dir"
+    It "creates jail.conf in recipes dir"
       When run script scripts/new_container.sh -s dryjar -f testfound -q -d
       The error should include "jail.conf"
     End
@@ -384,11 +384,11 @@ ${CUSTOM_MOUNT_LINES}"
     End
   End
 
-  # ── Minhag dir file creation ──────────────────────────────────────────
-  # Non-dry-run: verify the actual files created in the minhag dir.
+  # ── Recipe dir file creation ──────────────────────────────────────────
+  # Non-dry-run: verify the actual files created in the recipes dir.
   # We mock all ZFS/git commands but let filesystem operations run real.
 
-  Describe "minhag dir contents"
+  Describe "recipes dir contents"
     Mock id
       printf "0\n"
     End
@@ -439,23 +439,23 @@ ${CUSTOM_MOUNT_LINES}"
       exit 0
     End
 
-    setup_minhag_test() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/base15"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/base15/build.conf"
+    setup_recipes_test() {
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15/build.conf"
     }
 
-    cleanup_minhag_test() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/base15"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/containers/filetest"
+    cleanup_recipes_test() {
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/filetest"
     }
 
-    Before 'setup_minhag_test'
-    After 'cleanup_minhag_test'
+    Before 'setup_recipes_test'
+    After 'cleanup_recipes_test'
 
-    # Run dry-run so create_minhag_dir writes files but ZFS/git are mocked
-    # Note: create_minhag_dir writes real files even outside dry-run,
+    # Run dry-run so create_recipe_dir writes files but ZFS/git are mocked
+    # Note: create_recipe_dir writes real files even outside dry-run,
     # but the script uses dry-run for ZFS/git. We use -d to skip those
-    # but create_minhag_dir's file creation is behind !$DRY_RUN.
+    # but create_recipe_dir's file creation is behind !$DRY_RUN.
     # So we test via dry-run output which lists the files.
 
     It "lists mount.fstab in dry-run file creation"
@@ -516,19 +516,19 @@ ${CUSTOM_MOUNT_LINES}"
     End
 
     setup_collision() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/minhag/containers/taken"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/containers/taken"
     }
 
     cleanup_collision() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/foundations/testfound"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/minhag/containers/taken"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/taken"
     }
 
     Before 'setup_collision'
     After 'cleanup_collision'
 
-    It "rejects a container name that already exists in minhag"
+    It "rejects a container name that already exists in recipes"
       When run script scripts/new_container.sh -s taken -f testfound -q -d
       The status should be failure
       The error should include "already exists"

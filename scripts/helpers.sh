@@ -106,24 +106,24 @@ zwith() {
 
 # ── mtree helpers ─────────────────────────────────────────────────────────────
 
-# Generate mtree.dist for a tree, writing to the target's minhag directory.
+# Generate mtree.dist for a tree, writing to the target's recipes directory.
 # Strips time/nlink/flags (git-incompatible), adds sha512.
 generate_mtree() {
 	local tree="${1:?generate_mtree: tree root required}"
-	local minhag_dir="${2:?generate_mtree: minhag target directory required}"
+	local recipes_dir="${2:?generate_mtree: recipes target directory required}"
 	local ignore="${3:?generate_mtree: ignore file required}"
-	[ -d "$minhag_dir" ] || die "generate_mtree: minhag dir not found: ${minhag_dir}"
+	[ -d "$recipes_dir" ] || die "generate_mtree: recipes dir not found: ${recipes_dir}"
 	[ -f "$ignore" ]     || die "generate_mtree: ignore file not found: ${ignore}"
 	mtree -c -x -R time,nlink,flags -K sha512 -p "$tree" \
-		-X "$ignore" > "${minhag_dir}/mtree.dist"
+		-X "$ignore" > "${recipes_dir}/mtree.dist"
 }
 
 # Apply mtree.dist to restore permissions and flags.
 apply_mtree() {
 	local tree="${1:?apply_mtree: tree root required}"
-	local minhag_dir="${2:?apply_mtree: minhag target directory required}"
-	local spec="${minhag_dir}/mtree.dist"
-	[ -f "$spec" ] || die "apply_mtree: no mtree.dist in ${minhag_dir}"
+	local recipes_dir="${2:?apply_mtree: recipes target directory required}"
+	local spec="${recipes_dir}/mtree.dist"
+	[ -f "$spec" ] || die "apply_mtree: no mtree.dist in ${recipes_dir}"
 	# Differences between spec and live tree are expected; don't fail.
 	mtree -f "$spec" -iu -p "$tree" || true
 }
@@ -184,10 +184,10 @@ git_branch_exists() {
 
 # ── Foundation helpers ───────────────────────────────────────────────────────
 
-# Read foundation name from a system/container minhag dir.
+# Read foundation name from a system/container recipes dir.
 # Returns the name via stdout. Dies if zero or multiple .foundation files.
 get_foundation() {
-	local dir="${1:?get_foundation: minhag dir required}"
+	local dir="${1:?get_foundation: recipes dir required}"
 	local found="" count=0 f
 	for f in "$dir"/*.foundation; do
 		[ -e "$f" ] || die "get_foundation: no .foundation file in ${dir}"
@@ -257,17 +257,17 @@ prompt_yesno() {
 # Usage: select_foundation quiet_level
 # Prints the chosen foundation name to stdout.
 select_foundation() {
-	local quiet="${1:-0}" minhag_dir="${PARASA_DIR}/minhag/foundations"
+	local quiet="${1:-0}" recipes_dir="${PARASA_DIR}/recipes/foundations"
 	local name found="" count=0 idx=0
 
-	for d in "$minhag_dir"/*/; do
+	for d in "$recipes_dir"/*/; do
 		[ -d "$d" ] || continue
 		name=$(basename "$d")
 		count=$((count + 1))
 		found="$name"
 	done
 
-	[ "$count" -gt 0 ] || die "No foundations found in ${minhag_dir}/. Run new_foundation first."
+	[ "$count" -gt 0 ] || die "No foundations found in ${recipes_dir}/. Run new_foundation first."
 
 	if [ "$count" -eq 1 ]; then
 		if [ "$quiet" -gt 0 ]; then
@@ -285,7 +285,7 @@ select_foundation() {
 
 	printf "Available foundations:\n" >&2
 	idx=0
-	for d in "$minhag_dir"/*/; do
+	for d in "$recipes_dir"/*/; do
 		[ -d "$d" ] || continue
 		idx=$((idx + 1))
 		name=$(basename "$d")
@@ -300,7 +300,7 @@ select_foundation() {
 		case "$resp" in
 			[0-9]|[0-9][0-9])
 				local cur=0
-				for d in "$minhag_dir"/*/; do
+				for d in "$recipes_dir"/*/; do
 					[ -d "$d" ] || continue
 					cur=$((cur + 1))
 					if [ "$cur" -eq "$resp" ]; then
@@ -313,7 +313,7 @@ select_foundation() {
 				;;
 		esac
 		# Name given directly
-		if [ -d "${minhag_dir}/${resp}" ]; then
+		if [ -d "${recipes_dir}/${resp}" ]; then
 			printf "%s" "$resp"
 			return 0
 		fi

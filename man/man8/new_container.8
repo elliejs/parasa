@@ -25,7 +25,7 @@ but produces a jail managed by
 instead of a bootable system.
 .Pp
 .Nm
-creates a minhag directory containing a
+creates a recipes directory containing a
 .Xr jail.conf 5
 skeleton, allocates data datasets, and makes an inaugural commit on a
 container-specific branch.
@@ -37,7 +37,7 @@ instead.
 .Pp
 A foundation reference is recorded as a zero-byte file named
 .Pa Ao Ar foundation Ac Ns .foundation
-in the container's minhag directory, tying the container to the base
+in the container's recipes directory, tying the container to the base
 build it derives from.
 .Pp
 .Nm
@@ -115,8 +115,8 @@ proceeds through the following stages:
 .It
 Collect the container name, foundation, and configuration.
 .It
-Create the minhag directory at
-.Pa minhag/containers/ Ns Ar name Ns Pa /
+Create the recipes directory at
+.Pa recipes/containers/ Ns Ar name Ns Pa /
 with the following files:
 .Xr jail.conf 5
 skeleton,
@@ -154,22 +154,22 @@ Deploy the container to
 .El
 .Sh FILES
 .Bl -tag -width "zbamidbar/container-data/<name>/"
-.It Pa minhag/containers/ Ns Ar name Ns Pa /.foundation
+.It Pa recipes/containers/ Ns Ar name Ns Pa /.foundation
 Zero-byte file whose name records the foundation this container
 derives from.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /jail.conf
+.It Pa recipes/containers/ Ns Ar name Ns Pa /jail.conf
 .Xr jail.conf 5
 skeleton for the container.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /compose.sh
+.It Pa recipes/containers/ Ns Ar name Ns Pa /compose.sh
 Composition script controlling derivation application.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /derivations.local
+.It Pa recipes/containers/ Ns Ar name Ns Pa /derivations.local
 Local derivation list for the container.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /fstab.local
+.It Pa recipes/containers/ Ns Ar name Ns Pa /fstab.local
 Local fstab overrides.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /mtree.dist
+.It Pa recipes/containers/ Ns Ar name Ns Pa /mtree.dist
 .Xr mtree 8
 specification for the container's file hierarchy.
-.It Pa minhag/containers/ Ns Ar name Ns Pa /pkg.list
+.It Pa recipes/containers/ Ns Ar name Ns Pa /pkg.list
 Package list for the container.
 .It Pa zbamidbar/container\-data/ Ns Ar name Ns Pa /
 Parent dataset for container-specific persistent data, containing

@@ -1,7 +1,7 @@
 #!/bin/sh
 # new_container -- Create a new container (jail) on top of a foundation.
 #
-# Mirrors new_system but for containers: creates a minhag directory with
+# Mirrors new_system but for containers: creates a recipes directory with
 # jail.conf and mount.fstab, data datasets on zbamidbar/container-data,
 # and an inaugural commit on a containers/<name> branch in foundation.git.
 # Containers are started by jail(8), not the boot loader.
@@ -51,7 +51,7 @@ Modes:
 Data-lake mounts (var, usr/local) are always created. Home and tmp are
 optional. Datasets live under zbamidbar/container-data/<name>/.
 
-A skeleton jail.conf is created in the minhag directory. Edit it before
+A skeleton jail.conf is created in the recipes directory. Edit it before
 starting the container.
 
 Examples:
@@ -63,7 +63,7 @@ Examples:
 Execution flow:
   1. Collect container name and foundation
   2. Ask dataset/mount questions
-  3. Create minhag/containers/<name>/ with .foundation, jail.conf, mount.fstab, etc.
+  3. Create recipes/containers/<name>/ with .foundation, jail.conf, mount.fstab, etc.
   4. Create data datasets on zbamidbar/container-data/<name>/
   5. Create inaugural commit on containers/<name> branch
 EOF
@@ -126,11 +126,11 @@ collect_container_options() {
 	fi
 }
 
-# ── Container minhag extras ────────────────────────────────────────────────
+# ── Container recipes extras ────────────────────────────────────────────────
 
-# Write mount.fstab and jail.conf into the minhag dir.
-# Called after create_minhag_boilerplate sets WS_MINHAG.
-create_container_minhag_extras() {
+# Write mount.fstab and jail.conf into the recipes dir.
+# Called after create_recipe_boilerplate sets WS_RECIPE_DIR.
+create_container_recipe_extras() {
 	if ! $DRY_RUN; then
 		# mount.fstab -- all container mounts (data-lake + custom)
 		local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
@@ -160,10 +160,10 @@ create_container_minhag_extras() {
 			if [ -n "$CUSTOM_MOUNT_LINES" ]; then
 				printf "%s\n" "$CUSTOM_MOUNT_LINES"
 			fi
-		} > "${WS_MINHAG}/mount.fstab"
+		} > "${WS_RECIPE_DIR}/mount.fstab"
 
 		# Skeleton jail.conf
-		cat > "${WS_MINHAG}/jail.conf" <<-JAILCONF
+		cat > "${WS_RECIPE_DIR}/jail.conf" <<-JAILCONF
 		# jail.conf for container: ${CONTAINER_NAME}
 		# See jail(8) and jail.conf(5) for options.
 		#
@@ -173,7 +173,7 @@ create_container_minhag_extras() {
 		    host.hostname = "${CONTAINER_NAME}";
 		    path = "/containers/${CONTAINER_NAME}";
 
-		    mount.fstab = "${PARASA_DIR}/minhag/containers/${CONTAINER_NAME}/mount.fstab";
+		    mount.fstab = "${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}/mount.fstab";
 		    mount.devfs;
 		    devfs_ruleset = 4;
 
@@ -183,7 +183,7 @@ create_container_minhag_extras() {
 		}
 		JAILCONF
 	else
-		printf "  [dry] create %s/{mount.fstab,jail.conf}\n" "$WS_MINHAG" >&2
+		printf "  [dry] create %s/{mount.fstab,jail.conf}\n" "$WS_RECIPE_DIR" >&2
 	fi
 }
 
@@ -221,8 +221,8 @@ main() {
 	fi
 
 	# Phase 2: Setup
-	create_minhag_boilerplate
-	create_container_minhag_extras
+	create_recipe_boilerplate
+	create_container_recipe_extras
 	create_data_datasets
 
 	# Phase 3: Inaugural commit (container: no content, allow-empty)
@@ -232,9 +232,9 @@ main() {
 
 	progress "Container '${CONTAINER_NAME}' created successfully."
 	printf "  Foundation: %s\n" "$FOUNDATION_NAME" >&2
-	printf "  Minhag:     minhag/containers/%s/\n" "$CONTAINER_NAME" >&2
+	printf "  Recipe:     recipes/containers/%s/\n" "$CONTAINER_NAME" >&2
 	printf "  Branch:     containers/%s\n" "$CONTAINER_NAME" >&2
-	printf "  jail.conf:  minhag/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
+	printf "  jail.conf:  recipes/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
 	printf "\nEdit jail.conf and use jail(8) to start the container.\n" >&2
 }
 

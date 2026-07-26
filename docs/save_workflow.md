@@ -11,11 +11,11 @@ two git commits:
    - Known derived binaries -> verified, no action needed
    - Already git-tracked binaries -> environment state, no action needed
 3. Prompt for unclassified binaries:
-   - `[d]` derived -> writes to minhag target's `derivations.local`
+   - `[d]` derived -> writes to recipes target's `derivations.local`
    - `[e]` environment -> `git add` the binary file
-   - `[c]` command -> appends to minhag target's `compose.sh` file
+   - `[c]` command -> appends to recipes target's `compose.sh` file
    - `[s]` skip -> will ask again next time (blocks rebase)
-4. Regenerate `mtree.dist` in the target's minhag directory
+4. Regenerate `mtree.dist` in the target's recipes directory
 5. Commit the delta to the zbereshit branch
 
 ## Commit 2: zshemot (parasa repo -> zbamidbar/parasa.git)

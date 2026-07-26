@@ -74,7 +74,7 @@ etc/
   derivations/        Default text-to-binary derivation databases, per branch.
     stable-15.db      master.passwd->pwd.db, login.conf->login.conf.db, etc.
 
-minhag/               Per-target configuration ("customs").
+recipes/               Per-target configuration ("customs").
   foundations/        Build configurations (SRC_BRANCH, KERNCONF, etc.)
     <name>/
       build.conf      Build overrides. Empty = default kernel + world.
@@ -104,7 +104,7 @@ default GENERIC kernel and world.
 ```sh
 # Query effective config:
 sysrc -f parasa.conf SRC_BRANCH
-sysrc -f minhag/foundations/mybase/build.conf SRC_BRANCH
+sysrc -f recipes/foundations/mybase/build.conf SRC_BRANCH
 ```
 
 ## How rebase works
@@ -125,7 +125,7 @@ Saving a system or container is one interactive session, two git commits:
    auto-classifies text files and known derivations, prompts the admin
    for any unclassified binaries, commits the delta.
 2. **zshemot commit** — classifications from step 1 updated the target's
-   minhag files (compose.sh, derivations.local, pkg.list). Commit those.
+   recipes files (compose.sh, derivations.local, pkg.list). Commit those.
 
 The zbereshit commit records the *state*. The zshemot commit records the
 *recipe*.

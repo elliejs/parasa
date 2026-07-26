@@ -127,7 +127,7 @@ The original design stored a separate `var/db/parasa/drift` file with
 status/hash/path records. This is redundant:
 
 - **Detection** is handled by mtree. The build phase already produces
-  `mtree.dist` (stored in the target's minhag directory on zshemot) with
+  `mtree.dist` (stored in the target's recipes directory on zshemot) with
   sha512 content hashes. Comparing it against the live filesystem tells us
   exactly what changed. That's what mtree does.
 
@@ -180,10 +180,10 @@ The base set ships with the parasa framework at
 branch). During the build phase, the appropriate file is copied into the
 artifact at `etc/parasa/derivations.db`.
 
-Per-target custom derivation entries live in the minhag target directory:
-`zshemot/parasa/minhag/systems/[name]/derivations.local` (or containers/).
+Per-target custom derivation entries live in the recipes target directory:
+`zshemot/parasa/recipes/systems/[name]/derivations.local` (or containers/).
 At runtime, `parasa-diff` reads both the base `derivations.db` from the
-system tree and the target's `derivations.local` from minhag.
+system tree and the target's `derivations.local` from recipes.
 
 ## parasa-diff
 
@@ -193,7 +193,7 @@ login). Replaces the original drift-manifest-based design.
 ### Detection
 
 ```
-mtree -f /zshemot/parasa/minhag/[type]/[name]/mtree.dist -p /  →  list of changed files
+mtree -f /zshemot/parasa/recipes/[type]/[name]/mtree.dist -p /  →  list of changed files
 
 for each changed file:
 
@@ -225,9 +225,9 @@ New binary file: etc/krb5.keytab
   [s] Skip — ask me again next time
 ```
 
-Option `[d]` adds to the target's `derivations.local` in minhag.
+Option `[d]` adds to the target's `derivations.local` in recipes.
 Option `[e]` runs `git add` on the file in the system's delta chain.
-Option `[c]` appends to the target's `compose.sh` file in minhag.
+Option `[c]` appends to the target's `compose.sh` file in recipes.
 Option `[s]` does nothing — mtree will flag it again next run.
 
 ### Pre-rebase gate
@@ -309,7 +309,7 @@ on the git tree, is the right scope.
 
 ## Relationship to mtree
 
-The build phase produces `mtree.dist` in the target's minhag directory on
+The build phase produces `mtree.dist` in the target's recipes directory on
 zshemot, with content-only sha512 hashes (no time, nlink, or flags — see
 helpers.sh `generate_mtree`). This is the baseline. Storing it on zshemot
 (rather than inside the system tree on zbereshit) means anyone initializing

@@ -47,7 +47,7 @@ management. It is also the feature with:
 Building rebase last means building the hardest thing with the least room
 for iteration. Every design decision made in the creation scripts
 constrains the rebase implementation — foundation naming, .foundation file
-semantics, git branch topology, minhag directory layout. If any of those
+semantics, git branch topology, recipes directory layout. If any of those
 turn out to be wrong for rebase, they'll need to be reworked across
 multiple already-tested scripts.
 
@@ -124,7 +124,7 @@ key-dependency chain where one disk failure can cascade.
 zbamidbar holds:
 - `sinai.git` — all foundation, system, and container git branches
 - `sinai.zfs` — all foundation ZFS archives
-- `parasa.git` — the parasa repository (recipes, minhag, compose scripts)
+- `parasa.git` — the parasa repository (recipes, recipes, compose scripts)
 - Per-system and per-container data datasets
 
 There is no documented backup strategy. If zbamidbar is lost, the entire

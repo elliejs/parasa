@@ -2,7 +2,7 @@
 
 > **Superseded decisions** (this plan predates later iterations):
 > - `zshemot/tablets` → `zshemot/buildspace/<name>` (per-name workspaces, concurrent-safe)
-> - `fstab.local` eliminated — systems use `/etc/fstab`, containers use `mount.fstab` in minhag
+> - `fstab.local` eliminated — systems use `/etc/fstab`, containers use `mount.fstab` in recipes
 > - Recipe vs non-recipe mount distinction removed — all mounts in one file
 > - `.foundation` file contains artifact name (not zero-byte)
 > - Foundation names include major.minor (e.g., `generic-stable15.0`)
@@ -24,13 +24,13 @@ The build layer is separated from the system/container layer. A **foundation** i
 | `new_container` | Create a container on top of a foundation | Future (mirrors new_system) |
 | `deploy_system` | Deploy an archived system to zbereshit for boot | **This plan** (split out) |
 | `update_system` | Rebuild/upgrade an existing system onto a new foundation | Future |
-| `edit_system` | Interactively edit system metadata, fstab, minhag config | Future |
-| `destroy_system` | Tear down a system (minhag, datasets, git branch) | Future |
+| `edit_system` | Interactively edit system metadata, fstab, recipes config | Future |
+| `destroy_system` | Tear down a system (recipes, datasets, git branch) | Future |
 
 ### Architectural Summary
 
 ```
-minhag/
+recipes/
   foundations/<name>/
     build.conf                    SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
   systems/<name>/
@@ -69,7 +69,7 @@ zbamidbar/container-data/<name>/  Per-container data datasets
 
 **Systems** write data-lake mounts into `/etc/fstab` inside the system tree (git-tracked) as the inaugural commit. These are ZFS direct mounts (`rw,late`). Systems do not need nullfs — they own their datasets and mount them directly via ZFS.
 
-**Containers** use `mount.fstab` in the minhag directory, processed by jail(8). Own-dataset mounts (data-lake) use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
+**Containers** use `mount.fstab` in the recipes directory, processed by jail(8). Own-dataset mounts (data-lake) use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
 
 ---
 
@@ -121,7 +121,7 @@ Mode detection:
 #### Phase 1: Input
 2. **`collect_foundation_name`** — prompt if interactive; validate
 3. **`check_name_available`** — must NOT exist in:
-   - `minhag/foundations/<name>/`
+   - `recipes/foundations/<name>/`
    - `zbamidbar/foundation.zfs/foundations/<name>`
    - `foundation.git` branch `<name>` (orphan branch)
    If exists, error suggesting `destroy_foundation` (future) or pick a new name.
@@ -129,7 +129,7 @@ Mode detection:
 5. Print summary, confirm
 
 #### Phase 2: Preparation
-6. **`create_minhag_dir`** — create `minhag/foundations/<name>/build.conf` with collected values. In interactive mode (not `-q`), offer to open the foundation dir in `$EDITOR` before proceeding.
+6. **`create_recipes_dir`** — create `recipes/foundations/<name>/build.conf` with collected values. In interactive mode (not `-q`), offer to open the foundation dir in `$EDITOR` before proceeding.
 7. **`ensure_src_tree`** — mount `zshemot/src.git`, clone if missing, checkout SRC_BRANCH, pull
 8. **`prepare_tablets`** — create `zshemot/tablets` + `zshemot/tablets/var` (transient). Ensure empty.
 9. **`prepare_tablets_git`**:
@@ -152,7 +152,7 @@ Mode detection:
     1. `git add .` — stages everything including base var/ files
     2. Create `.gitignore`: `var/`, `usr/local/`, `tmp/`. NOT `home/` — whether to gitignore home is a per-system/container decision, asked during `new_system`/`new_container` and applied in the inaugural commit.
     3. `git add .gitignore`
-    4. Generate mtree: `generate_mtree /zshemot/tablets $MINHAG_DIR $PARASA_DIR/etc/mtree.ignore`
+    4. Generate mtree: `generate_mtree /zshemot/tablets $RECIPE_DIR $PARASA_DIR/etc/mtree.ignore`
     5. `git commit -m "$ARTIFACT_NAME"`
     6. `git push origin $FOUNDATION_NAME`
 
@@ -205,14 +205,14 @@ The standard data-lake mounts (var, usr/local) are always auto-included in the s
 #### Phase 1: Input
 2. **`collect_system_name`** — prompt if interactive; validate
 3. **`check_name_available`** — must NOT exist in:
-   - `minhag/systems/<name>/`
+   - `recipes/systems/<name>/`
    - `zbereshit/systems/<name>`
-4. **`collect_foundation`** — if `-f` provided, validate it exists in `minhag/foundations/<name>/` AND `zbamidbar/foundation.zfs/foundations/<name>`. If not provided, list available foundations and prompt.
+4. **`collect_foundation`** — if `-f` provided, validate it exists in `recipes/foundations/<name>/` AND `zbamidbar/foundation.zfs/foundations/<name>`. If not provided, list available foundations and prompt.
 5. **`collect_build_options`** — boilerplate dataset questions + custom mounts. For each mount, ask if recipe-related (default: no). Defaults use `zbamidbar/system-data/<name>/<stem>`, user can override.
 6. Print summary, confirm
 
 #### Phase 2: Setup
-7. **`create_minhag_dir`** — create `minhag/systems/<name>/` with:
+7. **`create_recipes_dir`** — create `recipes/systems/<name>/` with:
    - `<foundation-name>.foundation` (zero-byte file)
    - `compose.sh` (empty)
    - `derivations.local` (empty)
@@ -261,7 +261,7 @@ getopts ":hs:a:nd" opt
 
 The system branch forks from a foundation orphan branch commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/foundations/<name>`. So:
 
-1. Read the system's foundation from `minhag/systems/<name>/*.foundation`
+1. Read the system's foundation from `recipes/systems/<name>/*.foundation`
 2. In `foundation.git`, find which foundation commit `systems/<name>` forks from (the merge base or first parent on the foundation branch)
 3. Read that commit's message — it IS the artifact name
 4. Use that artifact name to locate `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`
@@ -300,7 +300,7 @@ These are deployment config, not recipe material. They vary per deployment and d
 
 ### Container mount.fstab
 
-Containers use `mount.fstab` in the minhag directory, processed by jail(8). Own-dataset mounts use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
+Containers use `mount.fstab` in the recipes directory, processed by jail(8). Own-dataset mounts use `zfs` type. Cross-mounts (another container's or system's dataset) use `nullfs`.
 
 ### Why fstab over `zfs set mountpoint=`
 
@@ -312,7 +312,7 @@ Containers use `mount.fstab` in the minhag directory, processed by jail(8). Own-
 
 ## .foundation File Convention
 
-Each system/container has exactly one file named `<foundation-name>.foundation` in its minhag dir. The filename encodes the foundation name; the file **contains** the artifact name (snapshot tag).
+Each system/container has exactly one file named `<foundation-name>.foundation` in its recipes dir. The filename encodes the foundation name; the file **contains** the artifact name (snapshot tag).
 
 **Reading foundation**: `basename "$(ls "$dir"/*.foundation)" .foundation`
 
@@ -327,16 +327,16 @@ Each system/container has exactly one file named `<foundation-name>.foundation` 
 **`msysrc()`** — two-tier config lookup:
 ```
 # Usage: msysrc foundation_name VAR_NAME [default]
-# Checks minhag/foundations/<name>/build.conf first, falls back to parasa.conf.
+# Checks recipes/foundations/<name>/build.conf first, falls back to parasa.conf.
 ```
 
 **`zfs_dataset_exists()`** — `zfs list -H -o name "$1" >/dev/null 2>&1`
 
 **`git_branch_exists()`** — `git rev-parse --verify "refs/heads/$1" >/dev/null 2>&1`
 
-**`get_foundation()`** — read foundation name from a system/container minhag dir:
+**`get_foundation()`** — read foundation name from a system/container recipes dir:
 ```
-# Usage: get_foundation minhag_dir
+# Usage: get_foundation recipes_dir
 # Returns foundation name. Dies if zero or multiple .foundation files.
 ```
 
@@ -344,13 +344,13 @@ Each system/container has exactly one file named `<foundation-name>.foundation` 
 
 ## Key Design Decisions
 
-1. **Foundations separate from systems/containers**: Build config lives in `minhag/foundations/`. Systems/containers point to a foundation. Difference between system and container = how you use it.
+1. **Foundations separate from systems/containers**: Build config lives in `recipes/foundations/`. Systems/containers point to a foundation. Difference between system and container = how you use it.
 
 2. **foundation.zfs only has foundations/**: No systems/containers in the archive. System/container state is tracked by git+mtree+compose.
 
 3. **Inaugural commit creates the system branch**: `new_system` recv's the foundation to tablets, branches `systems/<name>` from the foundation orphan branch, writes fstab entries into `/etc/fstab`, commits, pushes. Deploy just sends the ZFS + checks out the system branch.
 
-4. **System mounts in `/etc/fstab`** (git-tracked, inaugural commit). **Container mounts in `mount.fstab`** (minhag dir, processed by jail(8)). No fstab.local.
+4. **System mounts in `/etc/fstab`** (git-tracked, inaugural commit). **Container mounts in `mount.fstab`** (recipes dir, processed by jail(8)). No fstab.local.
 
 5. **`.foundation` file**: Filename = foundation name, contents = artifact name.
 
@@ -368,7 +368,7 @@ Each system/container has exactly one file named `<foundation-name>.foundation` 
 
 12. **Semi-interactive: `-o` values pre-fill defaults, still prompt**: Every question is asked; enter = accept default.
 
-13. **Interactive: offer `$EDITOR`**: After creating foundation minhag dir, offer to open it in `$EDITOR` before proceeding with the build.
+13. **Interactive: offer `$EDITOR`**: After creating foundation recipes dir, offer to open it in `$EDITOR` before proceeding with the build.
 
 14. **foundation.git / foundation.zfs**: Renamed from `tablets.git` / `tablets.zfs` — dropped the extra nesting layer.
 
@@ -387,7 +387,7 @@ In `scripts/stage0-bootstrap.sh`:
 
 ## Doc Updates — DONE
 
-1. **`docs/idea.md`**: ✓ Foundation concept, minhag layout, fstab split, command family, dataset renames, git branch naming
+1. **`docs/idea.md`**: ✓ Foundation concept, recipes layout, fstab split, command family, dataset renames, git branch naming
 2. **`docs/user_stories_build_system.md`**: ✓ Rewritten around new_foundation + new_system + deploy_system
 3. **`docs/drift_manifest.md`**: ✓ Updated dataset refs, rebase = git rebase foundation/<name>
 4. **`scripts/stage0-bootstrap.sh`**: ✓ Dataset renames

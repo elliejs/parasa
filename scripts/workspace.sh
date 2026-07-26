@@ -15,7 +15,7 @@
 #   QUIET            0/1/2
 #
 # Variables set by workspace functions (available to caller after call):
-#   WS_MINHAG        full path to minhag/${WS_KIND}s/$WS_NAME
+#   WS_RECIPE_DIR        full path to recipes/${WS_KIND}s/$WS_NAME
 #   WS_DATA_ROOT     zbamidbar/$WS_DATA_POOL/$WS_NAME
 #   WS_PATH          /zshemot/buildspace/$WS_NAME (workspace mount path)
 
@@ -72,7 +72,7 @@ collect_name() {
 	done
 }
 
-# Verify no minhag dir or zbereshit dataset exists for this name.
+# Verify no recipes dir or zbereshit dataset exists for this name.
 check_available() {
 	local label
 	case "$WS_KIND" in
@@ -80,9 +80,9 @@ check_available() {
 		container) label="Container" ;;
 		*)         label="$WS_KIND" ;;
 	esac
-	local minhag="${PARASA_DIR}/minhag/${WS_KIND}s/${WS_NAME}"
-	if [ -d "$minhag" ]; then
-		die "${label} '${WS_NAME}' already exists in minhag. Use destroy_${WS_KIND} (future) or pick a new name."
+	local recipes="${PARASA_DIR}/recipes/${WS_KIND}s/${WS_NAME}"
+	if [ -d "$recipes" ]; then
+		die "${label} '${WS_NAME}' already exists in recipes. Use destroy_${WS_KIND} (future) or pick a new name."
 	fi
 	if zfs_dataset_exists "zbereshit/${WS_KIND}s/${WS_NAME}"; then
 		die "${label} '${WS_NAME}' already deployed on zbereshit."
@@ -93,8 +93,8 @@ check_available() {
 # Sets FOUNDATION_NAME.
 collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
-		local fminhag="${PARASA_DIR}/minhag/foundations/${FOUNDATION_NAME}"
-		[ -d "$fminhag" ] || die "Foundation '${FOUNDATION_NAME}' not found in minhag."
+		local frecipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
+		[ -d "$frecipes" ] || die "Foundation '${FOUNDATION_NAME}' not found in recipes."
 		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}" || \
 			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/foundation.zfs."
 		return
@@ -131,23 +131,23 @@ collect_build_options() {
 
 # ── Phase 2: Setup ───────────────────────────────────────────────────────────
 
-# Create the minhag dir with the five common boilerplate files.
-# Sets WS_MINHAG.
-create_minhag_boilerplate() {
-	WS_MINHAG="${PARASA_DIR}/minhag/${WS_KIND}s/${WS_NAME}"
+# Create the recipes dir with the five common boilerplate files.
+# Sets WS_RECIPE_DIR.
+create_recipe_boilerplate() {
+	WS_RECIPE_DIR="${PARASA_DIR}/recipes/${WS_KIND}s/${WS_NAME}"
 
-	progress "Creating minhag dir: ${WS_MINHAG}"
-	run mkdir -p "$WS_MINHAG"
+	progress "Creating recipes dir: ${WS_RECIPE_DIR}"
+	run mkdir -p "$WS_RECIPE_DIR"
 
 	if ! $DRY_RUN; then
-		: > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"  # artifact written by ws_begin
-		: > "${WS_MINHAG}/compose.sh"
-		: > "${WS_MINHAG}/derivations.local"
-		: > "${WS_MINHAG}/pkg.list"
-		: > "${WS_MINHAG}/mtree.dist"
+		: > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"  # artifact written by ws_begin
+		: > "${WS_RECIPE_DIR}/compose.sh"
+		: > "${WS_RECIPE_DIR}/derivations.local"
+		: > "${WS_RECIPE_DIR}/pkg.list"
+		: > "${WS_RECIPE_DIR}/mtree.dist"
 	else
 		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist}\n" \
-			"$WS_MINHAG" "$FOUNDATION_NAME" >&2
+			"$WS_RECIPE_DIR" "$FOUNDATION_NAME" >&2
 	fi
 }
 
@@ -241,7 +241,7 @@ ws_begin() {
 		zfs mount "zshemot/buildspace/${WS_NAME}"
 		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
 		# Record artifact name in .foundation file
-		printf "%s\n" "$snap" > "${WS_MINHAG}/${FOUNDATION_NAME}.foundation"
+		printf "%s\n" "$snap" > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"
 	else
 		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/buildspace/%s\n" \
 			"$foundation_archive" "$WS_NAME" >&2

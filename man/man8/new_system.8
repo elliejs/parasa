@@ -21,7 +21,7 @@
 The
 .Nm
 utility creates a new system within the parasa framework.
-It sets up the minhag directory structure, provisions ZFS data
+It sets up the recipes directory structure, provisions ZFS data
 datasets, and records an inaugural git commit in the sinai
 repository.
 .Pp
@@ -142,11 +142,11 @@ within the system image.
 .It Em "recipe fstab"
 Contains container dependency mounts and is stored in
 .Pa fstab.local
-within the minhag system directory.
+within the recipes system directory.
 .El
 .Sh FILES
 .Bl -tag -width Ds
-.It Pa minhag/systems/ Ns Ar name Ns /
+.It Pa recipes/systems/ Ns Ar name Ns /
 Per-system configuration directory containing:
 .Bl -tag -width "derivations.local" -compact
 .It Pa .foundation
