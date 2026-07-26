@@ -1,0 +1,111 @@
+.\"
+.\" Copyright (c) 2026 parasa contributors
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 26, 2026
+.Dt DIFF 8
+.Os FreeBSD
+.Sh NAME
+.Nm diff
+.Nd detect drift between a deployed workspace and its recipe
+.Sh SYNOPSIS
+.Nm
+.Fl s Ar name
+.Op Fl k Ar kind
+.Op Fl h
+.Op Fl d
+.Op Fl q
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the parasa framework for FreeBSD system management.
+It compares a live system or container tree against its
+.Pa mtree.dist
+specification and classifies each changed file.
+.Pp
+The comparison proceeds as follows:
+.Bl -enum
+.It
+Resolve the target tree root and recipe directory.
+.It
+Run
+.Xr mtree 8
+comparison against
+.Pa mtree.dist .
+.It
+For each changed file, classify it:
+.Bl -dash
+.It
+In exempt mount (var/, usr/local/, home/, tmp/) \(em skip.
+.It
+Text file \(em git handles it during rebase.
+.It
+Known derivation (found in derivations database) \(em auto-classified.
+.It
+Git-tracked binary \(em preserve (kept as-is across rebases).
+.It
+Unclassified \(em prompt interactively or exit 1 in quiet mode.
+.El
+.It
+Exit 0 if all changes are classified; exit 1 if unclassified remain.
+.El
+.Pp
+Interactive classification options:
+.Bl -tag -width "[d]"
+.It [d] Derivation
+A text source that gets git-merged, then a command regenerates this binary.
+Appends to
+.Pa derivations.local .
+.It [p] Preserve
+Non-derivable binary, kept as-is across rebases.
+Added to git tracking.
+.It [c] Command
+Binary produced from scratch by a command, no text source dependency.
+Appends to
+.Pa compose.sh .
+.It [s] Skip
+Ask again next time.
+Blocks rebase.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-k KIND"
+.It Fl h
+Print a usage summary and exit.
+.It Fl d
+Dry run.
+Show what would be compared without running mtree.
+.It Fl s Ar name
+Specify the workspace name.
+This option is required.
+.It Fl k Ar kind
+Specify "system" or "container".
+Auto-detected from recipes directory if omitted.
+.It Fl q
+Quiet mode.
+No interactive prompts; exit 1 if unclassified files remain.
+.El
+.Sh FILES
+.Bl -tag -width "recipes/{kind}s/<name>/derivations.local"
+.It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /mtree.dist
+Specification file for comparison.
+.It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /derivations.local
+Per-target derivation mappings (source, derived, command).
+.It Pa etc/derivations/stable-15.db
+Global derivation database for FreeBSD stable/15.
+.It Pa etc/mtree.ignore
+Paths excluded from mtree comparison.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Pp
+Exit 0 if no drift or all changes classified.
+Exit 1 if unclassified changes remain.
+.Sh SEE ALSO
+.Xr save 8 ,
+.Xr update 8 ,
+.Xr mtree 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the parasa framework.

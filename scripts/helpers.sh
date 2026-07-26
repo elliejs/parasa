@@ -321,6 +321,118 @@ select_foundation() {
 	done
 }
 
+# ── Tree / recipes resolution ────────────────────────────────────────────────
+
+# Get the tree root path for a deployed system or container.
+# Usage: get_tree_root kind name
+get_tree_root() {
+	local kind="${1:?get_tree_root: kind required}"
+	local name="${2:?get_tree_root: name required}"
+	case "$kind" in
+		system)    printf "/zbereshit/systems/%s" "$name" ;;
+		container) printf "/containers/%s" "$name" ;;
+		*) die "get_tree_root: unknown kind: $kind" ;;
+	esac
+}
+
+# Get the recipes directory for a system or container.
+# Usage: get_recipes_dir kind name
+get_recipes_dir() {
+	local kind="${1:?get_recipes_dir: kind required}"
+	local name="${2:?get_recipes_dir: name required}"
+	printf "%s/recipes/%ss/%s" "${PARASA_DIR:?PARASA_DIR not set}" "$kind" "$name"
+}
+
+# Detect kind (system or container) from recipes directory existence.
+# Usage: detect_kind name
+# Prints "system" or "container" to stdout. Dies if ambiguous or not found.
+detect_kind() {
+	local name="${1:?detect_kind: name required}"
+	local is_system=false is_container=false
+	[ -d "${PARASA_DIR}/recipes/systems/${name}" ] && is_system=true
+	[ -d "${PARASA_DIR}/recipes/containers/${name}" ] && is_container=true
+	if $is_system && $is_container; then
+		die "detect_kind: '${name}' exists as both system and container"
+	fi
+	if $is_system; then
+		printf "system"
+	elif $is_container; then
+		printf "container"
+	else
+		die "detect_kind: '${name}' not found in recipes"
+	fi
+}
+
+# ── Binary / derivation helpers ──────────────────────────────────────────────
+
+# Check if a file is binary.
+# Returns 0 if binary (ELF, data, etc.), 1 if text.
+is_binary_file() {
+	local path="${1:?is_binary_file: path required}"
+	[ -f "$path" ] || return 1
+	local ftype
+	ftype=$(file -b "$path")
+	case "$ftype" in
+		ELF*|*executable*|*"shared object"*|*data*|*archive*)
+			return 0 ;;
+		*)
+			return 1 ;;
+	esac
+}
+
+# Look up a derivation entry for a relative path.
+# Searches the global db and then derivations.local.
+# Usage: lookup_derivation relpath db_file [local_db_file]
+# Prints "source\tcommand" to stdout if found, returns 1 if not.
+lookup_derivation() {
+	local relpath="${1:?lookup_derivation: relpath required}"
+	local db="${2:?lookup_derivation: db file required}"
+	local local_db="${3:-}"
+	local src cmd line
+
+	# Check local db first (overrides global)
+	if [ -n "$local_db" ] && [ -f "$local_db" ]; then
+		while IFS='	' read -r src line cmd; do
+			[ -n "$src" ] || continue
+			case "$src" in \#*) continue ;; esac
+			if [ "$line" = "$relpath" ]; then
+				printf "%s\t%s" "$src" "$cmd"
+				return 0
+			fi
+		done < "$local_db"
+	fi
+
+	# Check global db
+	if [ -f "$db" ]; then
+		while IFS='	' read -r src line cmd; do
+			[ -n "$src" ] || continue
+			case "$src" in \#*) continue ;; esac
+			if [ "$line" = "$relpath" ]; then
+				printf "%s\t%s" "$src" "$cmd"
+				return 0
+			fi
+		done < "$db"
+	fi
+
+	return 1
+}
+
+# Read the artifact name from a recipes directory's .foundation file.
+# Usage: read_artifact_name recipes_dir
+# Prints the artifact name to stdout. Dies if file missing or empty.
+read_artifact_name() {
+	local dir="${1:?read_artifact_name: recipes dir required}"
+	local f artifact
+	for f in "$dir"/*.foundation; do
+		[ -e "$f" ] || die "read_artifact_name: no .foundation file in ${dir}"
+		artifact=$(cat "$f")
+		[ -n "$artifact" ] || die "read_artifact_name: .foundation file is empty in ${dir}"
+		printf "%s" "$artifact"
+		return 0
+	done
+	die "read_artifact_name: no .foundation file in ${dir}"
+}
+
 # ── Git / artifact helpers ────────────────────────────────────────────────────
 
 # Build an artifact name from a FreeBSD src repo.

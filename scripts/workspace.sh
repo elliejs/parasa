@@ -141,7 +141,20 @@ create_recipe_boilerplate() {
 
 	if ! $DRY_RUN; then
 		: > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"  # artifact written by ws_begin
-		: > "${WS_RECIPE_DIR}/compose.sh"
+		cat > "${WS_RECIPE_DIR}/compose.sh" <<'COMPOSE'
+#!/bin/sh
+# compose.sh -- recipe actions for this workspace.
+# Called during creation and update. Source this file, then call
+# pre_pkg (before package install) and post_pkg (after).
+
+pre_pkg() {
+	:
+}
+
+post_pkg() {
+	:
+}
+COMPOSE
 		: > "${WS_RECIPE_DIR}/derivations.local"
 		: > "${WS_RECIPE_DIR}/pkg.list"
 		: > "${WS_RECIPE_DIR}/mtree.dist"

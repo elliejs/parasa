@@ -352,4 +352,180 @@ Describe "helpers.sh"
       The error should include "not a git repo"
     End
   End
+
+  # ── New Phase 1 helpers ────────────────────────────────────────────────────
+
+  Describe "get_tree_root()"
+    It "returns system path"
+      When call get_tree_root "system" "wonderland"
+      The output should equal "/zbereshit/systems/wonderland"
+    End
+
+    It "returns container path"
+      When call get_tree_root "container" "webserver"
+      The output should equal "/containers/webserver"
+    End
+
+    It "dies on unknown kind"
+      When run get_tree_root "bogus" "x"
+      The status should be failure
+      The error should include "unknown kind"
+    End
+  End
+
+  Describe "get_recipes_dir()"
+    setup_recipes_dir_env() {
+      PARASA_DIR="/fakedir"
+      export PARASA_DIR
+    }
+    Before 'setup_recipes_dir_env'
+
+    It "returns system recipes path"
+      When call get_recipes_dir "system" "wonderland"
+      The output should equal "/fakedir/recipes/systems/wonderland"
+    End
+
+    It "returns container recipes path"
+      When call get_recipes_dir "container" "webserver"
+      The output should equal "/fakedir/recipes/containers/webserver"
+    End
+  End
+
+  Describe "detect_kind()"
+    setup_detect_kind() {
+      PARASA_DIR="$SHELLSPEC_TMPDIR/detect_kind_root"
+      export PARASA_DIR
+      mkdir -p "$PARASA_DIR/recipes/systems/boxA"
+      mkdir -p "$PARASA_DIR/recipes/containers/boxB"
+      mkdir -p "$PARASA_DIR/recipes/systems/both"
+      mkdir -p "$PARASA_DIR/recipes/containers/both"
+    }
+    Before 'setup_detect_kind'
+
+    It "detects a system"
+      When call detect_kind "boxA"
+      The output should equal "system"
+    End
+
+    It "detects a container"
+      When call detect_kind "boxB"
+      The output should equal "container"
+    End
+
+    It "dies if both system and container exist"
+      When run detect_kind "both"
+      The status should be failure
+      The error should include "both system and container"
+    End
+
+    It "dies if not found"
+      When run detect_kind "nonexistent"
+      The status should be failure
+      The error should include "not found"
+    End
+  End
+
+  Describe "is_binary_file()"
+    Mock file
+      case "$2" in
+        *elf_bin)  printf "ELF 64-bit LSB executable\n" ;;
+        *data_bin) printf "data\n" ;;
+        *text_file) printf "ASCII text\n" ;;
+        *) printf "empty\n" ;;
+      esac
+    End
+
+    setup_binary_files() {
+      _bdir="$SHELLSPEC_TMPDIR/binfiles"
+      mkdir -p "$_bdir"
+      touch "$_bdir/elf_bin" "$_bdir/data_bin" "$_bdir/text_file"
+    }
+    Before 'setup_binary_files'
+
+    It "returns success (0) for ELF binaries"
+      When call is_binary_file "$_bdir/elf_bin"
+      The status should be success
+    End
+
+    It "returns success (0) for data files"
+      When call is_binary_file "$_bdir/data_bin"
+      The status should be success
+    End
+
+    It "returns failure (1) for text files"
+      When call is_binary_file "$_bdir/text_file"
+      The status should be failure
+    End
+
+    It "returns failure for nonexistent files"
+      When call is_binary_file "$_bdir/nosuchfile"
+      The status should be failure
+    End
+  End
+
+  Describe "lookup_derivation()"
+    setup_derivation_dbs() {
+      _dbdir="$SHELLSPEC_TMPDIR/derivdbs"
+      mkdir -p "$_dbdir"
+      printf "etc/master.passwd\tetc/pwd.db\tpwd_mkdb -p -d /etc /etc/master.passwd\n" > "$_dbdir/global.db"
+      printf "etc/login.conf\tetc/login.conf.db\tcap_mkdb /etc/login.conf\n" >> "$_dbdir/global.db"
+      printf "usr/local/etc/app.conf\tusr/local/etc/app.db\tapp_mkdb /usr/local/etc/app.conf\n" > "$_dbdir/local.db"
+    }
+    Before 'setup_derivation_dbs'
+
+    It "finds entries in the global db"
+      When call lookup_derivation "etc/pwd.db" "$_dbdir/global.db"
+      The status should be success
+      The output should include "etc/master.passwd"
+      The output should include "pwd_mkdb"
+    End
+
+    It "finds entries in the local db"
+      When call lookup_derivation "usr/local/etc/app.db" "$_dbdir/global.db" "$_dbdir/local.db"
+      The status should be success
+      The output should include "app.conf"
+      The output should include "app_mkdb"
+    End
+
+    It "returns failure for unknown paths"
+      When call lookup_derivation "etc/unknown" "$_dbdir/global.db" "$_dbdir/local.db"
+      The status should be failure
+    End
+
+    It "handles missing db files gracefully"
+      When call lookup_derivation "etc/pwd.db" "$_dbdir/nonexistent.db"
+      The status should be failure
+    End
+  End
+
+  Describe "read_artifact_name()"
+    setup_artifact_dir() {
+      _adir="$SHELLSPEC_TMPDIR/artifact_read"
+      mkdir -p "$_adir"
+      printf "stable-15_2026-01-01_abc1234\n" > "$_adir/15-stable-generic.foundation"
+    }
+    Before 'setup_artifact_dir'
+
+    It "reads the artifact name from .foundation file"
+      When call read_artifact_name "$_adir"
+      The output should equal "stable-15_2026-01-01_abc1234"
+    End
+
+    It "dies if .foundation file is missing"
+      _empty="$SHELLSPEC_TMPDIR/artifact_empty"
+      mkdir -p "$_empty"
+      When run read_artifact_name "$_empty"
+      The status should be failure
+      The error should include "no .foundation file"
+    End
+
+    It "dies if .foundation file is empty"
+      _zerodir="$SHELLSPEC_TMPDIR/artifact_zero"
+      mkdir -p "$_zerodir"
+      : > "$_zerodir/test.foundation"
+      When run read_artifact_name "$_zerodir"
+      The status should be failure
+      The error should include "empty"
+    End
+  End
 End

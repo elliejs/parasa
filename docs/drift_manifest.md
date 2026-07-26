@@ -20,16 +20,16 @@ they actually fall into distinct categories with different replay strategies.
 
 ## The rebase model
 
-A foundation is built from `zshemot/torah` (the FreeBSD src repo) and
-committed under an artifact name to a `foundation/<name>` branch on
-`zbamidbar/sinai.git`. Systems and containers branch from a foundation
-commit (`system/<name>`, `container/<name>`). The admin's changes — config
+A foundation is built from `zshemot/src.git` (the FreeBSD src repo) and
+committed under an artifact name to a `<foundation-name>` branch on
+`zbamidbar/foundation.git`. Systems and containers branch from a foundation
+commit (`systems/<name>`, `containers/<name>`). The admin's changes — config
 edits, user additions, service tuning — form a chain of delta commits on
 the system/container branch.
 
 When the foundation is rebuilt (new FreeBSD version, kernel config change,
 etc.), the new build produces a new foundation commit. The admin's delta
-chain is rebased onto it: `git rebase foundation/<name>`.
+chain is rebased onto it: `git rebase --onto <new-artifact> <old-artifact> {kind}s/<name>`.
 
 ```
 artifact-v1 ← delta1 ← delta2 ← delta3    (old branch)
@@ -84,14 +84,14 @@ construction.
 
 These relationships are recorded in `derivations.db` (see below).
 
-### 4. Environment state
+### 4. Preserve (semi-static binaries)
 
 Examples: SSH host keys (`etc/ssh/ssh_host_*`), SSL certificates,
 Kerberos keytabs, machine-specific credentials
 
 - **Detection**: mtree hash change (automatic)
 - **Replay**: **none needed** — these files are preserved, not regenerated
-- **Admin burden**: one-time classification via `parasa-diff` prompt
+- **Admin burden**: one-time classification via `diff.sh` prompt
 
 These files have nothing to do with the base system version. An SSH host key
 exists because this machine is this machine, not because of anything in the
@@ -102,7 +102,7 @@ exactly as-is.
 change, and there's no merge concern — on conflict, the resolution is always
 "keep ours." Git handles this naturally. No separate `preserve.list` needed.
 
-When `parasa-diff` encounters a new binary and the admin classifies it as
+When `diff.sh` encounters a new binary and the admin classifies it as
 environment state, we simply `git add` it. From then on, git carries it
 through rebases.
 
@@ -176,16 +176,16 @@ FreeBSD 16 adds a new text→binary pair, the `stable/16` derivations file
 picks it up without breaking older systems.
 
 The base set ships with the parasa framework at
-`zshemot/parasa/etc/derivations/stable-14.db` (one file per FreeBSD
+`zshemot/parasa.git/etc/derivations/stable-14.db` (one file per FreeBSD
 branch). During the build phase, the appropriate file is copied into the
 artifact at `etc/parasa/derivations.db`.
 
 Per-target custom derivation entries live in the recipes target directory:
-`zshemot/parasa/recipes/systems/[name]/derivations.local` (or containers/).
-At runtime, `parasa-diff` reads both the base `derivations.db` from the
+`zshemot/parasa.git/recipes/systems/[name]/derivations.local` (or containers/).
+At runtime, `diff.sh` reads both the base `derivations.db` from the
 system tree and the target's `derivations.local` from recipes.
 
-## parasa-diff
+## diff.sh
 
 The detection and classification tool. Runs interactively (manually or on
 login). Replaces the original drift-manifest-based design.
@@ -193,7 +193,7 @@ login). Replaces the original drift-manifest-based design.
 ### Detection
 
 ```
-mtree -f /zshemot/parasa/recipes/[type]/[name]/mtree.dist -p /  →  list of changed files
+mtree -f /zshemot/parasa.git/recipes/[type]/[name]/mtree.dist -p /  →  list of changed files
 
 for each changed file:
 
@@ -219,80 +219,77 @@ for each changed file:
 New binary file: etc/krb5.keytab
   [d] Derived — regenerated from a text file by a known command
         (enter: source file, regeneration command)
-  [e] Environment state — preserve across rebases, git-track it now
+  [p] Preserve — preserve across rebases, git-track it now
   [c] Command output — add producing command to compose.sh
         (enter: the command)
   [s] Skip — ask me again next time
 ```
 
 Option `[d]` adds to the target's `derivations.local` in recipes.
-Option `[e]` runs `git add` on the file in the system's delta chain.
+Option `[p]` runs `git add` on the file in the system's delta chain.
 Option `[c]` appends to the target's `compose.sh` file in recipes.
 Option `[s]` does nothing — mtree will flag it again next run.
 
 ### Pre-rebase gate
 
-Before rebase, `parasa-diff` must exit clean. "Clean" means every binary
+Before rebase, `diff.sh` must exit clean. "Clean" means every binary
 change is classified — no unclassified files remain. If any exist:
 
 ```
 Cannot rebase: unclassified binary changes:
   etc/krb5.keytab
 
-Run parasa-diff and classify each file before rebasing.
+Run diff.sh and classify each file before rebasing.
 ```
 
 ## Rebase procedure
 
+**Core principle: never destroy the running clone during update.** Build
+`{kind}s/${NAME}-new` alongside the live clone. The old box keeps running
+until the admin verifies the new one works. Then `finalize_update` swaps.
+
 ```
-1. Beam down new base artifact
-     (zfs send from zbamidbar/sinai.zfs/foundations/[foundation] → zbereshit/systems/[name])
+1. Pre-flight
+     Verify no unsaved drift (diff.sh -q). Check ${NAME}-new doesn't exist.
+     Resolve old and new artifact names.
 
-2. Install packages from pkg.list
-     The base has no packages (built from source). pkg.list is the full
-     list. If the target's usr-local dataset already exists on zbamidbar,
-     mount it and pkg upgrade/install incrementally. Otherwise fresh install.
+2. Beam down new base artifact
+     zfs send -i @old @new from zbamidbar/foundation.zfs → zbereshit
+     zfs clone ...@new → zbereshit/{kind}s/${NAME}-new
 
-3. Replay compose commands
-     Source the target's compose.sh and call post_pkg().
-     This runs BEFORE git rebase — compose may produce both text and
-     binary changes, and git needs to rebase on top of the post-compose
-     state, not the clean base.
+3. Mount + start the -new clone
+     Container: start temporary jail, mount data-lake datasets
+     System: mount data datasets, use chroot for commands
 
-4. Three-way merge text files (git rebase)
-     OLD = previous base artifact commit
-     NEW = new base artifact commit (post-compose)
-     CURRENT = admin's delta branch head
-     The git delta chain already includes text changes that compose
-     produced (e.g. master.passwd edits from `pw useradd`). These
-     hunks are already present post-compose, so they merge as no-ops.
-     Any additional manual text edits the admin made apply as real diffs.
-     Environment-state binaries come along with the cherry-pick.
-     Conflicts on environment files resolved as "keep ours."
-     (reimplemented merge logic — see note on etcupdate below)
+4. Run recipe on -new
+     Source compose.sh: call pre_pkg()
+     Install packages from pkg.list
+     Source compose.sh: call post_pkg()
 
-5. Selectively regenerate derived binaries
+5. Three-way merge text files (git rebase)
+     git rebase --onto <new-artifact> <old-artifact> {kind}s/<name>
+     The entire admin delta chain replays onto the new base.
+     Quiet mode: conflict → abort (old clone untouched)
+     Interactive: admin resolves conflicts inline
+
+6. Selectively regenerate derived binaries
      For each entry in derivations.db + derivations.local: did the text
-     source change after compose (i.e., did git rebase apply real diffs
-     to it)? If yes, run the regeneration command. If no, the binary
-     from the compose step is already correct.
-     After regen (or skip), verify the binary hash. A mismatch means
-     something went wrong in the regen step — flag it immediately.
+     source change? If yes, run the regeneration command via chroot/jexec.
 
-6. Regenerate mtree
+7. Regenerate mtree + validate
      New mtree.dist captures the post-rebase state.
+     Run diff.sh — should find zero unclassified changes.
 
-7. Validate
-     Run parasa-diff — should find zero unclassified changes.
+8. Offer swap
+     Stop -new jail / unmount -new data. Print finalize_update instructions.
+     Rollback: zfs destroy -r zbereshit/{kind}s/${NAME}-new
 
-8. Save (two commits)
-     Commit 1: zbereshit delta branch → zbamidbar/sinai.git
-     Commit 2: zshemot/parasa (updated pkg.list, etc.) → zbamidbar/parasa.git
+9. Finalize (separate command: finalize_update.sh)
+     Stop old → destroy old → rename -new → update .foundation → save
 ```
 
-Steps 1–2 use zshemot config (pkg.list, compose.sh). Steps 4–6 are
-automatic. Step 3 is the only part that depends on the admin having logged
-something, and the compose script only contains category-5 commands.
+Steps 4–6 are automatic. The compose script only contains category-5
+commands (opaque command output). Everything else is auto-classified.
 
 ## Note on etcupdate and pkgbase
 
@@ -316,7 +313,7 @@ helpers.sh `generate_mtree`). This is the baseline. Storing it on zshemot
 a target from upstream has the mtree available from the parasa repo alone.
 
 After rebase, a new `mtree.dist` is generated capturing the merged state.
-On the next `parasa-diff` run, comparison is against this new baseline.
+On the next `diff.sh` run, comparison is against this new baseline.
 
 mtree answers: "what changed since the last known-good state?"
 The classification system answers: "for each change, what's the replay

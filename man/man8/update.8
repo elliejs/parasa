@@ -1,0 +1,128 @@
+.\"
+.\" Copyright (c) 2026 parasa contributors
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 26, 2026
+.Dt UPDATE 8
+.Os FreeBSD
+.Sh NAME
+.Nm update
+.Nd rebase a workspace onto a new foundation patch level
+.Sh SYNOPSIS
+.Nm
+.Fl s Ar name
+.Op Fl k Ar kind
+.Op Fl a Ar artifact
+.Op Fl h
+.Op Fl d
+.Op Fl q
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the parasa framework for FreeBSD system management.
+It rebases a system or container onto a newer foundation artifact
+without destroying the running clone.
+.Pp
+.Sy Core principle:
+never destroy the running clone during update.
+The new state is built in a
+.Dq -new
+clone alongside the live one.
+The old box keeps running until the admin verifies the new one works,
+then
+.Xr finalize_update 8
+swaps them.
+.Pp
+The update proceeds as follows:
+.Bl -enum
+.It
+.Sy Pre-flight:
+verify no unsaved drift, check that
+.Ao Ar name Ac Ns -new
+does not already exist, resolve old and new artifacts.
+.It
+.Sy Beam down:
+incremental ZFS send from old to new artifact, clone into
+.Pa {kind}s/ Ns Ao Ar name Ac Ns -new .
+.It
+.Sy Mount:
+start the -new clone with data-lake datasets mounted.
+For containers, a temporary jail is started.
+For systems, data datasets are mounted and commands run via chroot.
+.It
+.Sy Recipe replay:
+source
+.Pa compose.sh ,
+call pre_pkg(), install packages from
+.Pa pkg.list ,
+call post_pkg().
+.It
+.Sy Git rebase:
+replay the entire admin delta chain onto the new artifact commit.
+In quiet mode, conflicts cause an immediate abort (old clone untouched).
+In interactive mode, the admin resolves conflicts inline.
+.It
+.Sy Derivation regen:
+for each derivation whose source file changed during rebase,
+regenerate the binary.
+.It
+.Sy Validate:
+regenerate mtree.dist and run
+.Xr diff 8 .
+.It
+.Sy Offer swap:
+stop the -new jail/unmount and print
+.Xr finalize_update 8
+instructions.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-a ARTIFACT"
+.It Fl h
+Print a usage summary and exit.
+.It Fl d
+Dry run.
+Show what would be done without making changes.
+.It Fl s Ar name
+Specify the workspace name.
+This option is required.
+.It Fl k Ar kind
+Specify "system" or "container".
+Auto-detected from recipes directory if omitted.
+.It Fl a Ar artifact
+Specify the target artifact name.
+Defaults to the latest snapshot on the foundation archive.
+.It Fl q
+Quiet mode.
+Abort on rebase conflicts instead of prompting.
+.El
+.Sh ROLLBACK
+If the -new clone is bad, simply destroy it:
+.Bd -literal -offset indent
+zfs destroy -r zbereshit/{kind}s/<name>-new
+.Ed
+.Pp
+The old clone is never touched during update.
+.Sh FILES
+.Bl -tag -width "zbamidbar/foundation.zfs/foundations/<foundation>"
+.It Pa zbereshit/{kind}s/ Ns Ao Ar name Ac Ns -new
+The new clone built during update.
+.It Pa zbamidbar/foundation.zfs/foundations/ Ns Ao Ar foundation Ac
+Foundation archive containing snapshots.
+.It Pa zbamidbar/foundation.git
+Git repository with foundation and workspace branches.
+.It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /compose.sh
+Recipe script with pre_pkg() and post_pkg() functions.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr finalize_update 8 ,
+.Xr diff 8 ,
+.Xr save 8 ,
+.Xr zfs-clone 8 ,
+.Xr zfs-send 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the parasa framework.

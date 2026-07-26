@@ -1,0 +1,101 @@
+.\"
+.\" Copyright (c) 2026 parasa contributors
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 26, 2026
+.Dt FINALIZE_UPDATE 8
+.Os FreeBSD
+.Sh NAME
+.Nm finalize_update
+.Nd swap a -new clone into place after a successful update
+.Sh SYNOPSIS
+.Nm
+.Fl s Ar name
+.Op Fl k Ar kind
+.Op Fl h
+.Op Fl d
+.Op Fl n
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the parasa framework for FreeBSD system management.
+It performs the destructive swap after
+.Xr update 8
+has built and validated a
+.Dq -new
+clone.
+This is the only command in the update flow that destroys the old clone.
+.Pp
+The finalization proceeds as follows:
+.Bl -enum
+.It
+Verify that
+.Ao Ar name Ac Ns -new
+exists on zbereshit.
+.It
+If the target is a container and is running, stop it with
+.Xr jail 8 .
+.It
+Destroy the old clone:
+.Cm zfs destroy -r zbereshit/{kind}s/ Ns Ao Ar name Ac .
+.It
+Rename -new to plain:
+.Cm zfs rename Ao Ar name Ac Ns -new Ao Ar name Ac .
+.It
+Update the
+.Pa .foundation
+file with the new artifact name.
+.It
+Save state by delegating to
+.Xr save 8 .
+.It
+For containers, start the jail.
+For systems with
+.Fl n ,
+set
+.Xr nextboot 8 .
+.El
+.Sh OPTIONS
+.Bl -tag -width "-k KIND"
+.It Fl h
+Print a usage summary and exit.
+.It Fl d
+Dry run.
+Show what would be done without making changes.
+.It Fl s Ar name
+Specify the workspace name.
+This option is required.
+.It Fl k Ar kind
+Specify "system" or "container".
+Auto-detected from recipes directory if omitted.
+.It Fl n
+Set
+.Xr nextboot 8
+after finalize (systems only).
+.El
+.Sh ROLLBACK
+Before running
+.Nm ,
+if the -new clone is bad:
+.Bd -literal -offset indent
+zfs destroy -r zbereshit/{kind}s/<name>-new
+.Ed
+.Pp
+Once
+.Nm
+completes, the swap is irreversible short of re-running
+.Xr update 8
+with the old artifact.
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr update 8 ,
+.Xr save 8 ,
+.Xr zfs-destroy 8 ,
+.Xr zfs-rename 8 ,
+.Xr nextboot 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the parasa framework.

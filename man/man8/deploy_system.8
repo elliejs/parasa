@@ -33,15 +33,15 @@ Read the foundation name from
 .Pa recipes/systems/ Ns Ao Ar name Ac Ns Pa /*.foundation .
 .It
 Find the foundation commit that the
-.Pa system/ Ns Ao Ar name Ac
+.Pa systems/ Ns Ao Ar name Ac
 branch forks from in
-.Pa sinai.git .
+.Pa foundation.git .
 That commit's message is the artifact name and ZFS snapshot tag.
 .It
 Send the foundation archive using
 .Xr zfs-send 8
 from
-.Pa zbamidbar/sinai.zfs/foundations/ Ns Ao Ar foundation Ac Ns @ Ns Ao Ar artifact Ac
+.Pa zbamidbar/foundation.zfs/foundations/ Ns Ao Ar foundation Ac Ns @ Ns Ao Ar artifact Ac
 and receive it into
 .Pa zbereshit/systems/ Ns Ao Ar name Ac
 using
@@ -50,7 +50,7 @@ using
 Run
 .Cm git checkout
 of the
-.Pa system/ Ns Ao Ar name Ac
+.Pa systems/ Ns Ao Ar name Ac
 branch to apply system-specific state such as
 .Xr fstab 5 .
 .It
@@ -88,16 +88,16 @@ nextboot -e vfs.root.mountfrom="zfs:zbereshit/systems/<name>"
 If the session is interactive, the user is prompted to reboot.
 .El
 .Sh FILES
-.Bl -tag -width "zbamidbar/sinai.zfs/foundations/<foundation>"
+.Bl -tag -width "zbamidbar/foundation.zfs/foundations/<foundation>"
 .It Pa recipes/systems/ Ns Ao Ar name Ac Ns Pa /*.foundation
 Foundation descriptor for the named system.
-.It Pa zbamidbar/sinai.git
+.It Pa zbamidbar/foundation.git
 Git repository containing
-.Pa system/ Ns Ao Ar name Ac
+.Pa systems/ Ns Ao Ar name Ac
 and
-.Pa foundation/ Ns Ao Ar name Ac
+.Ao Ar foundation Ac
 branches.
-.It Pa zbamidbar/sinai.zfs/foundations/ Ns Ao Ar foundation Ac
+.It Pa zbamidbar/foundation.zfs/foundations/ Ns Ao Ar foundation Ac
 ZFS archive of the named foundation.
 .It Pa zbereshit/systems/ Ns Ao Ar name Ac
 Target dataset where the system is deployed for boot.

@@ -87,22 +87,22 @@ These pools have the following meaning:
 Within these pools, parasa controls an authoritative layout of the system.
 
 - zbereshit/
-  - foundations/      Clone source for containers (replicated from zbamidbar/sinai.zfs)
+  - foundations/      Clone source for containers (replicated from zbamidbar/foundation.zfs)
   - systems/          Root dataset for the active boot system, and any other inactive, but cross-bootable, systems. The active dataset will be mounted at /, and the other datasets are unmounted, though could be mounted at /systems
   - containers/       Root dataset for containers, mounted at /containers. Each container is a ZFS clone from zbereshit/foundations/
 - zshemot/
-  - torah/            The FreeBSD src repository
-  - parasa/          The parasa framework itself (public git repo clone)
+  - src.git/          The FreeBSD src repository
+  - parasa.git/      The parasa framework itself (public git repo clone)
     - recipes/         Literally "customs". User configuration per target. See below.
     - etc/            Defaults shipped with parasa (derivation databases, jail.conf template)
-  - amim/             Literally "peoples". Per-name build workspaces (concurrent-safe)
+  - buildspace/      Per-name build workspaces (concurrent-safe)
     - [name]/         One per foundation/system/container being built. Transient.
       - var/          Separate var dataset (also transient)
 - zbamidbar/
   - container-data/   Root dataset for container data. Each container's dataset, eg container-data/[container-name]/home, lives under a child dataset of the container's name, and is mounted in under the container's real root after zbereshit has been properly configured. (more on this in later phases). Includes usr-local (packages), var, and home.
   - system-data/      Identical to container-data/ above, but for systems.
-  - sinai.git         Bare git remote for foundation/system/container branches
-  - sinai.zfs         ZFS send/recv archive (foundations only — systems tracked by git+mtree+compose)
+  - foundation.git         Bare git remote for foundation/system/container branches
+  - foundation.zfs         ZFS send/recv archive (foundations only — systems tracked by git+mtree+compose)
     - foundations/    Pristine ZFS archives of each foundation build
   - parasa.git       Bare git remote for the parasa config repo (zshemot/parasa's local remote)
 
@@ -121,17 +121,17 @@ The three pools serve distinct roles:
 - **zbereshit** (running pool): The result of all our scripting, scaffolding,
   and foreign mounts. This is what's actually running — live systems and
   containers with their delta chains committed to git. Its remote is
-  zbamidbar/sinai.git.
+  zbamidbar/foundation.git.
 - **zshemot** (config pool): Where the scaffolds and scripts live. Basically
   just a clone of the parasa repo, plus the FreeBSD src tree. The build
-  workspaces live under zshemot/amim/ — one per build, named after the
+  workspaces live under zshemot/buildspace/ — one per build, named after the
   target. Created on demand, destroyed after use. Concurrent-safe. Its local remote is
   zbamidbar/parasa.git.
 - **zbamidbar** (data lake): Heavy data and accountable foreign mounts.
   Container and system data datasets (usr-local for packages, var, home) are
   stored here and mounted on top of zbereshit containers/systems before
-  startup. Also stores the bare git remote (sinai.git) and ZFS foundation
-  archives (sinai.zfs).
+  startup. Also stores the bare git remote (foundation.git) and ZFS foundation
+  archives (foundation.zfs).
 
 ## zdataset hygiene
 
@@ -152,7 +152,7 @@ Packages live on zbamidbar in the target's data dataset:
 `zbamidbar/[system|container]-data/[name]/usr-local`, mounted at
 `/usr/local` (systems) or `/containers/[name]/usr/local` (containers).
 
-On save, `parasa-diff` collects the full package list into `pkg.list` in
+On save, `diff.sh` collects the full package list into `pkg.list` in
 the target's recipes directory. On rebase or fresh start, if the usr-local
 dataset already exists, `pkg upgrade` / `pkg install` updates it
 incrementally rather than reinstalling from scratch.
@@ -248,7 +248,7 @@ foundation's `build.conf`. These are not mutually exclusive.
 
 Each foundation exists in two places:
 
-- `zbamidbar/sinai.zfs/foundations/<name>@<artifact>` — canonical archive
+- `zbamidbar/foundation.zfs/foundations/<name>@<artifact>` — canonical archive
 - `zbereshit/foundations/<name>@<artifact>` — deployment clone source
   (replicated from zbamidbar via `zfs send | recv`)
 
@@ -258,11 +258,11 @@ blocks. Even containers at different patch levels share most blocks
 through the incremental snapshot chain. Old snapshots on
 zbereshit/foundations can be pruned once no clone references them.
 
-### Git branch naming in sinai.git
+### Git branch naming in foundation.git
 
-- `foundation/<name>` — pristine world+kernel build (orphan branch)
-- `system/<name>` — forks from a foundation commit; inaugural commit writes /etc/fstab
-- `container/<name>` — forks from a foundation commit
+- `<foundation-name>` — pristine world+kernel build (orphan branch, bare name)
+- `systems/<name>` — forks from a foundation commit; inaugural commit writes /etc/fstab
+- `containers/<name>` — forks from a foundation commit
 
 ### Mount architecture
 
@@ -306,10 +306,10 @@ effective config for any build is the maximal set of both, preferring
 Building is now a two-step process: first build a **foundation** (pristine
 world+kernel), then create **systems** or **containers** on top of it.
 
-`new_foundation` creates a transient `zshemot/amim/<name>` workspace,
-builds from `zshemot/torah`, commits to an orphan `foundation/<name>`
-branch on `zbamidbar/sinai.git`, snapshots and archives to
-`zbamidbar/sinai.zfs/foundations/<name>`, then destroys the workspace.
+`new_foundation` creates a transient `zshemot/buildspace/<name>` workspace,
+builds from `zshemot/src.git`, commits to an orphan `<foundation-name>`
+branch on `zbamidbar/foundation.git`, snapshots and archives to
+`zbamidbar/foundation.zfs/foundations/<name>`, then destroys the workspace.
 
 The foundation .gitignore covers `var/`, `usr/local/`, `tmp/` only — NOT
 `home/`. Whether to gitignore home is per-system/container, decided during
@@ -325,12 +325,12 @@ The artifact name is derived from the src branch, date, and short SHA via
 ### System/container creation (new_system)
 
 `new_system` takes an existing foundation and creates a system on top of it.
-The core operation is the **inaugural commit** — a commit on `system/<name>`
-branching from `foundation/<name>` that writes data-lake mount entries into
+The core operation is the **inaugural commit** — a commit on `systems/<name>`
+branching from the foundation branch that writes data-lake mount entries into
 `/etc/fstab` (var, tmp, usr/local are always included; home is optional).
 
-The ZFS flow: `zbamidbar/sinai.zfs/foundations/<name>` recv to
-`zshemot/amim/<system-name>` (temporarily), branch and commit, push,
+The ZFS flow: `zbamidbar/foundation.zfs/foundations/<name>` recv to
+`zshemot/buildspace/<system-name>` (temporarily), branch and commit, push,
 destroy workspace. If there are no fstab changes, the branch is created
 on the bare repo without recv'ing.
 
@@ -353,7 +353,19 @@ flows, argument parsing, and phase details.
 
 ## Phase 2: Rebase
 
-[TODO]
+Three commands close the creation-maintenance gap:
+
+- **diff.sh** — detect drift between live tree and recipe (mtree + classification)
+- **save.sh** — two-commit state capture (tree state + recipe metadata)
+- **update.sh** — rebase onto new foundation patch level (builds -new alongside)
+- **finalize_update.sh** — destructive swap of -new into place
+
+Core principle: **never destroy the running clone during update.** Build
+`{kind}s/${NAME}-new` alongside the live clone. Rollback is trivial:
+`zfs destroy -r zbereshit/{kind}s/${NAME}-new`.
+
+See [drift_manifest.md](drift_manifest.md) for classification taxonomy.
+See `plans/rebase_pipeline.md` for the full implementation plan.
 
 ## Phase 3: Reflash
 
@@ -382,7 +394,7 @@ pkg.list, plus a jail.conf and mount.fstab.
 
 To appropriate the resources for a container, the foundation artifact
 is found via the container's `.foundation` file and resolved through
-`zbamidbar/sinai.zfs/foundations/<foundation>@<artifact>`. The foundation
+`zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`. The foundation
 is replicated to `zbereshit/foundations/<foundation>@<artifact>` if not
 already present, and the container is created as a ZFS **clone** from
 that snapshot. This gives block-level deduplication: containers at the
@@ -437,7 +449,7 @@ is where the burden comes from. In a perfect world we:
   or derived.
 
 Detection uses mtree: the build phase produces `mtree.dist` (in the target's recipes directory) with
-sha512 content hashes. A `parasa-diff` tool compares the live filesystem
+sha512 content hashes. A `diff.sh` tool compares the live filesystem
 against this baseline and auto-classifies what it can (text → git, derived
 binary → derivations.db, already git-tracked → environment state). Only
 truly unknown binaries require admin input, and the classification prompt
@@ -452,7 +464,7 @@ See [drift_manifest.md](drift_manifest.md) for the full design.
 
 # Addendum with context: Blending Concept 1 and 2
 
-Edit to Concept 1 Phase 1: When we recv a foundation from sinai.zfs to the transient amim workspace, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
+Edit to Concept 1 Phase 1: When we recv a foundation from foundation.zfs to the transient amim workspace, recursively send so that we get the var/ dataset too, or create a new var/ dataset locally to zshemot. This is important because a new base system does involve a few files in var/
 
 Edit 2 to Concept 1 Phase 1: We want to track all these foreign-mount files from the base system (eg in var. None exist in home/ or usr/local), but we don't want to track any further files in them. So we should:
 

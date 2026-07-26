@@ -1,0 +1,91 @@
+.\"
+.\" Copyright (c) 2026 parasa contributors
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd July 26, 2026
+.Dt SAVE 8
+.Os FreeBSD
+.Sh NAME
+.Nm save
+.Nd save workspace state to git with two-commit capture
+.Sh SYNOPSIS
+.Nm
+.Fl s Ar name
+.Op Fl k Ar kind
+.Op Fl m Ar msg
+.Op Fl h
+.Op Fl d
+.Op Fl q
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the parasa framework for FreeBSD system management.
+It captures the current state of a deployed system or container into
+two git commits: one for the tree state and one for the recipe metadata.
+.Pp
+The save proceeds as follows:
+.Bl -enum
+.It
+Run
+.Xr diff 8
+to verify all changes are classified.
+.It
+Capture the installed package list using
+.Xr pkg-info 8
+and write it to
+.Pa pkg.list .
+.It
+Regenerate
+.Pa mtree.dist
+using
+.Xr mtree 8 .
+.It
+Commit 1 (state): in the tree root, stage all changes and commit
+with the artifact name and admin message.
+Push to
+.Pa foundation.git .
+.It
+Commit 2 (recipe): in the parasa directory, stage the recipe directory
+and commit with the workspace name and admin message.
+.El
+.Sh OPTIONS
+.Bl -tag -width "-m MSG"
+.It Fl h
+Print a usage summary and exit.
+.It Fl d
+Dry run.
+Show what would be done without making changes.
+.It Fl s Ar name
+Specify the workspace name.
+This option is required.
+.It Fl k Ar kind
+Specify "system" or "container".
+Auto-detected from recipes directory if omitted.
+.It Fl m Ar msg
+Commit message.
+Required in quiet mode.
+.It Fl q
+Quiet mode.
+No interactive prompts.
+.El
+.Sh FILES
+.Bl -tag -width "recipes/{kind}s/<name>/pkg.list"
+.It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /pkg.list
+Package origin list captured by save.
+.It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /mtree.dist
+Regenerated filesystem specification.
+.It Pa zbamidbar/foundation.git
+Git repository where state commits are pushed.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr diff 8 ,
+.Xr update 8 ,
+.Xr pkg-info 8 ,
+.Xr mtree 8
+.Sh AUTHORS
+The
+.Nm
+utility is part of the parasa framework.
