@@ -1,5 +1,13 @@
 # `running_disk()` safety check never fires on ZFS-root systems
 
+**Status: FIXED** in commit `093c870` ("Fix running_disk() for ZFS-root,
+add deploy_container.sh"). `running_disk()` now detects ZFS-root and
+resolves the backing device(s) via `zpool status`, handling mirrors
+(multi-line output). Verified on this VM: it now correctly resolves to
+`vtbd0` (the real boot disk) instead of the dead literal
+`zroot/ROOT/default`. The write-up below is kept as the original bug
+report.
+
 **File:** `scripts/stage0-bootstrap.sh`
 **Severity:** Bug — a safety check that's supposed to prevent destroying the
 running system disk is silently dead code on the exact kind of system this

@@ -1,5 +1,14 @@
 # No `deploy_container.sh` — containers never get a populated root filesystem
 
+**Status: FIXED** in commit `093c870` ("Fix running_disk() for ZFS-root,
+add deploy_container.sh"). `scripts/deploy_container.sh` now exists,
+mirroring `deploy_system.sh`: sends the foundation archive to
+`zbereshit/containers/<name>`, sets its mountpoint, and applies the
+`containers/<name>` git branch. `new_container.sh`'s own guidance text was
+updated to point at it. Not yet verified end-to-end against a real
+foundation on this VM — see the "Status" section below for what's still
+pending. The write-up below is kept as the original gap report.
+
 **Files:** `scripts/new_container.sh`, `scripts/workspace.sh`
 **Severity:** Gap — the documented container workflow can't actually reach
 a runnable jail with the scripts as they exist today.
