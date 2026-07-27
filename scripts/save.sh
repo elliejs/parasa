@@ -97,6 +97,9 @@ run() {
 # ── Main ────────────────────────────────────────────────────────────────────
 
 main() {
+	# Ensure foundation.git is mounted before we try to push to it as origin.
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
+
 	# Step 1: Run diff (quiet mode)
 	if ! $DRY_RUN; then
 		printf "==> Running diff check...\n" >&2
@@ -140,6 +143,8 @@ ${COMMIT_MSG}"
 	printf "==> Committing recipe...\n" >&2
 	run git -C "$PARASA_DIR" add "recipes/${WS_KIND}s/${WS_NAME}/"
 	run git -C "$PARASA_DIR" commit -m "${WS_NAME}: ${COMMIT_MSG}"
+
+	run zunmount zbamidbar/foundation.git
 
 	printf "==> Save complete.\n" >&2
 }
