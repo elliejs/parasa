@@ -27,6 +27,7 @@ for live status.
 | [12](12-diff-sh-piped-while-loop-subshell-breaks-everything.md) | `diff.sh`'s piped `while read` loop breaks the entire save pipeline | Critical — fix proposed |
 | [13](13-save-sh-pkg-info-missing-a-flag.md) | `save.sh`'s `pkg info` call is missing `-a`, fails immediately | Bug — fix proposed |
 | [14](14-save-sh-never-mounts-foundation-git.md) | `save.sh` never mounts `zbamidbar/foundation.git` before pushing to it | Bug — fix proposed |
+| [15](15-foundation-builds-share-obj-tree-cross-branch-contamination.md) | Foundation builds share one `/usr/obj` tree → cross-branch stale-object link failures | Bug — fix proposed |
 
 ## What worked
 

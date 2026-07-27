@@ -318,21 +318,30 @@ run_build() {
 	local srcdir="/zshemot/src.git"
 	local destdir="/zshemot/buildspace/${FOUNDATION_NAME}"
 	local jobs="$MAKE_JOBS"
+	# Per-foundation object tree. Every foundation shares one src checkout
+	# (branch-switched in place), so without this the object tree is shared
+	# across foundations and a stale object from a different branch's build
+	# can be linked into this one (e.g. generated-source objects that never
+	# get rebuilt), producing "Invalid record" link failures. Keying obj by
+	# foundation name isolates foundations while keeping same-foundation
+	# incremental rebuilds fast. All five targets must use the same prefix
+	# so install/distribution find what buildworld produced.
+	local objprefix="/usr/obj/parasa/${FOUNDATION_NAME}"
 
 	progress "Building world (make -j${jobs} buildworld)"
-	run make -C "$srcdir" -j"$jobs" buildworld
+	run env MAKEOBJDIRPREFIX="$objprefix" make -C "$srcdir" -j"$jobs" buildworld
 
 	progress "Building kernel (make -j${jobs} buildkernel KERNCONF=${KERNCONF})"
-	run make -C "$srcdir" -j"$jobs" buildkernel KERNCONF="$KERNCONF"
+	run env MAKEOBJDIRPREFIX="$objprefix" make -C "$srcdir" -j"$jobs" buildkernel KERNCONF="$KERNCONF"
 
 	progress "Installing kernel to ${destdir}"
-	run make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" installkernel KERNCONF="$KERNCONF"
+	run env MAKEOBJDIRPREFIX="$objprefix" make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" installkernel KERNCONF="$KERNCONF"
 
 	progress "Installing world to ${destdir}"
-	run make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" installworld
+	run env MAKEOBJDIRPREFIX="$objprefix" make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" installworld
 
 	progress "Running distribution target"
-	run make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" distribution
+	run env MAKEOBJDIRPREFIX="$objprefix" make -C "$srcdir" -j"$jobs" DESTDIR="$destdir" distribution
 }
 
 # ── Phase 4: Track ──────────────────────────────────────────────────────────
