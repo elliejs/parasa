@@ -372,10 +372,11 @@ archive_to_zbamidbar() {
 	run zfs snapshot -r "${workspace}@${ARTIFACT_NAME}"
 
 	# Create destination and send
-	run ztouch "$dest" -o mountpoint=none -o canmount=noauto
+	run ztouch "$dest" -p -o mountpoint=none -o canmount=noauto
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "${workspace}@${ARTIFACT_NAME}" | zfs recv -F "$dest"
+		zfs send -R "${workspace}@${ARTIFACT_NAME}" | \
+			zfs recv -F -o mountpoint=none -o canmount=noauto "$dest"
 	else
 		printf "  [dry] zfs send -R %s@%s | zfs recv -F %s\n" \
 			"$workspace" "$ARTIFACT_NAME" "$dest" >&2
