@@ -13,9 +13,10 @@ for live status.
 
 | # | Finding | Severity |
 |---|---|---|
-| [01](01-stage0-running-disk-check-is-dead-on-zfs-root.md) | `running_disk()` safety check never fires on ZFS-root systems | Bug (safety-relevant) |
-| [02](02-no-deploy-container.md) | No `deploy_container.sh` — containers never get a populated root | Gap (missing feature) |
+| [01](01-stage0-running-disk-check-is-dead-on-zfs-root.md) | `running_disk()` safety check never fires on ZFS-root systems | Bug (safety-relevant) — **FIXED** in `093c870` |
+| [02](02-no-deploy-container.md) | No `deploy_container.sh` — containers never get a populated root | Gap (missing feature) — **FIXED** in `093c870` |
 | [03](03-environment-notes-not-parasa-bugs.md) | VM environment quirks that look like parasa bugs but aren't | Informational |
+| [04](04-cleanup-trap-destroys-completed-build-on-late-failure.md) | `cleanup()` trap destroys a fully-built foundation if the final git commit fails | Bug — open |
 
 ## What worked
 
