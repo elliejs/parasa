@@ -110,10 +110,10 @@ main() {
 	printf "==> Capturing package list...\n" >&2
 	case "$WS_KIND" in
 		system)
-			run chroot "$TREE_ROOT" pkg info -o > "${RECIPE_DIR}/pkg.list"
+			run chroot "$TREE_ROOT" pkg info -a -o > "${RECIPE_DIR}/pkg.list"
 			;;
 		container)
-			run pkg -j "$WS_NAME" info -o > "${RECIPE_DIR}/pkg.list"
+			run pkg -j "$WS_NAME" info -a -o > "${RECIPE_DIR}/pkg.list"
 			;;
 	esac
 
