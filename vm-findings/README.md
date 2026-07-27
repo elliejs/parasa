@@ -19,6 +19,7 @@ for live status.
 | [04](04-cleanup-trap-destroys-completed-build-on-late-failure.md) | `cleanup()` trap destroys a fully-built foundation if the final git commit fails | Bug — open |
 | [05](05-zmount-not-idempotent-breaks-retries.md) | `zmount()` isn't idempotent — retrying after a partial failure breaks immediately | Bug — open |
 | [06](06-missing-foundation-zfs-foundations-parent-dataset.md) | `archive_to_zbamidbar()` always fails: missing `foundations` parent dataset | Bug — open, 100% reproducible |
+| [07](07-ws-begin-explicit-mount-collides-with-recv-automount.md) | `ws_begin()`'s explicit mount collides with `zfs recv`'s auto-mount | Bug — open, 100% reproducible |
 
 ## What worked
 
