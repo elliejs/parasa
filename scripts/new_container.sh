@@ -41,7 +41,7 @@ Options:
 
 Unlike new_system, there is no -b (deploy/nextboot) flag. Containers are
 deployed to zbereshit/containers/ and started via jail(8). Use
-deploy_container (future) or jail(8) directly.
+deploy_container to populate the container root, then jail(8) to start.
 
 Modes:
   Interactive      No -s flag. All questions asked.
@@ -228,7 +228,8 @@ main() {
 	printf "  Recipe:     recipes/containers/%s/\n" "$CONTAINER_NAME" >&2
 	printf "  Branch:     containers/%s\n" "$CONTAINER_NAME" >&2
 	printf "  jail.conf:  recipes/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
-	printf "\nEdit jail.conf and use jail(8) to start the container.\n" >&2
+	printf "\nNext: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
+	printf "Then edit jail.conf and use jail(8) to start the container.\n" >&2
 }
 
 main
