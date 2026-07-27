@@ -21,8 +21,12 @@ for live status.
 | [06](06-missing-foundation-zfs-foundations-parent-dataset.md) | `archive_to_zbamidbar()` always fails: missing `foundations` parent dataset | Bug — fix proposed |
 | [07](07-ws-begin-explicit-mount-collides-with-recv-automount.md) | `ws_begin()`'s explicit mount collides with `zfs recv`'s auto-mount | Bug — fix proposed |
 | [08](08-recv-inherits-stale-mountpoint-through-chain.md) | Workspace receives inherit the foundation's literal mountpoint instead of their own | Bug — fix proposed |
-| [09](09-jail-conf-include-path-typo.md) | `recipes/jail.conf`'s `.include` path points at the wrong dataset | Bug — fix proposed |
-| [10](10-container-home-mountpoint-never-created.md) | Container `mount.fstab` references `/home`, nothing creates it | Bug — open |
+| [09](09-jail-conf-include-path-typo.md) | `recipes/jail.conf`'s `.include` path points at the wrong dataset | Bug — **FIXED** in `16fdb58` |
+| [10](10-container-home-mountpoint-never-created.md) | Container `mount.fstab` references `/home`, nothing creates it | Bug — **FIXED** in `16fdb58` |
+| [11](11-jail-conf-no-networking-default.md) | Default `jail.conf` never enables networking — containers have no network access | Bug — fix proposed |
+| [12](12-diff-sh-piped-while-loop-subshell-breaks-everything.md) | `diff.sh`'s piped `while read` loop breaks the entire save pipeline | Critical — fix proposed |
+| [13](13-save-sh-pkg-info-missing-a-flag.md) | `save.sh`'s `pkg info` call is missing `-a`, fails immediately | Bug — fix proposed |
+| [14](14-save-sh-never-mounts-foundation-git.md) | `save.sh` never mounts `zbamidbar/foundation.git` before pushing to it | Bug — fix proposed |
 
 ## What worked
 
@@ -48,6 +52,24 @@ works), and its ZFS dataset properly mounted as `/` inside the jail —
 confirmed via `jexec demo1 uname -a` / `id` / `ps aux`, not just `jls`
 reporting ACTIVE.
 
-Findings 04 and 10 are still open (no drop-in fix proposed — both need a
-design decision, see each file). Everything else has a proposed fix in
-this branch's commit history, verified against a real run on this VM.
+Findings 04, 09, and 10 were fixed upstream directly (commit `16fdb58`).
+Everything else (05–08, 11–14) has a proposed fix in this branch's
+commit history, verified against real runs on this VM. Finding 04 is the
+only one still fully open with no drop-in fix in this branch — its
+upstream fix (preserve the workspace on late failure, pre-flight git
+identity check) is a design-level change we didn't attempt to duplicate
+locally.
+
+## Save pipeline: also proven end-to-end
+
+Installed and started `nginx` inside the running `demo1` jail as real
+"drift" to test `diff.sh`/`save.sh` against (see findings 11 for the
+networking fix that was needed just to get `pkg` working inside the jail
+at all). This surfaced three more bugs (12, 13, 14) that, once fixed,
+let `save.sh -s demo1 -k container -q -m "..."` complete cleanly in a
+single pass: diff check → package-list capture → mtree regeneration →
+state commit + push to `foundation.git` → recipe commit — confirmed with
+a real change (`sysrc hostname=...`) captured end-to-end, `exit 0`.
+Finding 12 in particular was save-pipeline-breaking: `diff.sh` could
+never succeed in the exact mode `save.sh` uses it in, for any real save
+scenario, regardless of whether there was anything to complain about.
