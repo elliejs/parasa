@@ -1,7 +1,7 @@
 #	   user: root
 #	machine: PARASA-TESTING
 #	   tree: /containers/demo1
-#	   date: Mon Jul 27 11:54:15 2026
+#	   date: Mon Jul 27 11:56:42 2026
 
 # .
 /set type=file uid=0 gid=0 mode=0755
@@ -2573,8 +2573,8 @@ etc             type=dir mode=0755
     rc.bsdextended \
                 size=4531 \
                 sha512=1020ca348117f2274ab96441bc653c3a3237c082de668e8d61bda807b05fd082a14f155975b1c8c5ad637af2fe7706e01cad9705d20295bfb77930d5fa6ab0b7
-    rc.conf     size=19 \
-                sha512=64d309ed868e4c09418fdc41c3fa6c0b04a84a9c25f169978ed99b5d3dd89edae1c425a2b08f6eadb69775789f311b21fcf2fe10a95d2822eddc12cae6bbed2b
+    rc.conf     size=48 \
+                sha512=60e84d6764060b782c68407aba5f4bfd1c30c1bc7bd45c05f3660daf7c9c98216b91fb0bd70b160ad92e76ac00bf2e5fc68bd9f2385de55449ce3dab348eb85b
     rc.firewall size=18904 \
                 sha512=bd81418a650a8b13033b092cbc25da1c3fe105ee76d4f769d4c1f694db04a09a05f1e8d53f4b4b39b42f5a5a92facec3c456e9146e328275cd169b63eb098c39
     rc.initdiskless \
