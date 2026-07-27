@@ -171,6 +171,32 @@ deploy() {
 		printf "  [dry] git -C %s fetch origin containers/%s\n" "$container_mount" "$CONTAINER_NAME" >&2
 		printf "  [dry] git -C %s checkout containers/%s\n" "$container_mount" "$CONTAINER_NAME" >&2
 	fi
+
+	# Create mountpoint directories referenced by mount.fstab.
+	# The foundation tree from make distribution may not include all of
+	# them (e.g. /home is not part of the base distribution).
+	ensure_mount_destinations "$container_mount"
+}
+
+# ── Mount destination creation ──────────────────────────────────────────────
+
+# Read mount.fstab and mkdir any destination directories that don't exist
+# inside the container root. jail(8) will fail at mount time if they're
+# missing.
+ensure_mount_destinations() {
+	local root="$1"
+	local fstab="${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}/mount.fstab"
+	[ -f "$fstab" ] || return 0
+
+	progress "Ensuring mount destinations exist"
+	local dest
+	while IFS='	' read -r _ dest _; do
+		[ -n "$dest" ] || continue
+		case "$dest" in \#*) continue ;; esac
+		if [ ! -d "$dest" ]; then
+			run mkdir -p "$dest"
+		fi
+	done < "$fstab"
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────

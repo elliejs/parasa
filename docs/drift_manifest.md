@@ -197,7 +197,7 @@ login). Replaces the original drift-manifest-based design.
 ### Detection
 
 ```
-mtree -f /zshemot/parasa.git/recipes/[type]/[name]/mtree.dist -p /  →  list of changed files
+mtree -f /zshemot/parasa/recipes/[type]/[name]/mtree.dist -p /  →  list of changed files
 
 for each changed file:
 

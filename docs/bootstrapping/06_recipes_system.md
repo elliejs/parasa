@@ -78,7 +78,7 @@ during update to reinstall packages on the new base.
 ### `jail.conf`
 
 Per-container jail configuration, included by `recipes/jail.conf` via
-`.include "/zshemot/parasa.git/recipes/containers/*/jail.conf"`. Typical
+`.include "/zshemot/parasa/recipes/containers/*/jail.conf"`. Typical
 contents:
 
 ```
