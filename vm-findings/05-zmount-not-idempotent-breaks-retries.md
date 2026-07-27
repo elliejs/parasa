@@ -1,8 +1,10 @@
-# `zmount()` isn't idempotent — retrying after a partial failure breaks immediately
+# `zmount()` isn't idempotent — breaks retries, and breaks `new_container.sh`/`new_system.sh` on a normal first run too
 
 **File:** `scripts/helpers.sh`
-**Severity:** Bug — makes recovering from any partial/failed run needlessly
-manual.
+**Severity:** Bug. Originally filed as a retry-recovery annoyance; upgraded
+after finding a **second, worse manifestation: this breaks
+`new_container.sh` on a completely fresh, uninterrupted first run**, no
+prior failure required.
 
 ## The code
 
@@ -49,6 +51,37 @@ there's no path to self-heal.
 `zbamidbar/foundation.git` was in the same state for the same reason
 (mounted by `prepare_workspace_git`, never unmounted because the script
 died before reaching its cleanup).
+
+## Second, more serious manifestation: same-run double-mount in `workspace.sh`
+
+This isn't only a retry-recovery problem. `new_container.sh`'s `main()`
+calls two `workspace.sh` functions back to back that **both** independently
+`zmount` the same shared dataset, `zbamidbar/foundation.zfs`:
+
+```sh
+create_data_datasets()   # zmounts zbamidbar/foundation.zfs, leaves it mounted
+...
+ws_begin()               # ALSO zmounts zbamidbar/foundation.zfs — dies here
+```
+
+`create_data_datasets` (used to copy the foundation's pristine `var`
+snapshot) mounts it and never unmounts it before returning. `ws_begin`
+(called next in `main()`, to receive the foundation archive into a
+transient workspace) tries to mount the exact same dataset again and dies
+immediately:
+
+```
+==> Creating inaugural commit
+cannot mount 'zbamidbar/foundation.zfs': filesystem already mounted
+```
+
+We hit this on the **very first, non-retried** run of
+`new_container.sh -s demo1 -f stable15 -q` against a freshly-archived,
+correctly-set-up foundation — no prior failed attempt involved. Since
+`new_system.sh` shares the same `workspace.sh` functions in the same
+order, it's affected identically. This makes the idempotency fix below
+not a nice-to-have but a blocker for `new_container.sh`/`new_system.sh`
+ever completing successfully as written.
 
 ## Suggested fix
 
