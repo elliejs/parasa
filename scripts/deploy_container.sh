@@ -147,15 +147,16 @@ deploy() {
 	# Full send (new container)
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "$src" | zfs recv -F "$dest"
+		zfs send -R "$src" | \
+			zfs recv -F -o mountpoint="/containers/${CONTAINER_NAME}" -o canmount=on "$dest"
 	else
-		printf "  [dry] zfs send -R %s | zfs recv -F %s\n" "$src" "$dest" >&2
+		printf "  [dry] zfs send -R %s | zfs recv -F -o mountpoint=/containers/%s -o canmount=on %s\n" \
+			"$src" "$CONTAINER_NAME" "$dest" >&2
 	fi
 
-	# Set mountpoint so the container root lands at /containers/<name>
+	# Mount (recv above may have already auto-mounted it; tolerate that)
 	progress "Setting mountpoint"
-	run zfs set mountpoint="/containers/${CONTAINER_NAME}" "$dest"
-	run zfs mount "$dest"
+	run zfs mount "$dest" 2>/dev/null || true
 
 	# Apply container branch via git checkout
 	progress "Applying container branch"

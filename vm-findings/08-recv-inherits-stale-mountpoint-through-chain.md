@@ -7,6 +7,17 @@ end-to-end with the fix applied. `archive_to_zbamidbar()`'s equivalent
 recv was patched the same way but not independently re-verified (would
 require rebuilding a foundation from scratch).
 
+**Update:** the identical pattern also hit `deploy_container.sh`'s
+`deploy()` — same underlying cause (recv inherits the foundation's
+`mountpoint=/zshemot/buildspace/<foundation>, canmount=on` from the
+archive, auto-mounts there, then the script's own explicit
+`zfs set mountpoint=... ; zfs mount "$dest"` collides). Fixed the same
+way in a follow-up commit: `zfs recv -F -o mountpoint="/containers/
+<name>" -o canmount=on "$dest"`, with the follow-up mount made tolerant
+of recv's auto-mount. Verified end-to-end: `deploy_container.sh` now
+successfully populates `/containers/<name>` with a real, working FreeBSD
+userland (confirmed by executing `/containers/<name>/bin/sh` directly).
+
 **Files:** `scripts/new_foundation.sh` (`archive_to_zbamidbar`),
 `scripts/workspace.sh` (`ws_begin`)
 **Severity:** Bug — reproducible on any container/system creation, once
