@@ -1,5 +1,9 @@
 # `ws_begin()`'s explicit `zfs mount` collides with `zfs recv`'s auto-mount
 
+**Status: fix proposed in commit `58f3b08`** (not yet reviewed/merged
+upstream). Verified on this VM: `new_container.sh` now runs past this
+point successfully with the fix applied.
+
 **File:** `scripts/workspace.sh` (`ws_begin()`)
 **Severity:** Bug — reproducible on any container/system creation once a
 foundation has been correctly archived (mountpoint inherited as expected).

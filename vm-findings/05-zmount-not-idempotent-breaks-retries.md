@@ -1,5 +1,9 @@
 # `zmount()` isn't idempotent — breaks retries, and breaks `new_container.sh`/`new_system.sh` on a normal first run too
 
+**Status: fix proposed in commit `58f3b08`** (not yet reviewed/merged
+upstream). Verified on this VM: `new_container.sh` now runs past this
+point successfully with the fix applied.
+
 **File:** `scripts/helpers.sh`
 **Severity:** Bug. Originally filed as a retry-recovery annoyance; upgraded
 after finding a **second, worse manifestation: this breaks

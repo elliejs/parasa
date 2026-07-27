@@ -1,5 +1,10 @@
 # `archive_to_zbamidbar()` always fails: missing `foundations` parent dataset
 
+**Status: fix proposed in commit `58f3b08`** (not yet reviewed/merged
+upstream) — added `-p` to the `ztouch` call. Not independently
+re-verified with a full from-scratch `new_foundation.sh` run (would
+require rebuilding); the fix itself is a one-line, low-risk change.
+
 **Files:** `scripts/stage0-bootstrap.sh`, `scripts/new_foundation.sh`,
 `scripts/helpers.sh` (`ztouch`)
 **Severity:** Bug — 100% reproducible, breaks every foundation build on

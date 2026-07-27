@@ -1,5 +1,12 @@
 # Workspace receives inherit the *foundation's* literal mountpoint instead of their own
 
+**Status: fix proposed in commit `58f3b08`** (not yet reviewed/merged
+upstream) — `ws_begin()`'s recv now passes explicit `-o mountpoint`/`-o
+canmount`. Verified on this VM: `new_container.sh` now completes
+end-to-end with the fix applied. `archive_to_zbamidbar()`'s equivalent
+recv was patched the same way but not independently re-verified (would
+require rebuilding a foundation from scratch).
+
 **Files:** `scripts/new_foundation.sh` (`archive_to_zbamidbar`),
 `scripts/workspace.sh` (`ws_begin`)
 **Severity:** Bug — reproducible on any container/system creation, once
