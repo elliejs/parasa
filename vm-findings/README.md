@@ -17,6 +17,8 @@ for live status.
 | [02](02-no-deploy-container.md) | No `deploy_container.sh` — containers never get a populated root | Gap (missing feature) — **FIXED** in `093c870` |
 | [03](03-environment-notes-not-parasa-bugs.md) | VM environment quirks that look like parasa bugs but aren't | Informational |
 | [04](04-cleanup-trap-destroys-completed-build-on-late-failure.md) | `cleanup()` trap destroys a fully-built foundation if the final git commit fails | Bug — open |
+| [05](05-zmount-not-idempotent-breaks-retries.md) | `zmount()` isn't idempotent — retrying after a partial failure breaks immediately | Bug — open |
+| [06](06-missing-foundation-zfs-foundations-parent-dataset.md) | `archive_to_zbamidbar()` always fails: missing `foundations` parent dataset | Bug — open, 100% reproducible |
 
 ## What worked
 
