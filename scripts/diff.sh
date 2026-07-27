@@ -230,8 +230,11 @@ main() {
 
 	local unclassified=0 total=0 classified=0
 	local relpath classification
+	local changed_files_tmp
+	changed_files_tmp=$(mktemp)
+	printf "%s\n" "$changed_files" > "$changed_files_tmp"
 
-	printf "%s\n" "$changed_files" | while IFS= read -r relpath; do
+	while IFS= read -r relpath; do
 		[ -n "$relpath" ] || continue
 		total=$((total + 1))
 
@@ -242,7 +245,9 @@ main() {
 				;;
 			text|derivation|preserve)
 				classified=$((classified + 1))
-				[ "$QUIET" -lt 1 ] && printf "  [%s] %s\n" "$classification" "$relpath" >&2
+				if [ "$QUIET" -lt 1 ]; then
+					printf "  [%s] %s\n" "$classification" "$relpath" >&2
+				fi
 				;;
 			unclassified)
 				if [ "$QUIET" -gt 0 ]; then
@@ -257,7 +262,8 @@ main() {
 				fi
 				;;
 		esac
-	done
+	done < "$changed_files_tmp"
+	rm -f "$changed_files_tmp"
 
 	if [ "$unclassified" -gt 0 ]; then
 		printf "ERROR: %d unclassified file(s) remain. Cannot proceed with rebase.\n" "$unclassified" >&2
