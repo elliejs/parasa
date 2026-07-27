@@ -1,0 +1,5 @@
+# source	destination	fstype	options	dump	pass
+zbamidbar/container-data/demo1/var	/containers/demo1/var	zfs	rw	0	0
+zbamidbar/container-data/demo1/usr-local	/containers/demo1/usr/local	zfs	rw	0	0
+zbamidbar/container-data/demo1/home	/containers/demo1/home	zfs	rw	0	0
+zbamidbar/container-data/demo1/tmp	/containers/demo1/tmp	zfs	rw	0	0
