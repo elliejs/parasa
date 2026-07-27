@@ -307,7 +307,7 @@ exec.clean;
 mount.devfs;
 devfs_ruleset = 4;
 
-.include "/zshemot/parasa.git/recipes/containers/*/jail.conf";
+.include "/zshemot/parasa/recipes/containers/*/jail.conf";
 JAILCONF
 			fixed "recipes/jail.conf"
 		fi
