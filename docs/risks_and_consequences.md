@@ -332,7 +332,7 @@ parasa is tightly coupled to FreeBSD's specific tools and conventions:
 - FreeBSD's specific `/etc` layout and file ownership conventions
 
 A FreeBSD major version upgrade could change any of these. The
-derivations.db is version-pinned (`stable-15.db`), which helps, but the
+derivations.db is version-pinned (`15.0.db`), which helps, but the
 scripts themselves embed assumptions about tool flags, file paths, and
 command behavior. There is no version compatibility matrix and no
 mechanism to detect "you're running parasa scripts designed for 15.x

@@ -363,6 +363,100 @@ detect_kind() {
 	fi
 }
 
+# ── FreeBSD version helpers ──────────────────────────────────────────────────
+
+# Extract FreeBSD major.minor version from a SRC_BRANCH string.
+# stable/15 → 15.0, releng/15.1 → 15.1, main → main
+# Usage: branch_to_version "stable/15"
+branch_to_version() {
+	local branch="${1:?branch_to_version: branch required}"
+	case "$branch" in
+		stable/*)
+			# stable/15 → 15.0
+			printf "%s.0" "${branch#stable/}"
+			;;
+		releng/*)
+			# releng/15.1 → 15.1
+			printf "%s" "${branch#releng/}"
+			;;
+		*)
+			# main or anything else — pass through
+			printf "%s" "$branch"
+			;;
+	esac
+}
+
+# Get the FreeBSD version for a foundation from its build.conf.
+# Usage: get_foundation_version foundation_name
+# Prints version (e.g., "15.0") to stdout.
+get_foundation_version() {
+	local fname="${1:?get_foundation_version: foundation name required}"
+	local build_conf="${PARASA_DIR}/recipes/foundations/${fname}/build.conf"
+	local branch
+	branch=$(msysrc "$build_conf" SRC_BRANCH "stable/15")
+	branch_to_version "$branch"
+}
+
+# Resolve the best-matching global derivations db for a version.
+# Finds the newest db file whose version is <= the given version.
+# Usage: resolve_derivations_db version
+# Prints the db file path to stdout. Returns 1 if none found.
+resolve_derivations_db() {
+	local target="${1:?resolve_derivations_db: version required}"
+	local db_dir="${PARASA_DIR}/etc/derivations"
+	local best="" best_ver="" f ver
+
+	# Handle "main" — use the newest available db
+	case "$target" in
+		main)
+			for f in "$db_dir"/*.db; do
+				[ -f "$f" ] || continue
+				ver=$(basename "$f" .db)
+				if [ -z "$best_ver" ] || ver_ge "$ver" "$best_ver"; then
+					best="$f"
+					best_ver="$ver"
+				fi
+			done
+			;;
+		*)
+			for f in "$db_dir"/*.db; do
+				[ -f "$f" ] || continue
+				ver=$(basename "$f" .db)
+				# Skip if ver > target
+				ver_ge "$target" "$ver" || continue
+				# Keep if newest <= target
+				if [ -z "$best_ver" ] || ver_ge "$ver" "$best_ver"; then
+					best="$f"
+					best_ver="$ver"
+				fi
+			done
+			;;
+	esac
+
+	if [ -n "$best" ]; then
+		printf "%s" "$best"
+		return 0
+	fi
+	return 1
+}
+
+# Compare two dotted version strings: is $1 >= $2?
+# Usage: ver_ge "15.1" "15.0" → true (0), ver_ge "14.0" "15.0" → false (1)
+ver_ge() {
+	local a_major a_minor b_major b_minor
+	a_major="${1%%.*}"
+	a_minor="${1#*.}"
+	[ "$a_minor" = "$1" ] && a_minor=0
+	b_major="${2%%.*}"
+	b_minor="${2#*.}"
+	[ "$b_minor" = "$2" ] && b_minor=0
+
+	[ "$a_major" -gt "$b_major" ] && return 0
+	[ "$a_major" -lt "$b_major" ] && return 1
+	[ "$a_minor" -ge "$b_minor" ] && return 0
+	return 1
+}
+
 # ── Binary / derivation helpers ──────────────────────────────────────────────
 
 # Check if a file is binary.

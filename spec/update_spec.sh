@@ -93,8 +93,17 @@ Describe "update.sh"
       exit 0
     End
 
+    Mock sysrc
+      case "$*" in
+        *SRC_BRANCH*) printf "stable/15" ;;
+        *) exit 1 ;;
+      esac
+    End
+
     setup_update_dry() {
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/systems/dryupdate"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
+      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic/build.conf"
       printf "stable-15_2026-01-01_abc1234\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/systems/dryupdate/15-stable-generic.foundation"
       printf "" > "$SHELLSPEC_PROJECT_ROOT/recipes/systems/dryupdate/compose.sh"
       printf "" > "$SHELLSPEC_PROJECT_ROOT/recipes/systems/dryupdate/pkg.list"
@@ -103,6 +112,7 @@ Describe "update.sh"
 
     cleanup_update_dry() {
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/dryupdate"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
     }
 
     Before 'setup_update_dry'
@@ -194,8 +204,17 @@ Describe "update.sh"
       exit 0
     End
 
+    Mock sysrc
+      case "$*" in
+        *SRC_BRANCH*) printf "stable/15" ;;
+        *) exit 1 ;;
+      esac
+    End
+
     setup_container_update() {
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/containers/updatejail"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
+      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic/build.conf"
       printf "stable-15_2026-01-01_abc1234\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/containers/updatejail/15-stable-generic.foundation"
       printf "" > "$SHELLSPEC_PROJECT_ROOT/recipes/containers/updatejail/compose.sh"
       printf "" > "$SHELLSPEC_PROJECT_ROOT/recipes/containers/updatejail/pkg.list"
@@ -204,6 +223,7 @@ Describe "update.sh"
 
     cleanup_container_update() {
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/updatejail"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
     }
 
     Before 'setup_container_update'

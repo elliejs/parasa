@@ -498,6 +498,97 @@ Describe "helpers.sh"
     End
   End
 
+  # ── Version resolution helpers ───────────────────────────────────────────
+
+  Describe "branch_to_version()"
+    It "converts stable/15 to 15.0"
+      When call branch_to_version "stable/15"
+      The output should equal "15.0"
+    End
+
+    It "converts releng/15.1 to 15.1"
+      When call branch_to_version "releng/15.1"
+      The output should equal "15.1"
+    End
+
+    It "converts releng/14.2 to 14.2"
+      When call branch_to_version "releng/14.2"
+      The output should equal "14.2"
+    End
+
+    It "passes through main unchanged"
+      When call branch_to_version "main"
+      The output should equal "main"
+    End
+  End
+
+  Describe "ver_ge()"
+    It "15.1 >= 15.0 is true"
+      When call ver_ge "15.1" "15.0"
+      The status should be success
+    End
+
+    It "15.0 >= 15.0 is true"
+      When call ver_ge "15.0" "15.0"
+      The status should be success
+    End
+
+    It "14.0 >= 15.0 is false"
+      When call ver_ge "14.0" "15.0"
+      The status should be failure
+    End
+
+    It "16.0 >= 15.1 is true"
+      When call ver_ge "16.0" "15.1"
+      The status should be success
+    End
+
+    It "15.0 >= 15.1 is false"
+      When call ver_ge "15.0" "15.1"
+      The status should be failure
+    End
+  End
+
+  Describe "resolve_derivations_db()"
+    setup_deriv_dbs() {
+      PARASA_DIR="$SHELLSPEC_TMPDIR/deriv_resolve"
+      export PARASA_DIR
+      mkdir -p "$PARASA_DIR/etc/derivations"
+      printf "# 14.0 derivations\n" > "$PARASA_DIR/etc/derivations/14.0.db"
+      printf "# 15.0 derivations\n" > "$PARASA_DIR/etc/derivations/15.0.db"
+    }
+    Before 'setup_deriv_dbs'
+
+    It "finds exact version match"
+      When call resolve_derivations_db "15.0"
+      The status should be success
+      The output should include "15.0.db"
+    End
+
+    It "finds newest <= for higher version"
+      When call resolve_derivations_db "15.1"
+      The status should be success
+      The output should include "15.0.db"
+    End
+
+    It "finds 14.0 for version 14.2"
+      When call resolve_derivations_db "14.2"
+      The status should be success
+      The output should include "14.0.db"
+    End
+
+    It "uses newest db for main"
+      When call resolve_derivations_db "main"
+      The status should be success
+      The output should include "15.0.db"
+    End
+
+    It "fails for version older than all dbs"
+      When call resolve_derivations_db "13.0"
+      The status should be failure
+    End
+  End
+
   Describe "read_artifact_name()"
     setup_artifact_dir() {
       _adir="$SHELLSPEC_TMPDIR/artifact_read"

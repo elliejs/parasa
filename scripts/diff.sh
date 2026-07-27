@@ -86,8 +86,10 @@ RECIPE_DIR=$(get_recipes_dir "$WS_KIND" "$WS_NAME")
 
 FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
 
-# Resolve derivation databases
-GLOBAL_DB="${PARASA_DIR}/etc/derivations/stable-15.db"
+# Resolve derivation databases via version chain
+FBSD_VERSION=$(get_foundation_version "$FOUNDATION_NAME")
+GLOBAL_DB=$(resolve_derivations_db "$FBSD_VERSION") || \
+	die "No derivations db found for FreeBSD ${FBSD_VERSION}"
 LOCAL_DB="${RECIPE_DIR}/derivations.local"
 
 # ── Exempt mount prefixes ───────────────────────────────────────────────────

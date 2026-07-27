@@ -71,8 +71,8 @@ scripts/
 man/man8/             mdoc(7) man pages for each command.
 
 etc/
-  derivations/        Default text-to-binary derivation databases, per branch.
-    stable-15.db      master.passwd->pwd.db, login.conf->login.conf.db, etc.
+  derivations/        Default text-to-binary derivation databases, per FreeBSD version.
+    15.0.db           master.passwd->pwd.db, login.conf->login.conf.db, etc.
 
 recipes/               Per-target configuration ("customs").
   foundations/        Build configurations (SRC_BRANCH, KERNCONF, etc.)

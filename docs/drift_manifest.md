@@ -163,27 +163,31 @@ Paths are relative to the system root, consistent with mtree.
 
 ### Version pinning
 
-The derivation set is keyed to the FreeBSD source branch used to build the
-base artifact. Branch naming follows FreeBSD convention:
+Derivation db files are named by FreeBSD major.minor version (`15.0.db`,
+`15.1.db`, `16.0.db`). The version is extracted from the foundation's
+`SRC_BRANCH`:
 
-- `main` — CURRENT (next unreleased major)
-- `stable/X` — STABLE for major version X
-- `releng/X.Y` — release engineering for point release X.Y
+- `stable/15` → `15.0`
+- `releng/15.1` → `15.1`
+- `main` → uses the newest available db
+
+Resolution is chained: find the newest db file whose version is <= the
+target's FreeBSD version. This means a system on `releng/15.1` will use
+`15.0.db` unless a `15.1.db` exists with updated entries.
 
 The core derivation set (passwd, login.conf, aliases) has been stable across
 FreeBSD 13, 14, and 15. Version pinning is a future-proofing mechanism: if
-FreeBSD 16 adds a new text→binary pair, the `stable/16` derivations file
-picks it up without breaking older systems.
+FreeBSD 16 adds a new text→binary pair, a `16.0.db` file picks it up
+without breaking older systems.
 
 The base set ships with the parasa framework at
-`zshemot/parasa.git/etc/derivations/stable-14.db` (one file per FreeBSD
-branch). During the build phase, the appropriate file is copied into the
-artifact at `etc/parasa/derivations.db`.
+`etc/derivations/<version>.db`. These are NOT copied into containers or
+systems — they are resolved at runtime from the parasa repo via the
+chained lookup (`derivations.local` first, then global db).
 
 Per-target custom derivation entries live in the recipes target directory:
-`zshemot/parasa.git/recipes/systems/[name]/derivations.local` (or containers/).
-At runtime, `diff.sh` reads both the base `derivations.db` from the
-system tree and the target's `derivations.local` from recipes.
+`recipes/{kind}s/[name]/derivations.local`.
+At runtime, `diff.sh` checks local first, then the version-resolved global db.
 
 ## diff.sh
 

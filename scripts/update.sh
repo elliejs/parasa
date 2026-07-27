@@ -312,7 +312,11 @@ main() {
 	# ── Step 6: Regenerate derived binaries ──────────────────────────────
 	printf "==> Regenerating derivations...\n" >&2
 
-	local global_db="${PARASA_DIR}/etc/derivations/stable-15.db"
+	local fbsd_ver
+	fbsd_ver=$(get_foundation_version "$FOUNDATION_NAME")
+	local global_db
+	global_db=$(resolve_derivations_db "$fbsd_ver") || \
+		die "No derivations db found for FreeBSD ${fbsd_ver}"
 	local local_db="${RECIPE_DIR}/derivations.local"
 
 	# Check each derivation: did its source change?

@@ -162,24 +162,17 @@ create_container_recipe_extras() {
 			fi
 		} > "${WS_RECIPE_DIR}/mount.fstab"
 
-		# Skeleton jail.conf
+		# Per-container jail.conf (included by recipes/jail.conf)
 		cat > "${WS_RECIPE_DIR}/jail.conf" <<-JAILCONF
 		# jail.conf for container: ${CONTAINER_NAME}
-		# See jail(8) and jail.conf(5) for options.
-		#
-		# This file is included by the main jail.conf via jail.conf.d/.
+		# Included by the default recipes/jail.conf.
+		# Shared defaults (exec.start, mount.devfs, etc.) are inherited.
+		# See jail.conf(5) for options.
 
 		${CONTAINER_NAME} {
 		    host.hostname = "${CONTAINER_NAME}";
 		    path = "/containers/${CONTAINER_NAME}";
-
 		    mount.fstab = "${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}/mount.fstab";
-		    mount.devfs;
-		    devfs_ruleset = 4;
-
-		    exec.start = "/bin/sh /etc/rc";
-		    exec.stop  = "/bin/sh /etc/rc.shutdown";
-		    exec.clean;
 		}
 		JAILCONF
 	else

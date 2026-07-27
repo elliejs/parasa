@@ -91,8 +91,9 @@ No interactive prompts; exit 1 if unclassified files remain.
 Specification file for comparison.
 .It Pa recipes/{kind}s/ Ns Ao Ar name Ac Ns Pa /derivations.local
 Per-target derivation mappings (source, derived, command).
-.It Pa etc/derivations/stable-15.db
-Global derivation database for FreeBSD stable/15.
+.It Pa etc/derivations/15.0.db
+Global derivation database for FreeBSD 15.0.
+Version-resolved: the newest db whose version is <= the target's FreeBSD version.
 .It Pa etc/mtree.ignore
 Paths excluded from mtree comparison.
 .El

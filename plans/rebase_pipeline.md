@@ -140,7 +140,7 @@ Follows `deploy_system.sh` pattern. Getopts: `-h -d -s NAME -k KIND -q`.
 
 ```
 1. Resolve target: TREE_ROOT, RECIPE_DIR, FOUNDATION_NAME
-2. Load derivation databases: stable-15.db + derivations.local
+2. Load derivation databases: resolve_derivations_db(version) + derivations.local
 3. mtree -f RECIPE_DIR/mtree.dist -p TREE_ROOT
    (mtree.ignore already excludes .git — verify)
 4. Parse mtree output → list of changed relative paths

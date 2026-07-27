@@ -186,11 +186,10 @@ zshemot/parasa/
                                 values for all targets. sysrc(8) format.
   etc/                          Shipped with the framework (public, upstream)
     derivations/                Default text→binary derivation databases
-      stable-14.db              per FreeBSD branch
-      stable-15.db
-    jail.conf                   Default jail.conf, includes recipes/jail.conf.d/*
+      15.0.db                   per FreeBSD major.minor version (chained lookup)
     mtree.ignore                Paths to exclude from mtree (ships with parasa)
   recipes/
+    jail.conf                   Default jail.conf, includes per-container configs
     foundations/                 Build configurations (shared across systems/containers)
       [foundation-name]/
         build.conf              SRC_BRANCH, KERNCONF, MAKE_JOBS, etc.
