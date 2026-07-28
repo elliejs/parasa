@@ -33,14 +33,14 @@ Describe "diff.sh"
 
     setup_dry_diff() {
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/systems/diffbox"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
-      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/15-stable-generic"
+      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/foundations/15-stable-generic/build.cfg"
       printf "stable-15_2026-01-01_abc1234\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/systems/diffbox/15-stable-generic.foundation"
     }
 
     cleanup_dry_diff() {
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/diffbox"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/15-stable-generic"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/15-stable-generic"
     }
 
     Before 'setup_dry_diff'
@@ -166,14 +166,14 @@ Describe "diff.sh"
 
     setup_detect() {
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/containers/diffweb"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/myfound"
-      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/myfound/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/myfound"
+      printf "SRC_BRANCH=stable/15\n" > "$SHELLSPEC_PROJECT_ROOT/foundations/myfound/build.cfg"
       printf "art1\n" > "$SHELLSPEC_PROJECT_ROOT/recipes/containers/diffweb/myfound.foundation"
     }
 
     cleanup_detect() {
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/diffweb"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/myfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/myfound"
     }
 
     Before 'setup_detect'

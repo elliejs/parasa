@@ -51,7 +51,7 @@ Describe "save.sh"
     It "shows dry-run pkg capture"
       When run script scripts/save.sh -s savebox -k system -d -q -m "test"
       The error should include "[dry] chroot"
-      The error should include "pkg info"
+      The error should include "pkg query"
     End
 
     It "shows dry-run mtree regen"

@@ -296,12 +296,12 @@ ${CUSTOM_MOUNT_LINES}"
     End
 
     setup_dry_container() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/foundations/testfound/build.cfg"
     }
 
     cleanup_dry_container() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/dryjar"
     }
 
@@ -440,12 +440,12 @@ ${CUSTOM_MOUNT_LINES}"
     End
 
     setup_recipes_test() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/base15"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/foundations/base15/build.cfg"
     }
 
     cleanup_recipes_test() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/base15"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/base15"
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/filetest"
     }
 
@@ -516,12 +516,12 @@ ${CUSTOM_MOUNT_LINES}"
     End
 
     setup_collision() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/containers/taken"
     }
 
     cleanup_collision() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/containers/taken"
     }
 

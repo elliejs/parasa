@@ -320,12 +320,12 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
     End
 
     setup_dry_system() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
-      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound/build.conf"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
+      printf 'SRC_BRANCH=stable/15\n' > "$SHELLSPEC_PROJECT_ROOT/foundations/testfound/build.cfg"
     }
 
     cleanup_dry_system() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/drybox"
     }
 
@@ -440,12 +440,12 @@ zbamidbar/jail-data	/jail/data	zfs	rw,late	0	0"
     End
 
     setup_collision() {
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/systems/taken"
     }
 
     cleanup_collision() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/testfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/testfound"
       rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/systems/taken"
     }
 

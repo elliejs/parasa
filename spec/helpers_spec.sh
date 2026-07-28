@@ -236,9 +236,9 @@ Describe "helpers.sh"
     }
     Before 'setup_msysrc_env'
 
-    It "reads from build.conf when present"
-      printf 'SRC_BRANCH=stable/14\n' > "$SHELLSPEC_TMPDIR/conf_msysrc/build.conf"
-      When call msysrc "$SHELLSPEC_TMPDIR/conf_msysrc/build.conf" SRC_BRANCH
+    It "reads from build.cfg when present"
+      printf 'SRC_BRANCH=stable/14\n' > "$SHELLSPEC_TMPDIR/conf_msysrc/build.cfg"
+      When call msysrc "$SHELLSPEC_TMPDIR/conf_msysrc/build.cfg" SRC_BRANCH
       The output should equal "stable/14"
     End
 

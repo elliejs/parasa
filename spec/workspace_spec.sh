@@ -206,7 +206,8 @@ Describe "workspace.sh"
 
     setup_foundation() {
       PARASA_DIR="$SHELLSPEC_TMPDIR/parasa"
-      mkdir -p "$PARASA_DIR/recipes/foundations/base15"
+      mkdir -p "$PARASA_DIR/foundations/base15"
+      printf 'SRC_BRANCH=stable/15\n' > "$PARASA_DIR/foundations/base15/build.cfg"
       QUIET=1
     }
     Before 'setup_foundation'
@@ -225,7 +226,8 @@ Describe "workspace.sh"
     End
 
     It "rejects a foundation not archived in foundation.zfs"
-      mkdir -p "$PARASA_DIR/recipes/foundations/unarchived"
+      mkdir -p "$PARASA_DIR/foundations/unarchived"
+      printf 'SRC_BRANCH=stable/15\n' > "$PARASA_DIR/foundations/unarchived/build.cfg"
       FOUNDATION_NAME="unarchived"
       When call try_collect_foundation
       The status should be failure

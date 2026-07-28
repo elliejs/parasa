@@ -43,14 +43,14 @@ Describe "new_foundation.sh"
   End
 
   # ── resolve_build_config logic ──────────────────────────────────────────
-  # Test the config resolution: -o overrides > build.conf > parasa.conf > hardcoded.
+  # Test the config resolution: -o overrides > build.cfg > parasa.conf > hardcoded.
 
   Describe "build config resolution"
     Include scripts/helpers.sh
 
     # Replicate resolve_build_config from new_foundation.sh for isolated testing
     resolve_build_config() {
-      local build_conf="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}/build.conf"
+      local build_conf="${PARASA_DIR}/foundations/${FOUNDATION_NAME}/build.cfg"
       local default_jobs
       default_jobs=$(sysctl -n hw.ncpu 2>/dev/null || printf "4")
       local def_branch="${OPT_SRC_BRANCH}"
@@ -190,7 +190,7 @@ Describe "new_foundation.sh"
     End
 
     cleanup_dry_foundation() {
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/dryfound"
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/dryfound"
     }
     After 'cleanup_dry_foundation'
 
@@ -215,7 +215,7 @@ Describe "new_foundation.sh"
     It "shows recipes dir creation"
       When run script scripts/new_foundation.sh -s dryfound -q -d
       The status should be success
-      The error should include "Creating recipes dir"
+      The error should include "Creating foundation config dir"
       The error should include "dryfound"
     End
 
@@ -231,7 +231,7 @@ Describe "new_foundation.sh"
       The status should be success
       The error should include "Creating transient build workspace"
       The error should include "zfs create"
-      The error should include "zshemot/buildspace"
+      The error should include "zshemot/foundations"
     End
 
     It "initializes git in workspace"
@@ -318,12 +318,13 @@ Describe "new_foundation.sh"
       The error should include "already archived"
     End
 
-    It "rejects a name that exists in recipes"
-      mkdir -p "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/existing"
+    It "does not block a retry when a leftover config dir exists"
+      # A leftover foundations/<name>/ dir from a failed run must NOT block a
+      # retry: existence is keyed on the archive/branch, not the config dir.
+      mkdir -p "$SHELLSPEC_PROJECT_ROOT/foundations/existing"
       When run script scripts/new_foundation.sh -s existing -q -d
-      The status should be failure
-      The error should include "already exists"
-      rm -rf "$SHELLSPEC_PROJECT_ROOT/recipes/foundations/existing"
+      The status should be success
+      rm -rf "$SHELLSPEC_PROJECT_ROOT/foundations/existing"
     End
   End
 End
