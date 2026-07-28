@@ -228,8 +228,16 @@ main() {
 	printf "  Recipe:     recipes/containers/%s/\n" "$CONTAINER_NAME" >&2
 	printf "  Branch:     containers/%s\n" "$CONTAINER_NAME" >&2
 	printf "  jail.conf:  recipes/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
-	printf "\nNext: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
-	printf "Then edit jail.conf and use jail(8) to start the container.\n" >&2
+
+	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
+		if confirm "Deploy container now?"; then
+			exec sh "${SCRIPT_DIR}/deploy_container.sh" -s "$CONTAINER_NAME"
+		else
+			printf "When ready: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
+		fi
+	else
+		printf "\nNext: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
+	fi
 }
 
 main

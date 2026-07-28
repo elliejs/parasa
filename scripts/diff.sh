@@ -270,7 +270,13 @@ main() {
 		exit 1
 	fi
 
-	[ "$QUIET" -lt 1 ] && printf "All changes classified.\n" >&2
+	if [ "$QUIET" -lt 1 ]; then
+		printf "All changes classified.\n" >&2
+		if [ "$classified" -gt 0 ] && [ -t 0 ] && \
+		   confirm "Save state now?"; then
+			exec sh "${SCRIPT_DIR}/save.sh" -s "$WS_NAME" -k "$WS_KIND"
+		fi
+	fi
 	exit 0
 }
 

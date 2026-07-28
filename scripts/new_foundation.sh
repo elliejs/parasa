@@ -453,6 +453,20 @@ main() {
 	printf "  Artifact: %s\n" "$ARTIFACT_NAME" >&2
 	printf "  Branch:   %s\n" "$FOUNDATION_NAME" >&2
 	printf "  Archive:  zbamidbar/foundation.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
+
+	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
+		printf "\nCreate a workspace from this foundation?\n" >&2
+		printf "  1) Container (jail)\n" >&2
+		printf "  2) System\n" >&2
+		printf "  q) Quit\n" >&2
+		printf "  > " >&2
+		local resp
+		read -r resp || resp=""
+		case "$resp" in
+			1) exec sh "${SCRIPT_DIR}/new_container.sh" -f "$FOUNDATION_NAME" ;;
+			2) exec sh "${SCRIPT_DIR}/new_system.sh" -f "$FOUNDATION_NAME" ;;
+		esac
+	fi
 }
 
 main

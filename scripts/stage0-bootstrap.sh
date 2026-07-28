@@ -411,4 +411,9 @@ ATTACHED_GELI=""
 printf "\n=== Stage 0 complete ===\n"
 printf "Pools: zbereshit, zshemot, zbamidbar\n"
 printf "Dataset hierarchy initialized.\n"
-printf "Next: stage1-build-upgrade.sh\n"
+
+if [ -t 0 ] && confirm "Build a foundation now?"; then
+	exec sh "${SCRIPT_DIR}/new_foundation.sh"
+else
+	printf "Next: new_foundation.sh\n"
+fi

@@ -209,13 +209,18 @@ main() {
 
 	printf "\nContainer '%s' deployed to zbereshit/containers/%s.\n" \
 		"$CONTAINER_NAME" "$CONTAINER_NAME" >&2
-	printf "Start with: jail -c %s\n" "$CONTAINER_NAME" >&2
 
 	# Cleanup mounts
 	run zunmount zbamidbar/foundation.git
 	run zunmount zbamidbar/foundation.zfs
 
 	progress "Deploy complete."
+
+	if [ -t 0 ] && confirm "Start jail ${CONTAINER_NAME} now?"; then
+		exec jail -c "$CONTAINER_NAME"
+	else
+		printf "Start with: jail -c %s\n" "$CONTAINER_NAME" >&2
+	fi
 }
 
 main

@@ -239,11 +239,13 @@ main() {
 	printf "  Branch:     systems/%s\n" "$SYSTEM_NAME" >&2
 
 	# Phase 4: Deploy (optional)
-	if [ "$BOOT" -gt 0 ] || { [ "$QUIET" -eq 0 ] && confirm "Deploy system now?"; }; then
+	if [ "$BOOT" -gt 0 ] || { [ "$QUIET" -eq 0 ] && [ -t 0 ] && confirm "Deploy system now?"; }; then
 		local deploy_flags="-s ${SYSTEM_NAME}"
 		$DRY_RUN && deploy_flags="${deploy_flags} -d"
 		[ "$BOOT" -gt 1 ] && deploy_flags="${deploy_flags} -n"
-		sh "${SCRIPT_DIR}/deploy_system.sh" $deploy_flags
+		exec sh "${SCRIPT_DIR}/deploy_system.sh" $deploy_flags
+	elif [ "$QUIET" -eq 0 ]; then
+		printf "When ready: deploy_system -s %s\n" "$SYSTEM_NAME" >&2
 	fi
 }
 
