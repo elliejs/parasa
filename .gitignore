@@ -1,0 +1,5 @@
+# Transient foundation build workspaces.
+# Each is its own ZFS dataset (zshemot/foundations/<name>/build) mounted here
+# and archived separately to zbamidbar/foundation.zfs; never track its contents.
+# One generic glob covers every foundation — no per-foundation entries.
+foundations/*/build/

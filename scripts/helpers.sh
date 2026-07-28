@@ -139,7 +139,7 @@ clear_mtree() {
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
-# Two-tier config lookup: target build.conf → parasa.conf → default.
+# Two-tier config lookup: target build.cfg → parasa.conf → default.
 # Usage: msysrc build_conf_path VAR_NAME [default]
 # Prints the value to stdout. Returns 1 if not found and no default.
 msysrc() {
@@ -259,17 +259,19 @@ prompt_yesno() {
 # Usage: select_foundation quiet_level
 # Prints the chosen foundation name to stdout.
 select_foundation() {
-	local quiet="${1:-0}" recipes_dir="${PARASA_DIR}/recipes/foundations"
+	local quiet="${1:-0}" foundations_dir="${PARASA_DIR}/foundations"
 	local name found="" count=0 idx=0
 
-	for d in "$recipes_dir"/*/; do
-		[ -d "$d" ] || continue
+	# A foundation is a foundations/<name>/ dir with a build.cfg (the transient
+	# build/ subdir is not a foundation).
+	for d in "$foundations_dir"/*/; do
+		[ -f "${d}build.cfg" ] || continue
 		name=$(basename "$d")
 		count=$((count + 1))
 		found="$name"
 	done
 
-	[ "$count" -gt 0 ] || die "No foundations found in ${recipes_dir}/. Run new_foundation first."
+	[ "$count" -gt 0 ] || die "No foundations found in ${foundations_dir}/. Run new_foundation first."
 
 	if [ "$count" -eq 1 ]; then
 		if [ "$quiet" -gt 0 ]; then
@@ -287,8 +289,8 @@ select_foundation() {
 
 	printf "Available foundations:\n" >&2
 	idx=0
-	for d in "$recipes_dir"/*/; do
-		[ -d "$d" ] || continue
+	for d in "$foundations_dir"/*/; do
+		[ -f "${d}build.cfg" ] || continue
 		idx=$((idx + 1))
 		name=$(basename "$d")
 		printf "  %d) %s\n" "$idx" "$name" >&2
@@ -302,8 +304,8 @@ select_foundation() {
 		case "$resp" in
 			[0-9]|[0-9][0-9])
 				local cur=0
-				for d in "$recipes_dir"/*/; do
-					[ -d "$d" ] || continue
+				for d in "$foundations_dir"/*/; do
+					[ -f "${d}build.cfg" ] || continue
 					cur=$((cur + 1))
 					if [ "$cur" -eq "$resp" ]; then
 						printf "%s" "$(basename "$d")"
@@ -315,7 +317,7 @@ select_foundation() {
 				;;
 		esac
 		# Name given directly
-		if [ -d "${recipes_dir}/${resp}" ]; then
+		if [ -f "${foundations_dir}/${resp}/build.cfg" ]; then
 			printf "%s" "$resp"
 			return 0
 		fi
@@ -388,12 +390,12 @@ branch_to_version() {
 	esac
 }
 
-# Get the FreeBSD version for a foundation from its build.conf.
+# Get the FreeBSD version for a foundation from its build.cfg.
 # Usage: get_foundation_version foundation_name
 # Prints version (e.g., "15.0") to stdout.
 get_foundation_version() {
 	local fname="${1:?get_foundation_version: foundation name required}"
-	local build_conf="${PARASA_DIR}/recipes/foundations/${fname}/build.conf"
+	local build_conf="${PARASA_DIR}/foundations/${fname}/build.cfg"
 	local branch
 	branch=$(msysrc "$build_conf" SRC_BRANCH "stable/15")
 	branch_to_version "$branch"

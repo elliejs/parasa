@@ -93,8 +93,8 @@ check_available() {
 # Sets FOUNDATION_NAME.
 collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
-		local frecipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
-		[ -d "$frecipes" ] || die "Foundation '${FOUNDATION_NAME}' not found in recipes."
+		local fcfg="${PARASA_DIR}/foundations/${FOUNDATION_NAME}/build.cfg"
+		[ -f "$fcfg" ] || die "Foundation '${FOUNDATION_NAME}' not found (no foundations/${FOUNDATION_NAME}/build.cfg)."
 		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}" || \
 			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/foundation.zfs."
 		return

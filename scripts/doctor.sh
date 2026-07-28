@@ -279,9 +279,10 @@ check_parasa_repo() {
 		fi
 	fi
 
-	# recipes/ directory structure
+	# repo directory structure (foundations live under foundations/, systems and
+	# containers under recipes/)
 	local dir
-	for dir in recipes recipes/foundations recipes/systems recipes/containers; do
+	for dir in foundations recipes recipes/systems recipes/containers; do
 		if [ -d "${PARASA_DIR}/${dir}" ]; then
 			pass "${dir}/ exists"
 		else
