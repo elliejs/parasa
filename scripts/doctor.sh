@@ -331,7 +331,7 @@ CONF
 
 	# scripts/ directory with key scripts
 	local script
-	for script in helpers.sh workspace.sh new_foundation.sh new_system.sh new_container.sh deploy_system.sh diff.sh save.sh update.sh finalize_update.sh; do
+	for script in helpers.sh workspace.sh new_foundation.sh new_system.sh new_container.sh deploy_system.sh deploy_container.sh diff.sh save.sh update.sh finalize_update.sh doctor.sh menu.sh; do
 		if [ -f "${PARASA_DIR}/scripts/${script}" ]; then
 			pass "scripts/${script}"
 		else
