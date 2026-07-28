@@ -156,19 +156,9 @@ check_foundation_available() {
 	if zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"; then
 		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/foundation.zfs. Use destroy_foundation (future) or pick a new name."
 	fi
-	# Check foundation.git branch (must mount temporarily)
-	if zfs_dataset_exists "zbamidbar/foundation.git"; then
-		local foundation_git_mounted=false
-		if yesish "$(zfs get -H -o value mounted zbamidbar/foundation.git 2>/dev/null)"; then
-			foundation_git_mounted=true
-		else
-			run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
-		fi
-		if [ -d "/zbamidbar/foundation.git/refs" ] && \
-		   git_branch_exists /zbamidbar/foundation.git "${FOUNDATION_NAME}"; then
-			die "Branch '${FOUNDATION_NAME}' already exists in foundation.git."
-		fi
-		$foundation_git_mounted || run zunmount zbamidbar/foundation.git
+	# foundation.git is mounted by main() before we get here
+	if git_branch_exists /zbamidbar/foundation.git "${FOUNDATION_NAME}"; then
+		die "Branch '${FOUNDATION_NAME}' already exists in foundation.git."
 	fi
 }
 
@@ -268,16 +258,16 @@ prepare_workspace() {
 		run zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}"
 	fi
 
-	# Ensure parent dataset exists
-	run ztouch zshemot/buildspace
+	zfs_dataset_exists "zshemot/buildspace" || \
+		die "Dataset zshemot/buildspace not found. Run doctor.sh to repair."
 
 	run zfs create -o mountpoint="/zshemot/buildspace/${FOUNDATION_NAME}" -o canmount=on "zshemot/buildspace/${FOUNDATION_NAME}"
 	run zfs create -o mountpoint="/zshemot/buildspace/${FOUNDATION_NAME}/var" -o canmount=on "zshemot/buildspace/${FOUNDATION_NAME}/var"
+	run zfs create -o mountpoint="/zshemot/buildspace/${FOUNDATION_NAME}/.git" -o canmount=on "zshemot/buildspace/${FOUNDATION_NAME}/.git"
 }
 
 prepare_workspace_git() {
 	progress "Initializing git in workspace"
-	local foundation_git="/zbamidbar/foundation.git"
 	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
 
 	# Pre-flight: verify git can commit (user.name/user.email must resolve).
@@ -288,25 +278,16 @@ prepare_workspace_git() {
 		fi
 	fi
 
-	# Ensure foundation.git is mounted and initialized
-	run zmount zbamidbar/foundation.git "$foundation_git"
-	if [ ! -d "${foundation_git}/refs" ] && ! $DRY_RUN; then
-		run git init --bare -b main "$foundation_git"
-	fi
-
-	# Initialize git in workspace
+	# foundation.git is mounted by main(); .git child dataset is already mounted by prepare_workspace()
 	run git -C "$workspace" init -b main
-	run git -C "$workspace" remote add origin "$foundation_git"
+	run git -C "$workspace" remote add origin /zbamidbar/foundation.git
 
-	# Fetch existing refs (needed for ref awareness, even on first run)
 	if ! $DRY_RUN; then
 		git -C "$workspace" fetch origin 2>/dev/null || true
 	fi
 
-	# Create orphan branch for this foundation
 	run git -C "$workspace" checkout --orphan "${FOUNDATION_NAME}"
 
-	# Clear index (orphan branch starts with whatever was staged)
 	if ! $DRY_RUN; then
 		git -C "$workspace" rm -rf --cached . >/dev/null 2>&1 || true
 	fi
@@ -388,8 +369,10 @@ archive_to_zbamidbar() {
 	# Ensure foundation.zfs is mounted
 	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
-	# Snapshot the build
-	run zfs snapshot -r "${workspace}@${ARTIFACT_NAME}"
+	# Snapshot parent and var only — .git is a child dataset deliberately
+	# excluded from the archive (git state lives in foundation.git).
+	run zfs snapshot "${workspace}@${ARTIFACT_NAME}"
+	run zfs snapshot "${workspace}/var@${ARTIFACT_NAME}"
 
 	# Create destination and send
 	run ztouch "$dest" -p -o mountpoint=none -o canmount=noauto
@@ -419,6 +402,8 @@ wipe_workspace() {
 main() {
 	root_only
 	trap cleanup EXIT
+
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 
 	# Phase 1: Input
 	collect_foundation_name

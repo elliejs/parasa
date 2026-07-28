@@ -271,7 +271,7 @@ create_datasets() {
 	run zfs create -o mountpoint=/containers -o canmount=on  zbereshit/containers
 
 	# -- zshemot --
-	# Note: zshemot/buildspace is transient — created on demand by new_foundation/new_system/new_container, not bootstrap
+	run zfs create -o mountpoint=none -o canmount=noauto  zshemot/buildspace
 	run zfs create -o mountpoint=/zshemot/src.git   -o canmount=noauto  zshemot/src.git
 	run zfs create -o mountpoint=/zshemot/parasa  -o canmount=noauto  zshemot/parasa
 

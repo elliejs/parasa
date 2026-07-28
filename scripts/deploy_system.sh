@@ -162,13 +162,16 @@ deploy() {
 	run zmount "$dest" "$system_mount"
 
 	if ! $DRY_RUN; then
-		# The recv'd dataset includes .git from the foundation build.
-		# Fetch the system branch and check it out.
-		git -C "$system_mount" fetch origin "systems/${SYSTEM_NAME}"
-		git -C "$system_mount" checkout "systems/${SYSTEM_NAME}"
+		if [ ! -d "${system_mount}/.git" ]; then
+			# New archive (no .git child dataset) — fresh init
+			git -C "$system_mount" init -b main
+			git -C "$system_mount" remote add origin /zbamidbar/foundation.git
+		fi
+		git -C "$system_mount" fetch origin
+		git -C "$system_mount" checkout -f "systems/${SYSTEM_NAME}"
 	else
-		printf "  [dry] git -C %s fetch origin systems/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
-		printf "  [dry] git -C %s checkout systems/%s\n" "$system_mount" "$SYSTEM_NAME" >&2
+		printf "  [dry] git -C %s init + fetch + checkout -f systems/%s\n" \
+			"$system_mount" "$SYSTEM_NAME" >&2
 	fi
 
 	run zunmount "$dest"

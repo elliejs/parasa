@@ -163,13 +163,16 @@ deploy() {
 	local container_mount="/containers/${CONTAINER_NAME}"
 
 	if ! $DRY_RUN; then
-		# The recv'd dataset includes .git from the foundation build.
-		# Fetch the container branch and check it out.
-		git -C "$container_mount" fetch origin "containers/${CONTAINER_NAME}"
-		git -C "$container_mount" checkout "containers/${CONTAINER_NAME}"
+		if [ ! -d "${container_mount}/.git" ]; then
+			# New archive (no .git child dataset) — fresh init
+			git -C "$container_mount" init -b main
+			git -C "$container_mount" remote add origin /zbamidbar/foundation.git
+		fi
+		git -C "$container_mount" fetch origin
+		git -C "$container_mount" checkout -f "containers/${CONTAINER_NAME}"
 	else
-		printf "  [dry] git -C %s fetch origin containers/%s\n" "$container_mount" "$CONTAINER_NAME" >&2
-		printf "  [dry] git -C %s checkout containers/%s\n" "$container_mount" "$CONTAINER_NAME" >&2
+		printf "  [dry] git -C %s init + fetch + checkout -f containers/%s\n" \
+			"$container_mount" "$CONTAINER_NAME" >&2
 	fi
 
 	# Create mountpoint directories referenced by mount.fstab.

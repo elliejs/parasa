@@ -267,18 +267,27 @@ main() {
 	run zmount zbamidbar/foundation.git "$foundation_git"
 
 	if ! $DRY_RUN; then
-		# Fetch latest from foundation.git into -new tree
+		# Set up git in -new tree (new archives lack .git)
+		if [ ! -d "${new_root}/.git" ]; then
+			git -C "$new_root" init -b main
+			git -C "$new_root" remote add origin "$foundation_git"
+		fi
 		git -C "$new_root" fetch origin
 
-		# Find the old and new artifact commits
+		# Find the old and new artifact commits (artifact name = commit message)
 		local old_commit new_commit
-		old_commit=$(git -C "$new_root" rev-parse "${OLD_ARTIFACT}" 2>/dev/null) || \
-			old_commit=$(git -C "$new_root" log --all --oneline --grep="$OLD_ARTIFACT" --format=%H | head -1)
-		new_commit=$(git -C "$new_root" rev-parse "${NEW_ARTIFACT}" 2>/dev/null) || \
-			new_commit=$(git -C "$new_root" log --all --oneline --grep="$NEW_ARTIFACT" --format=%H | head -1)
+		old_commit=$(git -C "$new_root" log --all --format=%H --grep="$OLD_ARTIFACT" | head -1)
+		new_commit=$(git -C "$new_root" log --all --format=%H --grep="$NEW_ARTIFACT" | head -1)
 
 		[ -n "$old_commit" ] || die "Cannot find old artifact commit: ${OLD_ARTIFACT}"
 		[ -n "$new_commit" ] || die "Cannot find new artifact commit: ${NEW_ARTIFACT}"
+
+		# Align index with the new foundation working tree
+		git -C "$new_root" checkout -f "$new_commit"
+
+		# Create local workspace branch from remote tracking ref
+		git -C "$new_root" branch "${WS_KIND}s/${WS_NAME}" \
+			"origin/${WS_KIND}s/${WS_NAME}"
 
 		# Rebase the workspace branch onto new artifact
 		if ! git -C "$new_root" rebase --onto "$new_commit" "$old_commit" "${WS_KIND}s/${WS_NAME}"; then

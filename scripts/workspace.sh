@@ -236,15 +236,15 @@ ws_begin() {
 	run zmount zbamidbar/foundation.git "$foundation_git"
 	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
-	# Ensure buildspace parent dataset exists
-	run ztouch zshemot/buildspace -o mountpoint=none -o canmount=noauto
+	zfs_dataset_exists "zshemot/buildspace" || \
+		die "Dataset zshemot/buildspace not found. Run doctor.sh to repair."
 
 	# Destroy any leftover workspace
 	if zfs_dataset_exists "zshemot/buildspace/${WS_NAME}"; then
 		run zfs destroy -r "zshemot/buildspace/${WS_NAME}"
 	fi
 
-	# Recv foundation to workspace
+	# Recv foundation to workspace (archive excludes .git)
 	progress "Receiving foundation to workspace"
 	if ! $DRY_RUN; then
 		local snap
@@ -255,28 +255,22 @@ ws_begin() {
 				"zshemot/buildspace/${WS_NAME}"
 		zfs mount "zshemot/buildspace/${WS_NAME}" 2>/dev/null || true
 		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
-		# Record artifact name in .foundation file
 		printf "%s\n" "$snap" > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"
 	else
 		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/buildspace/%s\n" \
 			"$foundation_archive" "$WS_NAME" >&2
 	fi
 
-	# Git setup
+	# Fresh git init (archive has no .git)
 	progress "Setting up ${WS_KIND} branch"
 	if ! $DRY_RUN; then
-		local current_remote
-		current_remote=$(git -C "$WS_PATH" config remote.origin.url 2>/dev/null || echo "")
-		if [ "$current_remote" != "$foundation_git" ]; then
-			git -C "$WS_PATH" remote set-url origin "$foundation_git" 2>/dev/null || \
-				git -C "$WS_PATH" remote add origin "$foundation_git"
-		fi
+		git -C "$WS_PATH" init -b main
+		git -C "$WS_PATH" remote add origin "$foundation_git"
 		git -C "$WS_PATH" fetch origin
-
-		git -C "$WS_PATH" checkout -b "${WS_KIND}s/${WS_NAME}" \
-			"${FOUNDATION_NAME}"
+		git -C "$WS_PATH" checkout -f -b "${WS_KIND}s/${WS_NAME}" \
+			"origin/${FOUNDATION_NAME}"
 	else
-		printf "  [dry] git -C %s checkout -b %ss/%s %s\n" \
+		printf "  [dry] git -C %s init + checkout -b %ss/%s origin/%s\n" \
 			"$WS_PATH" "$WS_KIND" "$WS_NAME" "$FOUNDATION_NAME" >&2
 	fi
 }
