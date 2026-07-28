@@ -205,45 +205,89 @@ main() {
 	printf "==> Cloning workspace data (%s@%s) for -new...\n" "$data_root" "$data_snap" >&2
 	run zfs snapshot -r "${data_root}@${data_snap}"
 	run ztouch "$new_data_root" -o mountpoint=none -o canmount=noauto
-	local _child
+	# Clone each data child with its target mountpoint set at creation, so it
+	# auto-mounts into the -new tree (a separate `zfs mount` afterwards would
+	# collide with that auto-mount). Live workspace data is untouched.
+	local _child _mp
 	for _child in var usr-local home tmp; do
-		if zfs_dataset_exists "${data_root}/${_child}"; then
-			run zfs clone "${data_root}/${_child}@${data_snap}" "${new_data_root}/${_child}"
-		fi
+		zfs_dataset_exists "${data_root}/${_child}" || continue
+		case "$_child" in
+			var)       _mp="${new_root}/var" ;;
+			usr-local) _mp="${new_root}/usr/local" ;;
+			home)      _mp="${new_root}/home" ;;
+			tmp)       _mp="${new_root}/tmp" ;;
+		esac
+		run mkdir -p "$_mp"
+		run zfs clone -o mountpoint="$_mp" -o canmount=on \
+			"${data_root}/${_child}@${data_snap}" "${new_data_root}/${_child}"
 	done
 
-	printf "==> Mounting -new clone...\n" >&2
-	# Mount the -new data clones over the -new OS clone.
-	mount_new_data() {
-		run zfs set mountpoint="${new_root}/var" "${new_data_root}/var"
-		run zfs mount "${new_data_root}/var"
-		run zfs set mountpoint="${new_root}/usr/local" "${new_data_root}/usr-local"
-		run zfs mount "${new_data_root}/usr-local"
-		if zfs_dataset_exists "${new_data_root}/home"; then
-			run mkdir -p "${new_root}/home"
-			run zfs set mountpoint="${new_root}/home" "${new_data_root}/home"
-			run zfs mount "${new_data_root}/home"
-		fi
-		if zfs_dataset_exists "${new_data_root}/tmp"; then
-			run zfs set mountpoint="${new_root}/tmp" "${new_data_root}/tmp"
-			run zfs mount "${new_data_root}/tmp"
-		fi
-	}
-
+	# Start the -new jail (container) now that its tree + data are in place.
 	case "$WS_KIND" in
-		system)
-			mount_new_data
-			;;
 		container)
-			# Start temporary jail for -new (shares host network stack)
+			printf "==> Starting -new jail...\n" >&2
 			run jail -c name="${WS_NAME}-new" path="$new_root" \
 				host.hostname="${WS_NAME}-new" ip4=inherit ip6=inherit \
 				mount.devfs persist
-			mount_new_data
 			;;
 	esac
 
-	# ── Step 4: Run recipe on -new ───────────────────────────────────────
+	# ── Step 4: Git rebase — replay the admin delta chain FIRST ──────────
+	# The recipe (below) reinstalls packages, which needs the admin's tracked
+	# config (e.g. /etc/resolv.conf) already in place, so the rebase must run
+	# before the recipe, not after.
+	printf "==> Rebasing admin delta chain...\n" >&2
+
+	local foundation_git="/zbamidbar/foundation.git"
+	run zmount zbamidbar/foundation.git "$foundation_git"
+
+	if ! $DRY_RUN; then
+		# Fetch all foundation + workspace branches into the -new tree.
+		git -C "$new_root" fetch origin
+
+		# old_commit = the foundation the workspace forked from (its current
+		# foundation branch); new_commit = the target foundation branch.
+		# Foundation branches are single-commit and uniquely named, so this is
+		# unambiguous -- grepping the artifact string is not, since the
+		# workspace's own save commits also carry it.
+		local old_commit new_commit
+		old_commit=$(git -C "$new_root" rev-parse "origin/${FOUNDATION_NAME}") \
+			|| die "Cannot resolve current foundation branch origin/${FOUNDATION_NAME}"
+		new_commit=$(git -C "$new_root" rev-parse "origin/${TARGET_FOUNDATION}") \
+			|| die "Cannot resolve target foundation branch origin/${TARGET_FOUNDATION}"
+
+		# Check out the workspace's delta branch locally, then replay it onto
+		# the target foundation commit.
+		git -C "$new_root" checkout -B "${WS_KIND}s/${WS_NAME}" "origin/${WS_KIND}s/${WS_NAME}"
+		if ! git -C "$new_root" rebase --onto "$new_commit" "$old_commit"; then
+			if [ "$QUIET" -gt 0 ]; then
+				git -C "$new_root" rebase --abort
+				die "Rebase conflict in quiet mode. Aborting. Old clone untouched."
+			fi
+			printf "\n*** Rebase conflict. Resolve in: %s\n" "$new_root" >&2
+			printf "    Then: git rebase --continue\n" >&2
+			printf "    Or:   git rebase --abort (to cancel update)\n" >&2
+			printf "\n    Press Enter when resolved (or type 'abort'): " >&2
+			local resp
+			while true; do
+				read -r resp || { git -C "$new_root" rebase --abort; die "EOF during rebase"; }
+				case "$resp" in
+					abort*) git -C "$new_root" rebase --abort; die "Rebase aborted by user." ;;
+					*)
+						if git -C "$new_root" rebase --continue 2>/dev/null; then
+							break
+						fi
+						printf "    Still unresolved. Fix conflicts and press Enter: " >&2
+						;;
+				esac
+			done
+		fi
+	else
+		printf "  [dry] git -C %s rebase --onto <%s> <%s> %ss/%s\n" \
+			"$new_root" "$NEW_ARTIFACT" "$OLD_ARTIFACT" "$WS_KIND" "$WS_NAME" >&2
+	fi
+
+	# ── Step 5: Run recipe on -new (config from the rebase is now present) ─
 	printf "==> Running recipe (pre_pkg)...\n" >&2
 	local compose="${RECIPE_DIR}/compose.sh"
 
@@ -290,55 +334,6 @@ main() {
 			fi
 			;;
 	esac
-
-	# ── Step 5: Git rebase ───────────────────────────────────────────────
-	printf "==> Rebasing admin delta chain...\n" >&2
-
-	local foundation_git="/zbamidbar/foundation.git"
-	run zmount zbamidbar/foundation.git "$foundation_git"
-
-	if ! $DRY_RUN; then
-		# Fetch latest from foundation.git into -new tree
-		git -C "$new_root" fetch origin
-
-		# Find the old and new artifact commits
-		local old_commit new_commit
-		old_commit=$(git -C "$new_root" rev-parse "${OLD_ARTIFACT}" 2>/dev/null) || \
-			old_commit=$(git -C "$new_root" log --all --oneline --grep="$OLD_ARTIFACT" --format=%H | head -1)
-		new_commit=$(git -C "$new_root" rev-parse "${NEW_ARTIFACT}" 2>/dev/null) || \
-			new_commit=$(git -C "$new_root" log --all --oneline --grep="$NEW_ARTIFACT" --format=%H | head -1)
-
-		[ -n "$old_commit" ] || die "Cannot find old artifact commit: ${OLD_ARTIFACT}"
-		[ -n "$new_commit" ] || die "Cannot find new artifact commit: ${NEW_ARTIFACT}"
-
-		# Rebase the workspace branch onto new artifact
-		if ! git -C "$new_root" rebase --onto "$new_commit" "$old_commit" "${WS_KIND}s/${WS_NAME}"; then
-			if [ "$QUIET" -gt 0 ]; then
-				git -C "$new_root" rebase --abort
-				die "Rebase conflict in quiet mode. Aborting. Old clone untouched."
-			fi
-			printf "\n*** Rebase conflict. Resolve in: %s\n" "$new_root" >&2
-			printf "    Then: git rebase --continue\n" >&2
-			printf "    Or:   git rebase --abort (to cancel update)\n" >&2
-			printf "\n    Press Enter when resolved (or type 'abort'): " >&2
-			local resp
-			while true; do
-				read -r resp || { git -C "$new_root" rebase --abort; die "EOF during rebase"; }
-				case "$resp" in
-					abort*) git -C "$new_root" rebase --abort; die "Rebase aborted by user." ;;
-					*)
-						if git -C "$new_root" rebase --continue 2>/dev/null; then
-							break
-						fi
-						printf "    Still unresolved. Fix conflicts and press Enter: " >&2
-						;;
-				esac
-			done
-		fi
-	else
-		printf "  [dry] git -C %s rebase --onto <%s> <%s> %ss/%s\n" \
-			"$new_root" "$NEW_ARTIFACT" "$OLD_ARTIFACT" "$WS_KIND" "$WS_NAME" >&2
-	fi
 
 	# ── Step 6: Regenerate derived binaries ──────────────────────────────
 	printf "==> Regenerating derivations...\n" >&2

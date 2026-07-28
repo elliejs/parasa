@@ -359,18 +359,22 @@ commit_build() {
 
 	progress "Committing build to git"
 
-	# Stage everything first (including base var/ files)
-	run git -C "$workspace" add .
-
-	# Create .gitignore: var/, usr/local/, tmp/ — NOT home/
+	# Write .gitignore FIRST, then stage — so the data-lake mount points
+	# (var, usr/local, home, tmp) are never tracked in the foundation tree.
+	# They are separate ZFS datasets mounted over the clone at runtime;
+	# tracking them makes the mounted data shadow tracked files, dirtying the
+	# tree and blocking the update rebase. Base var content still reaches
+	# containers/systems via the data-lake copy, not via git.
 	if ! $DRY_RUN; then
 		cat > "${workspace}/.gitignore" <<-'GITIGNORE'
 		var/
 		usr/local/
+		home/
 		tmp/
 		GITIGNORE
 	fi
 	run git -C "$workspace" add .gitignore
+	run git -C "$workspace" add .
 
 	# Generate mtree baseline into the foundation's config dir (tracked)
 	progress "Generating mtree baseline"
