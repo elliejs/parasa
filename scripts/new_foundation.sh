@@ -423,14 +423,18 @@ archive_to_zbamidbar() {
 	run zfs snapshot "${workspace}@${ARTIFACT_NAME}"
 	run zfs snapshot "${workspace}/var@${ARTIFACT_NAME}"
 
-	# Create destination and send
-	run ztouch "$dest" -p -o mountpoint=none -o canmount=noauto
+	# Send parent and var individually (not -R, which would try to
+	# include .git and fail because it has no matching snapshot).
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "${workspace}@${ARTIFACT_NAME}" | \
+		zfs send "${workspace}@${ARTIFACT_NAME}" | \
 			zfs recv -F -o mountpoint=none -o canmount=noauto "$dest"
+		zfs send "${workspace}/var@${ARTIFACT_NAME}" | \
+			zfs recv -F -o mountpoint=none -o canmount=noauto "${dest}/var"
 	else
-		printf "  [dry] zfs send -R %s@%s | zfs recv -F %s\n" \
+		printf "  [dry] zfs send %s@%s | zfs recv %s\n" \
+			"$workspace" "$ARTIFACT_NAME" "$dest" >&2
+		printf "  [dry] zfs send %s/var@%s | zfs recv %s/var\n" \
 			"$workspace" "$ARTIFACT_NAME" "$dest" >&2
 	fi
 }
