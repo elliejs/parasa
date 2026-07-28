@@ -192,8 +192,21 @@ check_bare_repo() {
 		return
 	fi
 
-	# Dataset exists — verify it's a git repo when mounted
+	# Dataset exists — mount and verify it's actually a git repo
 	pass "$desc dataset exists"
+	zmount "$ds" "$mnt" 2>/dev/null || { warn "Cannot mount $ds to verify"; return; }
+
+	if [ -f "${mnt}/HEAD" ]; then
+		pass "$desc is a git repo"
+	else
+		fail "$desc is not initialized as a git repo"
+		if offer_fix "init bare git repo at $mnt"; then
+			git init --bare -b main "$mnt" || { warn "Failed to init bare repo at $mnt"; return; }
+			fixed "$desc bare repo"
+		fi
+	fi
+
+	zunmount "$ds" 2>/dev/null || true
 }
 
 check_git_repos() {

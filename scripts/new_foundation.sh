@@ -337,7 +337,8 @@ prepare_workspace_git() {
 	run git -C "$workspace" remote add origin /zbamidbar/foundation.git
 
 	if ! $DRY_RUN; then
-		git -C "$workspace" fetch origin 2>/dev/null || true
+		git -C "$workspace" fetch origin 2>/dev/null || \
+			die "Cannot fetch from /zbamidbar/foundation.git. Run doctor.sh to verify setup."
 	fi
 
 	run git -C "$workspace" checkout --orphan "${FOUNDATION_NAME}"
