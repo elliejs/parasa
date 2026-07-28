@@ -23,6 +23,13 @@ root_only() {
 	[ "$(id -u)" -eq 0 ] || die "This script must be run as root."
 }
 
+# ── Recipes directory ────────────────────────────────────────────────────────
+
+# Root of the recipes repository. On deployed systems this is
+# /zshemot/recipes.git (a separate repo from the parasa tool).
+# Override via environment for development/testing.
+RECIPES_DIR="${RECIPES_DIR:-/zshemot/recipes.git}"
+
 # ── Interactive prompts ───────────────────────────────────────────────────────
 
 # Prompt for yes/no. Returns 0 on yes, 1 on no. Empty input = yes.
@@ -255,16 +262,134 @@ prompt_yesno() {
 	done
 }
 
+# ── Fuzzy matching & validated prompts ────────────────────────────────────────
+
+# Suggest matches from a list for a given input.
+# Tries prefix match first, then substring. Prints matches to stderr.
+# Returns 0 if any matches found, 1 if none.
+# Usage: fuzzy_suggest "input" "newline-separated list"
+fuzzy_suggest() {
+	local input="$1" list="$2"
+	local lower_input match_count=0
+
+	# Case-fold input for matching
+	lower_input=$(printf "%s" "$input" | tr '[:upper:]' '[:lower:]')
+
+	# Prefix matches first
+	local line lower_line prefix_matches="" substr_matches=""
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		lower_line=$(printf "%s" "$line" | tr '[:upper:]' '[:lower:]')
+		case "$lower_line" in
+			"${lower_input}"*)
+				prefix_matches="${prefix_matches}${prefix_matches:+
+}${line}"
+				match_count=$((match_count + 1))
+				;;
+			*"${lower_input}"*)
+				substr_matches="${substr_matches}${substr_matches:+
+}${line}"
+				match_count=$((match_count + 1))
+				;;
+		esac
+	done <<-FUZZYIN
+	$(printf "%s\n" "$list")
+	FUZZYIN
+
+	[ "$match_count" -gt 0 ] || return 1
+
+	printf "  Did you mean:\n" >&2
+	if [ -n "$prefix_matches" ]; then
+		printf "%s\n" "$prefix_matches" | while IFS= read -r line; do
+			printf "    %s\n" "$line" >&2
+		done
+	fi
+	if [ -n "$substr_matches" ]; then
+		printf "%s\n" "$substr_matches" | while IFS= read -r line; do
+			printf "    %s\n" "$line" >&2
+		done
+	fi
+	return 0
+}
+
+# List remote branches from a git repo (strips refs/heads/ or origin/ prefix).
+# Usage: list_src_branches /path/to/repo
+list_src_branches() {
+	local repo="$1"
+	git -C "$repo" branch -r 2>/dev/null \
+		| sed 's|^[[:space:]]*origin/||' \
+		| grep -v '^HEAD ' \
+		| sort
+}
+
+# List kernel config files for the current architecture.
+# Usage: list_kernconfs /path/to/src
+list_kernconfs() {
+	local srcdir="$1"
+	local arch
+	arch=$(uname -m 2>/dev/null || printf "amd64")
+	local f
+	for f in "${srcdir}/sys/${arch}/conf"/[A-Z]*; do
+		[ -f "$f" ] && basename "$f"
+	done
+}
+
+# Prompt with validation against a known list of values.
+# Accepts exact matches, '?' to list all options, and offers fuzzy
+# suggestions on mismatch. Falls back to prompt_or_default when the
+# list is empty (e.g. src not populated yet).
+# Usage: prompt_from_list "label" "default" quiet_level "newline-separated list"
+prompt_from_list() {
+	local label="$1" default="$2" quiet="${3:-0}" valid_list="$4"
+
+	# Empty list → can't validate, fall back to free-form
+	if [ -z "$valid_list" ]; then
+		prompt_or_default "$label" "$default" "$quiet"
+		return
+	fi
+
+	# Quiet mode → return default without validation
+	if [ "$quiet" -gt 0 ]; then
+		printf "%s" "$default"
+		return 0
+	fi
+
+	local resp
+	while true; do
+		printf "%s [%s] (? for list): " "$label" "$default" >&2
+		read -r resp || resp=""
+		[ -n "$resp" ] || resp="$default"
+
+		# '?' lists all options
+		if [ "$resp" = "?" ]; then
+			printf "%s\n" "$valid_list" | while IFS= read -r line; do
+				printf "    %s\n" "$line" >&2
+			done
+			continue
+		fi
+
+		# Exact match?
+		if printf "%s\n" "$valid_list" | grep -qxF "$resp"; then
+			printf "%s" "$resp"
+			return 0
+		fi
+
+		# No exact match — try fuzzy
+		printf "  '%s' not found.\n" "$resp" >&2
+		fuzzy_suggest "$resp" "$valid_list" || true
+	done
+}
+
 # List available foundations and prompt for selection.
 # Usage: select_foundation quiet_level
 # Prints the chosen foundation name to stdout.
 select_foundation() {
-	local quiet="${1:-0}" recipes_dir="${PARASA_DIR}/recipes/foundations"
+	local quiet="${1:-0}" recipes_dir="${RECIPES_DIR}/foundations"
 	local name found="" count=0 idx=0
 
-	for d in "$recipes_dir"/*/; do
-		[ -d "$d" ] || continue
-		name=$(basename "$d")
+	for f in "$recipes_dir"/*.conf; do
+		[ -f "$f" ] || continue
+		name=$(basename "$f" .conf)
 		count=$((count + 1))
 		found="$name"
 	done
@@ -287,10 +412,10 @@ select_foundation() {
 
 	printf "Available foundations:\n" >&2
 	idx=0
-	for d in "$recipes_dir"/*/; do
-		[ -d "$d" ] || continue
+	for f in "$recipes_dir"/*.conf; do
+		[ -f "$f" ] || continue
 		idx=$((idx + 1))
-		name=$(basename "$d")
+		name=$(basename "$f" .conf)
 		printf "  %d) %s\n" "$idx" "$name" >&2
 	done
 
@@ -302,11 +427,11 @@ select_foundation() {
 		case "$resp" in
 			[0-9]|[0-9][0-9])
 				local cur=0
-				for d in "$recipes_dir"/*/; do
-					[ -d "$d" ] || continue
+				for f in "$recipes_dir"/*.conf; do
+					[ -f "$f" ] || continue
 					cur=$((cur + 1))
 					if [ "$cur" -eq "$resp" ]; then
-						printf "%s" "$(basename "$d")"
+						printf "%s" "$(basename "$f" .conf)"
 						return 0
 					fi
 				done
@@ -315,7 +440,7 @@ select_foundation() {
 				;;
 		esac
 		# Name given directly
-		if [ -d "${recipes_dir}/${resp}" ]; then
+		if [ -f "${recipes_dir}/${resp}.conf" ]; then
 			printf "%s" "$resp"
 			return 0
 		fi
@@ -342,7 +467,7 @@ get_tree_root() {
 get_recipes_dir() {
 	local kind="${1:?get_recipes_dir: kind required}"
 	local name="${2:?get_recipes_dir: name required}"
-	printf "%s/recipes/%ss/%s" "${PARASA_DIR:?PARASA_DIR not set}" "$kind" "$name"
+	printf "%s/%ss/%s" "${RECIPES_DIR}" "$kind" "$name"
 }
 
 # Detect kind (system or container) from recipes directory existence.
@@ -351,8 +476,8 @@ get_recipes_dir() {
 detect_kind() {
 	local name="${1:?detect_kind: name required}"
 	local is_system=false is_container=false
-	[ -d "${PARASA_DIR}/recipes/systems/${name}" ] && is_system=true
-	[ -d "${PARASA_DIR}/recipes/containers/${name}" ] && is_container=true
+	[ -d "${RECIPES_DIR}/systems/${name}" ] && is_system=true
+	[ -d "${RECIPES_DIR}/containers/${name}" ] && is_container=true
 	if $is_system && $is_container; then
 		die "detect_kind: '${name}' exists as both system and container"
 	fi
@@ -393,7 +518,7 @@ branch_to_version() {
 # Prints version (e.g., "15.0") to stdout.
 get_foundation_version() {
 	local fname="${1:?get_foundation_version: foundation name required}"
-	local build_conf="${PARASA_DIR}/recipes/foundations/${fname}/build.conf"
+	local build_conf="${RECIPES_DIR}/foundations/${fname}.conf"
 	local branch
 	branch=$(msysrc "$build_conf" SRC_BRANCH "stable/15")
 	branch_to_version "$branch"
@@ -539,7 +664,7 @@ get_artifact_name() {
 	[ -d "${repo}/.git" ] || die "get_artifact_name: not a git repo: ${repo}"
 	local name
 	name="$(git -C "$repo" rev-parse --abbrev-ref HEAD | tr '/' '-')"
-	name="${name}_$(date -I)_$(git -C "$repo" rev-parse --short HEAD)"
+	name="${name}_$(git -C "$repo" rev-parse --short HEAD)"
 	[ -n "$suffix" ] && name="${name}_${suffix}"
 	printf "%s" "$name"
 }

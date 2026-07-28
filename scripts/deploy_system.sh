@@ -83,7 +83,7 @@ progress() {
 # ── Resolve foundation and snapshot ─────────────────────────────────────────
 
 resolve_snapshot() {
-	local recipes="${PARASA_DIR}/recipes/systems/${SYSTEM_NAME}"
+	local recipes="${RECIPES_DIR}/systems/${SYSTEM_NAME}"
 	[ -d "$recipes" ] || die "System recipes dir not found: ${recipes}"
 
 	FOUNDATION_NAME=$(get_foundation "$recipes")

@@ -80,7 +80,7 @@ check_available() {
 		container) label="Container" ;;
 		*)         label="$WS_KIND" ;;
 	esac
-	local recipes="${PARASA_DIR}/recipes/${WS_KIND}s/${WS_NAME}"
+	local recipes="${RECIPES_DIR}/${WS_KIND}s/${WS_NAME}"
 	if [ -d "$recipes" ]; then
 		die "${label} '${WS_NAME}' already exists in recipes. Use destroy_${WS_KIND} (future) or pick a new name."
 	fi
@@ -93,8 +93,8 @@ check_available() {
 # Sets FOUNDATION_NAME.
 collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
-		local frecipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
-		[ -d "$frecipes" ] || die "Foundation '${FOUNDATION_NAME}' not found in recipes."
+		local frecipes="${RECIPES_DIR}/foundations/${FOUNDATION_NAME}.conf"
+		[ -f "$frecipes" ] || die "Foundation '${FOUNDATION_NAME}' not found in recipes."
 		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}" || \
 			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/foundation.zfs."
 		return
@@ -134,7 +134,7 @@ collect_build_options() {
 # Create the recipes dir with the five common boilerplate files.
 # Sets WS_RECIPE_DIR.
 create_recipe_boilerplate() {
-	WS_RECIPE_DIR="${PARASA_DIR}/recipes/${WS_KIND}s/${WS_NAME}"
+	WS_RECIPE_DIR="${RECIPES_DIR}/${WS_KIND}s/${WS_NAME}"
 
 	progress "Creating recipes dir: ${WS_RECIPE_DIR}"
 	run mkdir -p "$WS_RECIPE_DIR"

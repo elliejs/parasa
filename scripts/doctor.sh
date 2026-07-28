@@ -28,8 +28,9 @@ Checks:
   2. ZFS pools (zbereshit, zshemot, zbamidbar)
   3. Required datasets under each pool
   4. Git bare repos on zbamidbar (foundation.git, parasa.git)
-  5. Parasa repo integrity (etc/, recipes/, required files)
-  6. Dataset properties (mountpoint=none, canmount=noauto where expected)
+  5. Parasa repo integrity (etc/, required files)
+  6. Recipes repo integrity (foundations/, systems/, containers/, jail.conf)
+  7. Dataset properties (mountpoint=none, canmount=noauto where expected)
 
 Exit codes:
   0  All checks pass (or all repaired)
@@ -163,6 +164,7 @@ check_datasets() {
 
 	# zshemot
 	check_dataset "zshemot/buildspace" "zshemot/buildspace"
+	check_dataset "zshemot/recipes.git" "zshemot/recipes.git"
 
 	# zbamidbar
 	check_dataset "zbamidbar/foundation.zfs" "zbamidbar/foundation.zfs"
@@ -278,42 +280,6 @@ check_parasa_repo() {
 		fi
 	fi
 
-	# recipes/ directory structure
-	local dir
-	for dir in recipes recipes/foundations recipes/systems recipes/containers; do
-		if [ -d "${PARASA_DIR}/${dir}" ]; then
-			pass "${dir}/ exists"
-		else
-			fail "${dir}/ missing"
-			if offer_fix "create ${dir}/"; then
-				mkdir -p "${PARASA_DIR}/${dir}"
-				fixed "${dir}/"
-			fi
-		fi
-	done
-
-	# recipes/jail.conf
-	if [ -f "${PARASA_DIR}/recipes/jail.conf" ]; then
-		pass "recipes/jail.conf exists"
-	else
-		fail "recipes/jail.conf missing"
-		if offer_fix "create default recipes/jail.conf"; then
-			cat > "${PARASA_DIR}/recipes/jail.conf" <<'JAILCONF'
-# jail.conf -- Default jail configuration for parasa containers.
-exec.start = "/bin/sh /etc/rc";
-exec.stop  = "/bin/sh /etc/rc.shutdown";
-exec.clean;
-mount.devfs;
-devfs_ruleset = 4;
-ip4 = inherit;
-ip6 = inherit;
-
-.include "/zshemot/parasa/recipes/containers/*/jail.conf";
-JAILCONF
-			fixed "recipes/jail.conf"
-		fi
-	fi
-
 	# parasa.conf
 	if [ -f "${PARASA_DIR}/parasa.conf" ]; then
 		pass "parasa.conf exists"
@@ -339,6 +305,56 @@ CONF
 			warn "Cannot auto-repair missing scripts. Re-clone the repo."
 		fi
 	done
+}
+
+# ── Check: Recipes repo ───────────────────────────────────────────────────
+
+check_recipes_repo() {
+	printf "\n==> Checking recipes repo (%s)...\n" "$RECIPES_DIR" >&2
+
+	if [ -d "${RECIPES_DIR}/.git" ]; then
+		pass "recipes repo is a git repository"
+	else
+		fail "recipes repo at ${RECIPES_DIR} is not a git repository"
+		warn "Clone parasa-recipes to ${RECIPES_DIR}."
+		return
+	fi
+
+	# Required directories
+	local dir
+	for dir in foundations systems containers; do
+		if [ -d "${RECIPES_DIR}/${dir}" ]; then
+			pass "${dir}/ exists"
+		else
+			fail "${dir}/ missing in recipes"
+			if offer_fix "create ${RECIPES_DIR}/${dir}/"; then
+				mkdir -p "${RECIPES_DIR}/${dir}"
+				fixed "${dir}/"
+			fi
+		fi
+	done
+
+	# jail.conf
+	if [ -f "${RECIPES_DIR}/jail.conf" ]; then
+		pass "jail.conf exists"
+	else
+		fail "jail.conf missing in recipes"
+		if offer_fix "create default jail.conf"; then
+			cat > "${RECIPES_DIR}/jail.conf" <<'JAILCONF'
+# jail.conf -- Default jail configuration for parasa containers.
+exec.start = "/bin/sh /etc/rc";
+exec.stop  = "/bin/sh /etc/rc.shutdown";
+exec.clean;
+mount.devfs;
+devfs_ruleset = 4;
+ip4 = inherit;
+ip6 = inherit;
+
+.include "/zshemot/recipes.git/containers/*/jail.conf";
+JAILCONF
+			fixed "jail.conf"
+		fi
+	fi
 }
 
 # ── Check: Dataset properties ──────────────────────────────────────────────
@@ -439,6 +455,7 @@ main() {
 	check_git_repos
 	check_src_tree
 	check_parasa_repo
+	check_recipes_repo
 	check_dataset_props
 
 	print_summary

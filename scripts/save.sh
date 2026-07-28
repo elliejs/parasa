@@ -3,7 +3,7 @@
 #
 # Performs two commits:
 #   1. State commit: git add -A in the tree root, commit with artifact + message
-#   2. Recipe commit: git add recipes/{kind}s/{name}/ in PARASA_DIR
+#   2. Recipe commit: git add {kind}s/{name}/ in RECIPES_DIR
 #
 # See plans/rebase_pipeline.md Phase 3 for the full design.
 set -eu
@@ -139,10 +139,10 @@ main() {
 ${COMMIT_MSG}"
 	run git -C "$TREE_ROOT" push origin "${WS_KIND}s/${WS_NAME}"
 
-	# Step 6: Commit recipe in PARASA_DIR
+	# Step 6: Commit recipe in recipes repo
 	printf "==> Committing recipe...\n" >&2
-	run git -C "$PARASA_DIR" add "recipes/${WS_KIND}s/${WS_NAME}/"
-	run git -C "$PARASA_DIR" commit -m "${WS_NAME}: ${COMMIT_MSG}"
+	run git -C "$RECIPES_DIR" add "${WS_KIND}s/${WS_NAME}/"
+	run git -C "$RECIPES_DIR" commit -m "${WS_NAME}: ${COMMIT_MSG}"
 
 	run zunmount zbamidbar/foundation.git
 

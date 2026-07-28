@@ -79,7 +79,7 @@ progress() {
 # ── Resolve foundation and snapshot ─────────────────────────────────────────
 
 resolve_snapshot() {
-	local recipes="${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}"
+	local recipes="${RECIPES_DIR}/containers/${CONTAINER_NAME}"
 	[ -d "$recipes" ] || die "Container recipes dir not found: ${recipes}"
 
 	FOUNDATION_NAME=$(get_foundation "$recipes")
@@ -191,7 +191,7 @@ deploy() {
 # missing.
 ensure_mount_destinations() {
 	local root="$1"
-	local fstab="${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}/mount.fstab"
+	local fstab="${RECIPES_DIR}/containers/${CONTAINER_NAME}/mount.fstab"
 	[ -f "$fstab" ] || return 0
 
 	progress "Ensuring mount destinations exist"

@@ -3,7 +3,7 @@
 #
 # A foundation is a pristine build that systems and containers branch from.
 # Build config (SRC_BRANCH, KERNCONF, MAKE_JOBS) is collected interactively
-# or via flags and stored in recipes/foundations/<name>/build.conf.
+# or via flags and stored in recipes/foundations/<name>.conf.
 #
 # See plans/build_system.md for the full design.
 set -eu
@@ -46,7 +46,7 @@ Examples:
 
 Execution flow:
   1. Collect foundation name and build config
-  2. Create recipes/foundations/<name>/build.conf
+  2. Create recipes/foundations/<name>.conf
   3. Ensure FreeBSD source tree is ready (zshemot/src.git)
   4. Create transient build workspace (zshemot/buildspace/<name>)
   5. Build world + kernel (five make targets)
@@ -139,11 +139,11 @@ collect_foundation_name() {
 	fi
 
 	# List existing foundation recipes that haven't been built yet
-	local recipes_dir="${PARASA_DIR}/recipes/foundations"
+	local recipes_dir="${RECIPES_DIR}/foundations"
 	local idx=0 name
-	for d in "$recipes_dir"/*/; do
-		[ -d "$d" ] || continue
-		name=$(basename "$d")
+	for f in "$recipes_dir"/*.conf; do
+		[ -f "$f" ] || continue
+		name=$(basename "$f" .conf)
 		# Skip already-archived foundations
 		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
 		idx=$((idx + 1))
@@ -159,9 +159,9 @@ collect_foundation_name() {
 		case "$resp" in
 			[0-9]|[0-9][0-9])
 				local cur=0
-				for d in "$recipes_dir"/*/; do
-					[ -d "$d" ] || continue
-					name=$(basename "$d")
+				for f in "$recipes_dir"/*.conf; do
+					[ -f "$f" ] || continue
+					name=$(basename "$f" .conf)
 					zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
 					cur=$((cur + 1))
 					if [ "$cur" -eq "$resp" ]; then
@@ -193,11 +193,18 @@ check_foundation_available() {
 }
 
 resolve_build_config() {
-	local build_conf="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}/build.conf"
+	local build_conf="${RECIPES_DIR}/foundations/${FOUNDATION_NAME}.conf"
 	local default_jobs
 	default_jobs=$(sysctl -n hw.ncpu 2>/dev/null || printf "4")
 
-	# Determine defaults: -o overrides > parasa.conf > hardcoded
+	# Record original values from existing recipe (for change detection)
+	local orig_branch="" orig_kernconf=""
+	if [ -f "$build_conf" ]; then
+		orig_branch=$(msysrc "$build_conf" SRC_BRANCH "")
+		orig_kernconf=$(msysrc "$build_conf" KERNCONF "")
+	fi
+
+	# Determine defaults: -o overrides > build.conf > parasa.conf > hardcoded
 	local def_branch="${OPT_SRC_BRANCH}"
 	local def_kernconf="${OPT_KERNCONF}"
 	local def_jobs="${OPT_MAKE_JOBS}"
@@ -206,9 +213,38 @@ resolve_build_config() {
 	[ -n "$def_kernconf" ] || def_kernconf=$(msysrc "$build_conf" KERNCONF "GENERIC")
 	[ -n "$def_jobs" ] || def_jobs=$(msysrc "$build_conf" MAKE_JOBS "$default_jobs")
 
-	SRC_BRANCH=$(prompt_or_default "Source branch" "$def_branch" "$QUIET")
-	KERNCONF=$(prompt_or_default "Kernel config" "$def_kernconf" "$QUIET")
+	# Build validation lists (gracefully empty if src not populated yet)
+	local branch_list="" kernconf_list=""
+	if [ -d "/zshemot/src.git/.git" ]; then
+		branch_list=$(list_src_branches /zshemot/src.git)
+		kernconf_list=$(list_kernconfs /zshemot/src.git)
+	fi
+
+	SRC_BRANCH=$(prompt_from_list "Source branch" "$def_branch" "$QUIET" "$branch_list")
+	KERNCONF=$(prompt_from_list "Kernel config" "$def_kernconf" "$QUIET" "$kernconf_list")
 	MAKE_JOBS=$(prompt_or_default "Parallel jobs" "$def_jobs" "$QUIET")
+
+	# Recipe change detection: if an existing recipe's key values changed,
+	# prompt the user to rename or confirm overwrite.
+	if [ -n "$orig_branch" ] && [ "$QUIET" -eq 0 ]; then
+		local changed=false
+		[ "$SRC_BRANCH" != "$orig_branch" ] && changed=true
+		[ -n "$orig_kernconf" ] && [ "$KERNCONF" != "$orig_kernconf" ] && changed=true
+
+		if $changed; then
+			printf "\nWARNING: Build config differs from existing recipe '%s'.\n" "$FOUNDATION_NAME" >&2
+			printf "  Original: SRC_BRANCH=%s  KERNCONF=%s\n" "$orig_branch" "${orig_kernconf:-GENERIC}" >&2
+			printf "  New:      SRC_BRANCH=%s  KERNCONF=%s\n" "$SRC_BRANCH" "$KERNCONF" >&2
+			printf "Enter a new foundation name (or 'keep' to overwrite): " >&2
+			local resp
+			read -r resp || resp="keep"
+			if [ "$resp" != "keep" ] && [ -n "$resp" ]; then
+				validate_name "$resp" "Foundation name" || die "Invalid name."
+				FOUNDATION_NAME="$resp"
+				check_foundation_available
+			fi
+		fi
+	fi
 }
 
 print_summary() {
@@ -223,39 +259,35 @@ print_summary() {
 
 # ── Phase 2: Preparation ───────────────────────────────────────────────────
 
-create_recipe_dir() {
-	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
-	progress "Creating recipes dir: ${recipes}"
-	run mkdir -p "$recipes"
+create_recipe_conf() {
+	local conf="${RECIPES_DIR}/foundations/${FOUNDATION_NAME}.conf"
+	progress "Writing recipe: ${conf}"
 
-	# Write build.conf
 	if ! $DRY_RUN; then
-		cat > "${recipes}/build.conf" <<-EOF
-		# build.conf for foundation: ${FOUNDATION_NAME}
-		# Per-foundation overrides. Falls back to parasa.conf.
+		cat > "$conf" <<-EOF
 		SRC_BRANCH="${SRC_BRANCH}"
 		KERNCONF="${KERNCONF}"
 		MAKE_JOBS="${MAKE_JOBS}"
 		EOF
 	else
-		printf "  [dry] write %s/build.conf\n" "$recipes" >&2
+		printf "  [dry] write %s\n" "$conf" >&2
 	fi
 
 	# Offer $EDITOR in interactive mode
 	if [ "$QUIET" -eq 0 ] && [ -n "${EDITOR:-}" ]; then
-		if confirm "Open foundation directory in \$EDITOR before building?"; then
-			"$EDITOR" "$recipes"
+		if confirm "Open recipe in \$EDITOR before building?"; then
+			"$EDITOR" "$conf"
 			# Re-read config in case user changed it
-			SRC_BRANCH=$(msysrc "${recipes}/build.conf" SRC_BRANCH "$SRC_BRANCH")
-			KERNCONF=$(msysrc "${recipes}/build.conf" KERNCONF "$KERNCONF")
-			MAKE_JOBS=$(msysrc "${recipes}/build.conf" MAKE_JOBS "$MAKE_JOBS")
+			SRC_BRANCH=$(msysrc "$conf" SRC_BRANCH "$SRC_BRANCH")
+			KERNCONF=$(msysrc "$conf" KERNCONF "$KERNCONF")
+			MAKE_JOBS=$(msysrc "$conf" MAKE_JOBS "$MAKE_JOBS")
 		fi
 	fi
 }
 
 ensure_src_tree() {
 	progress "Preparing source tree (zshemot/src.git)"
-	run zmount zshemot/src.git /zshemot/src.git
+	# src.git is already mounted by main() for early branch validation.
 
 	if [ ! -d "/zshemot/src.git/.git" ]; then
 		if [ "$QUIET" -eq 0 ]; then
@@ -350,7 +382,6 @@ run_build() {
 
 commit_build() {
 	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
-	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
 
 	progress "Committing build to git"
 
@@ -366,14 +397,6 @@ commit_build() {
 		GITIGNORE
 	fi
 	run git -C "$workspace" add .gitignore
-
-	# Generate mtree
-	progress "Generating mtree baseline"
-	if ! $DRY_RUN; then
-		generate_mtree "$workspace" "$recipes" "${PARASA_DIR}/etc/mtree.ignore"
-	else
-		printf "  [dry] generate_mtree %s %s %s\n" "$workspace" "$recipes" "${PARASA_DIR}/etc/mtree.ignore" >&2
-	fi
 
 	# Build artifact name
 	if ! $DRY_RUN; then
@@ -434,6 +457,7 @@ main() {
 	trap cleanup EXIT
 
 	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
+	run zmount zshemot/src.git /zshemot/src.git
 
 	# Phase 1: Input
 	collect_foundation_name
@@ -445,7 +469,7 @@ main() {
 	fi
 
 	# Phase 2: Preparation
-	create_recipe_dir
+	create_recipe_conf
 	ensure_src_tree
 	prepare_workspace
 	prepare_workspace_git

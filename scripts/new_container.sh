@@ -172,7 +172,7 @@ create_container_recipe_extras() {
 		${CONTAINER_NAME} {
 		    host.hostname = "${CONTAINER_NAME}";
 		    path = "/containers/${CONTAINER_NAME}";
-		    mount.fstab = "${PARASA_DIR}/recipes/containers/${CONTAINER_NAME}/mount.fstab";
+		    mount.fstab = "${RECIPES_DIR}/containers/${CONTAINER_NAME}/mount.fstab";
 		}
 		JAILCONF
 	else

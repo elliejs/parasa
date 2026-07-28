@@ -272,8 +272,9 @@ create_datasets() {
 
 	# -- zshemot --
 	run zfs create -o mountpoint=none -o canmount=noauto  zshemot/buildspace
-	run zfs create -o mountpoint=/zshemot/src.git   -o canmount=noauto  zshemot/src.git
-	run zfs create -o mountpoint=/zshemot/parasa  -o canmount=noauto  zshemot/parasa
+	run zfs create -o mountpoint=/zshemot/src.git      -o canmount=noauto  zshemot/src.git
+	run zfs create -o mountpoint=/zshemot/parasa      -o canmount=noauto  zshemot/parasa
+	run zfs create -o mountpoint=/zshemot/recipes.git -o canmount=noauto  zshemot/recipes.git
 
 	# -- zbamidbar --
 	run zfs create -o mountpoint=none -o canmount=noauto  zbamidbar/container-data
