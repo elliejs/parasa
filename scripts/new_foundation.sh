@@ -40,8 +40,8 @@ Modes:
 
 Examples:
   new_foundation                           Interactive build
-  new_foundation -s stable15 -d            Dry-run with name pre-set
-  new_foundation -s stable15 -qq           Fully silent build
+  new_foundation -s 15stable -d             Dry-run with name pre-set
+  new_foundation -s 15stable -qq            Fully silent build
   new_foundation -s custom -o kernconf=MYKERNEL -o make_jobs=8
 
 Execution flow:
@@ -108,10 +108,22 @@ progress() {
 
 # ── Cleanup trap ────────────────────────────────────────────────────────────
 
+# Set to true after run_build completes. If the build finished but a
+# later step (commit/archive) fails, destroying hours of work is worse
+# than leaving the workspace for manual recovery.
+BUILD_COMPLETE=false
+
 cleanup() {
 	if [ -n "$FOUNDATION_NAME" ] && zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}"; then
-		printf "Cleaning up transient zshemot/buildspace/%s...\n" "$FOUNDATION_NAME" >&2
-		zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
+		if $BUILD_COMPLETE; then
+			printf "\nWARNING: Build completed but a later step failed.\n" >&2
+			printf "Workspace preserved at zshemot/buildspace/%s for manual recovery.\n" >&2
+			printf "To retry the commit/archive phase, re-run with the same name.\n" >&2
+			printf "To discard: zfs destroy -r zshemot/buildspace/%s\n" "$FOUNDATION_NAME" >&2
+		else
+			printf "Cleaning up transient zshemot/buildspace/%s...\n" "$FOUNDATION_NAME" >&2
+			zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
+		fi
 	fi
 }
 
@@ -268,6 +280,14 @@ prepare_workspace_git() {
 	local foundation_git="/zbamidbar/foundation.git"
 	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
 
+	# Pre-flight: verify git can commit (user.name/user.email must resolve).
+	# Fail fast here rather than after hours of buildworld/buildkernel.
+	if ! $DRY_RUN; then
+		if ! git config user.email >/dev/null 2>&1; then
+			die "No git user.email configured. Set it with: git config --global user.email 'you@example.com' && git config --global user.name 'Your Name'"
+		fi
+	fi
+
 	# Ensure foundation.git is mounted and initialized
 	run zmount zbamidbar/foundation.git "$foundation_git"
 	if [ ! -d "${foundation_git}/refs" ] && ! $DRY_RUN; then
@@ -372,10 +392,11 @@ archive_to_zbamidbar() {
 	run zfs snapshot -r "${workspace}@${ARTIFACT_NAME}"
 
 	# Create destination and send
-	run ztouch "$dest" -o mountpoint=none -o canmount=noauto
+	run ztouch "$dest" -p -o mountpoint=none -o canmount=noauto
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "${workspace}@${ARTIFACT_NAME}" | zfs recv -F "$dest"
+		zfs send -R "${workspace}@${ARTIFACT_NAME}" | \
+			zfs recv -F -o mountpoint=none -o canmount=noauto "$dest"
 	else
 		printf "  [dry] zfs send -R %s@%s | zfs recv -F %s\n" \
 			"$workspace" "$ARTIFACT_NAME" "$dest" >&2
@@ -416,6 +437,7 @@ main() {
 
 	# Phase 3: Build
 	run_build
+	BUILD_COMPLETE=true
 
 	# Phase 4: Track
 	commit_build
@@ -431,6 +453,20 @@ main() {
 	printf "  Artifact: %s\n" "$ARTIFACT_NAME" >&2
 	printf "  Branch:   %s\n" "$FOUNDATION_NAME" >&2
 	printf "  Archive:  zbamidbar/foundation.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
+
+	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
+		printf "\nCreate a workspace from this foundation?\n" >&2
+		printf "  1) Container (jail)\n" >&2
+		printf "  2) System\n" >&2
+		printf "  q) Quit\n" >&2
+		printf "  > " >&2
+		local resp
+		read -r resp || resp=""
+		case "$resp" in
+			1) exec sh "${SCRIPT_DIR}/new_container.sh" -f "$FOUNDATION_NAME" ;;
+			2) exec sh "${SCRIPT_DIR}/new_system.sh" -f "$FOUNDATION_NAME" ;;
+		esac
+	fi
 }
 
 main

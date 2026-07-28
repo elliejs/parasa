@@ -60,19 +60,41 @@ run() {
 
 # ── Running-disk detection ────────────────────────────────────────────────────
 
-# Return the base disk name (no /dev/, no .eli, no partition suffix) that
-# holds the currently running root filesystem.
+# Return the base disk name(s) (no /dev/, no .eli, no partition suffix) that
+# hold the currently running root filesystem.  On ZFS-root systems
+# df(1) reports a dataset name, not a device path, so we resolve
+# the backing provider(s) via zpool status instead.
+# Prints one disk name per line (mirrors may have more than one).
 running_disk() {
-	local dev
+	local dev pool
 	dev=$(df / | tail -1 | awk '{print $1}')
-	dev="${dev#/dev/}"
-	dev="${dev%.eli}"
-	printf "%s" "$dev" | sed -E 's/(p[0-9]+|s[0-9]+[a-z]?)$//'
+
+	case "$dev" in
+		/dev/*)
+			# UFS: strip /dev/, .eli suffix, and partition suffix
+			dev="${dev#/dev/}"
+			dev="${dev%.eli}"
+			printf "%s\n" "$dev" | sed -E 's/(p[0-9]+|s[0-9]+[a-z]?)$//'
+			;;
+		*)
+			# ZFS dataset (e.g. zroot/ROOT/default) — extract pool name
+			pool="${dev%%/*}"
+			# List ONLINE leaf vdevs from zpool status, strip GELI/partition
+			# suffixes to recover the base disk name.
+			zpool status "$pool" \
+				| awk '/state:/ { found=1 } found && /ONLINE/ { print $1 }' \
+				| grep -vE '^(pool:|state:|NAME|'"$pool"')$' \
+				| sed -E 's/\.eli$//; s/(p[0-9]+|s[0-9]+[a-z]?)$//' \
+				| sort -u
+			;;
+	esac
 }
 
 # Die if the given disk is the running system disk.
 assert_not_running() {
-	[ "$1" != "$(running_disk)" ] || \
+	local running
+	running=$(running_disk)
+	printf "%s\n" "$running" | grep -qxF "$1" && \
 		die "Disk '$1' is the running system disk. Refusing to continue."
 }
 
@@ -100,7 +122,7 @@ prompt_disk() {
 			printf "  /dev/%s not found.\n" "$disk" >&2
 			continue
 		fi
-		if [ "$disk" = "$(running_disk)" ]; then
+		if running_disk | grep -qxF "$disk"; then
 			printf "  /dev/%s is the running system disk.\n" "$disk" >&2
 			continue
 		fi
@@ -139,7 +161,7 @@ prompt_disk_list() {
 			printf "  /dev/%s not found.\n" "$disk" >&2
 			continue
 		fi
-		if [ "$disk" = "$(running_disk)" ]; then
+		if running_disk | grep -qxF "$disk"; then
 			printf "  /dev/%s is the running system disk.\n" "$disk" >&2
 			continue
 		fi
@@ -389,4 +411,9 @@ ATTACHED_GELI=""
 printf "\n=== Stage 0 complete ===\n"
 printf "Pools: zbereshit, zshemot, zbamidbar\n"
 printf "Dataset hierarchy initialized.\n"
-printf "Next: stage1-build-upgrade.sh\n"
+
+if [ -t 0 ] && confirm "Build a foundation now?"; then
+	exec sh "${SCRIPT_DIR}/new_foundation.sh"
+else
+	printf "Next: new_foundation.sh\n"
+fi

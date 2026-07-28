@@ -210,7 +210,9 @@ main() {
 	else
 		printf "\nSystem '%s' deployed to zbereshit/systems/%s.\n" \
 			"$SYSTEM_NAME" "$SYSTEM_NAME" >&2
-		printf "Use -n to set it as the next boot target.\n" >&2
+		if [ -t 0 ] && confirm "Set as next boot target?"; then
+			set_nextboot
+		fi
 	fi
 
 	# Cleanup mounts

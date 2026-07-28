@@ -41,7 +41,7 @@ Options:
 
 Unlike new_system, there is no -b (deploy/nextboot) flag. Containers are
 deployed to zbereshit/containers/ and started via jail(8). Use
-deploy_container (future) or jail(8) directly.
+deploy_container to populate the container root, then jail(8) to start.
 
 Modes:
   Interactive      No -s flag. All questions asked.
@@ -56,9 +56,9 @@ starting the container.
 
 Examples:
   new_container                                  Interactive
-  new_container -s nginx -f stable15             Semi-interactive
-  new_container -s postgres -f stable15 -qq      Fully silent
-  new_container -s myapp -f stable15 -o user_homes=app
+  new_container -s nginx -f 15stable              Semi-interactive
+  new_container -s postgres -f 15stable -qq       Fully silent
+  new_container -s myapp -f 15stable -o user_homes=app
 
 Execution flow:
   1. Collect container name and foundation
@@ -228,7 +228,16 @@ main() {
 	printf "  Recipe:     recipes/containers/%s/\n" "$CONTAINER_NAME" >&2
 	printf "  Branch:     containers/%s\n" "$CONTAINER_NAME" >&2
 	printf "  jail.conf:  recipes/containers/%s/jail.conf\n" "$CONTAINER_NAME" >&2
-	printf "\nEdit jail.conf and use jail(8) to start the container.\n" >&2
+
+	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
+		if confirm "Deploy container now?"; then
+			exec sh "${SCRIPT_DIR}/deploy_container.sh" -s "$CONTAINER_NAME"
+		else
+			printf "When ready: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
+		fi
+	else
+		printf "\nNext: deploy_container -s %s\n" "$CONTAINER_NAME" >&2
+	fi
 }
 
 main

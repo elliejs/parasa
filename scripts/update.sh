@@ -381,7 +381,7 @@ main() {
 
 	_UPDATE_STARTED=""  # Clear so cleanup trap doesn't fire
 
-	if [ "$QUIET" -eq 0 ]; then
+	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
 		printf "\nStop the old %s and try the new one? [y/N]: " "$WS_KIND" >&2
 		local resp
 		read -r resp || resp=""
@@ -390,11 +390,17 @@ main() {
 				case "$WS_KIND" in
 					container) run jail -r "$WS_NAME" ;;
 				esac
-				printf "Old %s stopped. Run: finalize_update.sh -s %s -k %s\n" \
-					"$WS_KIND" "$WS_NAME" "$WS_KIND" >&2
+				trap - EXIT
+				if confirm "Finalize update now?"; then
+					exec sh "${SCRIPT_DIR}/finalize_update.sh" -s "$WS_NAME" -k "$WS_KIND"
+				else
+					printf "When ready: finalize_update.sh -s %s -k %s\n" \
+						"$WS_NAME" "$WS_KIND" >&2
+				fi
+				return
 				;;
 			*)
-				printf "When ready, run: finalize_update.sh -s %s -k %s\n" \
+				printf "When ready: finalize_update.sh -s %s -k %s\n" \
 					"$WS_NAME" "$WS_KIND" >&2
 				;;
 		esac

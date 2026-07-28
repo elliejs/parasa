@@ -51,9 +51,9 @@ Home and tmp are optional (asked in interactive mode).
 
 Examples:
   new_system                                     Interactive
-  new_system -s wonderland -f stable15           Semi-interactive
-  new_system -s testbox -f stable15 -qbb         Quiet, deploy + nextboot
-  new_system -s dev -f stable15 -o home_dataset=no -o user_homes=alice,bob
+  new_system -s wonderland -f 15stable            Semi-interactive
+  new_system -s testbox -f 15stable -qbb          Quiet, deploy + nextboot
+  new_system -s dev -f 15stable -o home_dataset=no -o user_homes=alice,bob
 
 Execution flow:
   1. Collect system name and foundation
@@ -239,11 +239,13 @@ main() {
 	printf "  Branch:     systems/%s\n" "$SYSTEM_NAME" >&2
 
 	# Phase 4: Deploy (optional)
-	if [ "$BOOT" -gt 0 ] || { [ "$QUIET" -eq 0 ] && confirm "Deploy system now?"; }; then
+	if [ "$BOOT" -gt 0 ] || { [ "$QUIET" -eq 0 ] && [ -t 0 ] && confirm "Deploy system now?"; }; then
 		local deploy_flags="-s ${SYSTEM_NAME}"
 		$DRY_RUN && deploy_flags="${deploy_flags} -d"
 		[ "$BOOT" -gt 1 ] && deploy_flags="${deploy_flags} -n"
-		sh "${SCRIPT_DIR}/deploy_system.sh" $deploy_flags
+		exec sh "${SCRIPT_DIR}/deploy_system.sh" $deploy_flags
+	elif [ "$QUIET" -eq 0 ]; then
+		printf "When ready: deploy_system -s %s\n" "$SYSTEM_NAME" >&2
 	fi
 }
 

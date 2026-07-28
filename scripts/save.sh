@@ -97,6 +97,9 @@ run() {
 # ── Main ────────────────────────────────────────────────────────────────────
 
 main() {
+	# Ensure foundation.git is mounted before we try to push to it as origin.
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
+
 	# Step 1: Run diff (quiet mode)
 	if ! $DRY_RUN; then
 		printf "==> Running diff check...\n" >&2
@@ -110,10 +113,10 @@ main() {
 	printf "==> Capturing package list...\n" >&2
 	case "$WS_KIND" in
 		system)
-			run chroot "$TREE_ROOT" pkg info -o > "${RECIPE_DIR}/pkg.list"
+			run chroot "$TREE_ROOT" pkg info -a -o > "${RECIPE_DIR}/pkg.list"
 			;;
 		container)
-			run pkg -j "$WS_NAME" info -o > "${RECIPE_DIR}/pkg.list"
+			run pkg -j "$WS_NAME" info -a -o > "${RECIPE_DIR}/pkg.list"
 			;;
 	esac
 
@@ -140,6 +143,8 @@ ${COMMIT_MSG}"
 	printf "==> Committing recipe...\n" >&2
 	run git -C "$PARASA_DIR" add "recipes/${WS_KIND}s/${WS_NAME}/"
 	run git -C "$PARASA_DIR" commit -m "${WS_NAME}: ${COMMIT_MSG}"
+
+	run zunmount zbamidbar/foundation.git
 
 	printf "==> Save complete.\n" >&2
 }

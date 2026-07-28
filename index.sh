@@ -29,3 +29,31 @@ parasa_new_container() {
 parasa_deploy_system() {
 	sh "${PARASA_DIR}/scripts/deploy_system.sh" "$@"
 }
+
+parasa_deploy_container() {
+	sh "${PARASA_DIR}/scripts/deploy_container.sh" "$@"
+}
+
+parasa_diff() {
+	sh "${PARASA_DIR}/scripts/diff.sh" "$@"
+}
+
+parasa_save() {
+	sh "${PARASA_DIR}/scripts/save.sh" "$@"
+}
+
+parasa_update() {
+	sh "${PARASA_DIR}/scripts/update.sh" "$@"
+}
+
+parasa_finalize_update() {
+	sh "${PARASA_DIR}/scripts/finalize_update.sh" "$@"
+}
+
+parasa_doctor() {
+	sh "${PARASA_DIR}/scripts/doctor.sh" "$@"
+}
+
+parasa() {
+	sh "${PARASA_DIR}/scripts/menu.sh" "$@"
+}
