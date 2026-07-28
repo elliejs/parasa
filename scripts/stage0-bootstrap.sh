@@ -267,6 +267,10 @@ create_datasets() {
 	printf "\n=== Creating dataset hierarchy ===\n"
 
 	# -- zbereshit --
+	# foundations/ is the "available foundations" mirror: materialized (full
+	# or incremental send from the zbamidbar archive) and cloned by
+	# deploy/update. systems/ and containers/ hold the CoW clones.
+	run zfs create -o mountpoint=none -o canmount=noauto  zbereshit/foundations
 	run zfs create -o mountpoint=none -o canmount=noauto  zbereshit/systems
 	run zfs create -o mountpoint=/containers -o canmount=on  zbereshit/containers
 

@@ -553,3 +553,56 @@ get_current_artifact() {
 		| head -n 1 \
 		| cut -d '@' -f 2
 }
+
+# ── Foundation materialization on zbereshit ──────────────────────────────────
+#
+# Foundations live on the boot pool as an incremental tree
+# (zbereshit/foundations/<name>): the first artifact of a branch is a full
+# send from the zbamidbar archive; later artifacts of the SAME branch are
+# incremental sends. Different branches/versions are separate datasets (no
+# incremental between them — each starts with its own full send). Containers
+# and systems are then `zfs clone`s of a foundation snapshot here.
+#
+# Ensures zbereshit/foundations/<foundation>@<artifact> exists, sending it up
+# from the zbamidbar archive if needed. Non-recursive: only the parent OS tree
+# is materialized (var/usr-local/etc. come from the data-lake datasets mounted
+# over the clone at runtime). Honors DRY_RUN + run() from the calling script.
+ensure_foundation_on_zbereshit() {
+	local foundation="${1:?ensure_foundation_on_zbereshit: foundation required}"
+	local artifact="${2:?ensure_foundation_on_zbereshit: artifact required}"
+	local archive="zbamidbar/foundation.zfs/foundations/${foundation}"
+	local dest="zbereshit/foundations/${foundation}"
+
+	zfs_dataset_exists "$archive" || \
+		die "Foundation archive not found: ${archive}"
+
+	# Already materialized at this artifact? Nothing to do.
+	if zfs list -H -t snapshot -o name "${dest}@${artifact}" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	run ztouch zbereshit/foundations -o mountpoint=none -o canmount=noauto
+
+	if zfs_dataset_exists "$dest"; then
+		# Existing branch dataset: incremental from its newest snapshot (which
+		# must also exist on the archive) up to the requested artifact.
+		local prev
+		prev=$(get_current_artifact "$dest")
+		[ -n "$prev" ] || die "No base snapshot on ${dest} to increment from."
+		printf "==> Incremental send %s: %s -> %s\n" "$foundation" "$prev" "$artifact" >&2
+		if ! $DRY_RUN; then
+			zfs send -i "@${prev}" "${archive}@${artifact}" | zfs recv "$dest"
+		else
+			printf "  [dry] zfs send -i @%s %s@%s | zfs recv %s\n" "$prev" "$archive" "$artifact" "$dest" >&2
+		fi
+	else
+		# First artifact of this branch: full send.
+		printf "==> Full send %s@%s -> zbereshit/foundations\n" "$foundation" "$artifact" >&2
+		if ! $DRY_RUN; then
+			zfs send "${archive}@${artifact}" | \
+				zfs recv -o mountpoint=none -o canmount=noauto "$dest"
+		else
+			printf "  [dry] zfs send %s@%s | zfs recv %s\n" "$archive" "$artifact" "$dest" >&2
+		fi
+	fi
+}

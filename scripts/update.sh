@@ -1,5 +1,12 @@
 #!/bin/sh
-# update.sh -- Rebase a workspace onto a new foundation patch level.
+# update.sh -- Update a container/system by re-cloning onto a foundation.
+#
+# Ideology: containers/systems are shallow (CoW) clones of a foundation
+# snapshot on zbereshit. "Updating" is therefore just cloning a (possibly
+# DIFFERENT) foundation into {kind}s/${NAME}-new and replaying the admin
+# delta chain on top. This works across versions/branches for free — the
+# clone source is any materialized foundation, not an incremental send from
+# the workspace's current foundation.
 #
 # Core principle: NEVER destroy the running clone during update.
 # Builds {kind}s/${NAME}-new alongside the live clone. The old box keeps
@@ -20,15 +27,17 @@ print_help() {
 update -- Rebase a workspace onto a new foundation patch level.
 
 Usage:
-  update.sh -s NAME [-k KIND] [-a ARTIFACT] [-h] [-d] [-q]
+  update.sh -s NAME [-k KIND] [-f FOUNDATION] [-a ARTIFACT] [-h] [-d] [-q]
 
 Options:
-  -h          Show this help and exit
-  -d          Dry run: print commands without executing them
-  -s NAME     Workspace name (required)
-  -k KIND     "system" or "container" (auto-detected if omitted)
-  -a ARTIFACT New artifact name (default: latest on foundation archive)
-  -q          Quiet mode: abort on conflicts instead of prompting
+  -h           Show this help and exit
+  -d           Dry run: print commands without executing them
+  -s NAME      Workspace name (required)
+  -k KIND      "system" or "container" (auto-detected if omitted)
+  -f FOUNDATION Target foundation to update onto (default: current foundation).
+               May differ from the current one for a cross-version update.
+  -a ARTIFACT  New artifact name (default: latest on the target foundation)
+  -q           Quiet mode: abort on conflicts instead of prompting
 
 This command:
   1. Pre-flight: verify no unsaved changes, check -new doesn't exist
@@ -59,13 +68,15 @@ WS_NAME=""
 WS_KIND=""
 QUIET=0
 NEW_ARTIFACT=""
+TARGET_FOUNDATION=""
 
-while getopts ":hds:k:a:q" opt; do
+while getopts ":hds:k:f:a:q" opt; do
 	case "$opt" in
 		h) print_help ;;
 		d) DRY_RUN=true ;;
 		s) WS_NAME="$OPTARG" ;;
 		k) WS_KIND="$OPTARG" ;;
+		f) TARGET_FOUNDATION="$OPTARG" ;;
 		a) NEW_ARTIFACT="$OPTARG" ;;
 		q) QUIET=1 ;;
 		\?) die "Unknown option: -${OPTARG}. Use -h for help." ;;
@@ -86,11 +97,16 @@ RECIPE_DIR=$(get_recipes_dir "$WS_KIND" "$WS_NAME")
 
 [ -d "$RECIPE_DIR" ] || die "Recipe directory not found: ${RECIPE_DIR}"
 
+# The foundation the workspace is currently sitting on (its fork point).
 FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
 OLD_ARTIFACT=$(read_artifact_name "$RECIPE_DIR")
 
-# Foundation archive dataset
-FOUNDATION_ARCHIVE="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+# The foundation to update ONTO. Defaults to the same foundation (a newer
+# artifact = in-version update), but may be a different foundation entirely
+# (cross-version). Either way the mechanism is identical: clone the target
+# foundation snapshot into -new and replay the delta chain onto it.
+[ -n "$TARGET_FOUNDATION" ] || TARGET_FOUNDATION="$FOUNDATION_NAME"
+TARGET_ARCHIVE="zbamidbar/foundation.zfs/foundations/${TARGET_FOUNDATION}"
 
 # ── Dry-run wrapper ─────────────────────────────────────────────────────────
 
@@ -128,19 +144,23 @@ main() {
 		die "${WS_KIND}s/${WS_NAME}-new already exists. Finalize or destroy it first."
 	fi
 
-	# Resolve new artifact
+	# Target foundation must be archived
+	zfs_dataset_exists "$TARGET_ARCHIVE" || \
+		die "Target foundation '${TARGET_FOUNDATION}' not archived (${TARGET_ARCHIVE})."
+
+	# Resolve new artifact (latest on the target foundation, unless -a given)
 	if [ -z "$NEW_ARTIFACT" ]; then
 		if ! $DRY_RUN; then
-			NEW_ARTIFACT=$(get_current_artifact "$FOUNDATION_ARCHIVE")
-			[ -n "$NEW_ARTIFACT" ] || die "No snapshots found on ${FOUNDATION_ARCHIVE}"
+			NEW_ARTIFACT=$(get_current_artifact "$TARGET_ARCHIVE")
+			[ -n "$NEW_ARTIFACT" ] || die "No snapshots found on ${TARGET_ARCHIVE}"
 		else
 			NEW_ARTIFACT="<latest>"
 		fi
 	fi
 
-	# Check we're actually updating
-	if [ "$NEW_ARTIFACT" = "$OLD_ARTIFACT" ]; then
-		die "Already at artifact ${OLD_ARTIFACT}. Nothing to update."
+	# Check we're actually updating (same foundation AND same artifact = no-op)
+	if [ "$TARGET_FOUNDATION" = "$FOUNDATION_NAME" ] && [ "$NEW_ARTIFACT" = "$OLD_ARTIFACT" ]; then
+		die "Already at ${FOUNDATION_NAME}@${OLD_ARTIFACT}. Nothing to update."
 	fi
 
 	# Verify no unsaved changes (skip in dry-run)
@@ -151,66 +171,60 @@ main() {
 		printf "  [dry] diff.sh -s %s -k %s -q\n" "$WS_NAME" "$WS_KIND" >&2
 	fi
 
-	printf "  old artifact: %s\n" "$OLD_ARTIFACT" >&2
-	printf "  new artifact: %s\n" "$NEW_ARTIFACT" >&2
-	printf "  foundation:   %s\n" "$FOUNDATION_NAME" >&2
+	printf "  from: %s@%s\n" "$FOUNDATION_NAME" "$OLD_ARTIFACT" >&2
+	printf "  to:   %s@%s\n" "$TARGET_FOUNDATION" "$NEW_ARTIFACT" >&2
 
 	trap update_cleanup EXIT
 	_UPDATE_STARTED=true
 
-	# ── Step 2: Beam down new foundation ─────────────────────────────────
-	printf "==> Beaming down new foundation artifact...\n" >&2
+	# Where the -new clone lives (mount path + dataset + data-lake parent)
+	local new_ds="zbereshit/${WS_KIND}s/${WS_NAME}-new"
+	local new_root data_root
+	case "$WS_KIND" in
+		system)    new_root="/zbereshit/systems/${WS_NAME}-new"; data_root="zbamidbar/system-data/${WS_NAME}" ;;
+		container) new_root="/containers/${WS_NAME}-new";        data_root="zbamidbar/container-data/${WS_NAME}" ;;
+	esac
 
-	# Incremental send from old to new
-	run zfs send -i "@${OLD_ARTIFACT}" "${FOUNDATION_ARCHIVE}@${NEW_ARTIFACT}" \| \
-		zfs recv "zbereshit/foundations/${FOUNDATION_NAME}"
+	# ── Step 2: Materialize target foundation on zbereshit + shallow clone ─
+	printf "==> Materializing target foundation %s@%s...\n" "$TARGET_FOUNDATION" "$NEW_ARTIFACT" >&2
+	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
+	ensure_foundation_on_zbereshit "$TARGET_FOUNDATION" "$NEW_ARTIFACT"
 
-	# Clone from new artifact into -new
-	printf "==> Cloning into %ss/%s-new...\n" "$WS_KIND" "$WS_NAME" >&2
-	run zfs clone "zbereshit/foundations/${FOUNDATION_NAME}@${NEW_ARTIFACT}" \
-		"zbereshit/${WS_KIND}s/${WS_NAME}-new"
+	printf "==> Cloning target foundation into %ss/%s-new...\n" "$WS_KIND" "$WS_NAME" >&2
+	run zfs clone -o mountpoint="$new_root" -o canmount=on \
+		"zbereshit/foundations/${TARGET_FOUNDATION}@${NEW_ARTIFACT}" "$new_ds"
+	run zfs mount "$new_ds" 2>/dev/null || true
 
-	# ── Step 3: Mount + start the -new clone ─────────────────────────────
+	# ── Step 3: Start + mount the -new clone (data-lake over the clone) ──
 	printf "==> Mounting -new clone...\n" >&2
 
-	local new_root
+	# Data-lake mounts (var/usr-local/home/tmp) layer over the clone.
+	mount_data_lake() {
+		run zfs set mountpoint="${new_root}/var" "${data_root}/var"
+		run zfs mount "${data_root}/var"
+		run zfs set mountpoint="${new_root}/usr/local" "${data_root}/usr-local"
+		run zfs mount "${data_root}/usr-local"
+		if zfs_dataset_exists "${data_root}/home"; then
+			run mkdir -p "${new_root}/home"
+			run zfs set mountpoint="${new_root}/home" "${data_root}/home"
+			run zfs mount "${data_root}/home"
+		fi
+		if zfs_dataset_exists "${data_root}/tmp"; then
+			run zfs set mountpoint="${new_root}/tmp" "${data_root}/tmp"
+			run zfs mount "${data_root}/tmp"
+		fi
+	}
+
 	case "$WS_KIND" in
 		system)
-			new_root="/zbereshit/systems/${WS_NAME}-new"
-			# Mount data-lake datasets into -new tree
-			local data_root="zbamidbar/system-data/${WS_NAME}"
-			run zfs set mountpoint="${new_root}/var" "${data_root}/var"
-			run zfs mount "${data_root}/var"
-			run zfs set mountpoint="${new_root}/usr/local" "${data_root}/usr-local"
-			run zfs mount "${data_root}/usr-local"
-			if zfs_dataset_exists "${data_root}/home"; then
-				run zfs set mountpoint="${new_root}/home" "${data_root}/home"
-				run zfs mount "${data_root}/home"
-			fi
-			if zfs_dataset_exists "${data_root}/tmp"; then
-				run zfs set mountpoint="${new_root}/tmp" "${data_root}/tmp"
-				run zfs mount "${data_root}/tmp"
-			fi
+			mount_data_lake
 			;;
 		container)
-			new_root="/containers/${WS_NAME}-new"
-			# Start temporary jail for -new
+			# Start temporary jail for -new (shares host network stack)
 			run jail -c name="${WS_NAME}-new" path="$new_root" \
-				host.hostname="${WS_NAME}-new" persist
-			# Mount data-lake datasets
-			local data_root="zbamidbar/container-data/${WS_NAME}"
-			run zfs set mountpoint="${new_root}/var" "${data_root}/var"
-			run zfs mount "${data_root}/var"
-			run zfs set mountpoint="${new_root}/usr/local" "${data_root}/usr-local"
-			run zfs mount "${data_root}/usr-local"
-			if zfs_dataset_exists "${data_root}/home"; then
-				run zfs set mountpoint="${new_root}/home" "${data_root}/home"
-				run zfs mount "${data_root}/home"
-			fi
-			if zfs_dataset_exists "${data_root}/tmp"; then
-				run zfs set mountpoint="${new_root}/tmp" "${data_root}/tmp"
-				run zfs mount "${data_root}/tmp"
-			fi
+				host.hostname="${WS_NAME}-new" ip4=inherit ip6=inherit \
+				mount.devfs persist
+			mount_data_lake
 			;;
 	esac
 
@@ -236,6 +250,8 @@ main() {
 	printf "==> Installing packages...\n" >&2
 	local pkg_list="${RECIPE_DIR}/pkg.list"
 	if [ -f "$pkg_list" ] && [ -s "$pkg_list" ]; then
+		# Word-splitting of the origin list is intentional (one install per line).
+		# shellcheck disable=SC2046
 		case "$WS_KIND" in
 			system)
 				run chroot "$new_root" pkg install -y $(cat "$pkg_list")
@@ -313,7 +329,7 @@ main() {
 	printf "==> Regenerating derivations...\n" >&2
 
 	local fbsd_ver
-	fbsd_ver=$(get_foundation_version "$FOUNDATION_NAME")
+	fbsd_ver=$(get_foundation_version "$TARGET_FOUNDATION")
 	local global_db
 	global_db=$(resolve_derivations_db "$fbsd_ver") || \
 		die "No derivations db found for FreeBSD ${fbsd_ver}"

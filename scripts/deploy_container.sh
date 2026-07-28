@@ -131,8 +131,8 @@ resolve_snapshot() {
 # ── Deploy ──────────────────────────────────────────────────────────────────
 
 deploy() {
-	local src="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
 	local dest="zbereshit/containers/${CONTAINER_NAME}"
+	local container_mount="/containers/${CONTAINER_NAME}"
 
 	progress "Deploying ${CONTAINER_NAME} to zbereshit/containers"
 
@@ -141,30 +141,28 @@ deploy() {
 		die "Dataset ${dest} already exists. Use update_container (future) for re-deploy."
 	fi
 
-	# Ensure foundation.zfs is mounted
+	# Ensure foundation.zfs is mounted (archive source for materialization)
 	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
-	# Full send (new container)
-	progress "ZFS send → ${dest}"
+	# Materialize the foundation on zbereshit (the "available foundations"
+	# mirror), then shallow-clone it: containers are CoW clones of a
+	# foundation snapshot, not independent full copies.
+	ensure_foundation_on_zbereshit "$FOUNDATION_NAME" "$ARTIFACT_NAME"
+
+	progress "Cloning foundation ${FOUNDATION_NAME}@${ARTIFACT_NAME} → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "$src" | \
-			zfs recv -F -o mountpoint="/containers/${CONTAINER_NAME}" -o canmount=on "$dest"
+		zfs clone -o mountpoint="$container_mount" -o canmount=on \
+			"zbereshit/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}" "$dest"
+		zfs mount "$dest" 2>/dev/null || true
 	else
-		printf "  [dry] zfs send -R %s | zfs recv -F -o mountpoint=/containers/%s -o canmount=on %s\n" \
-			"$src" "$CONTAINER_NAME" "$dest" >&2
+		printf "  [dry] zfs clone zbereshit/foundations/%s@%s %s\n" \
+			"$FOUNDATION_NAME" "$ARTIFACT_NAME" "$dest" >&2
 	fi
 
-	# Mount (recv above may have already auto-mounted it; tolerate that)
-	progress "Setting mountpoint"
-	run zfs mount "$dest" 2>/dev/null || true
-
-	# Apply container branch via git checkout
+	# Apply the container branch (recipe content) on top of the clone. The
+	# cloned foundation tree carries .git from the foundation build.
 	progress "Applying container branch"
-	local container_mount="/containers/${CONTAINER_NAME}"
-
 	if ! $DRY_RUN; then
-		# The recv'd dataset includes .git from the foundation build.
-		# Fetch the container branch and check it out.
 		git -C "$container_mount" fetch origin "containers/${CONTAINER_NAME}"
 		git -C "$container_mount" checkout "containers/${CONTAINER_NAME}"
 	else

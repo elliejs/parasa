@@ -109,14 +109,16 @@ main() {
 		printf "  [dry] diff.sh -s %s -k %s -q\n" "$WS_NAME" "$WS_KIND" >&2
 	fi
 
-	# Step 2: Capture package list
+	# Step 2: Capture package list as origins (one per line). Origins are
+	# version-stable, so they replay cleanly onto a new foundation; update.sh
+	# feeds this straight to `pkg install`.
 	printf "==> Capturing package list...\n" >&2
 	case "$WS_KIND" in
 		system)
-			run chroot "$TREE_ROOT" pkg info -a -o > "${RECIPE_DIR}/pkg.list"
+			run chroot "$TREE_ROOT" pkg query -a '%o' > "${RECIPE_DIR}/pkg.list"
 			;;
 		container)
-			run pkg -j "$WS_NAME" info -a -o > "${RECIPE_DIR}/pkg.list"
+			run pkg -j "$WS_NAME" query -a '%o' > "${RECIPE_DIR}/pkg.list"
 			;;
 	esac
 

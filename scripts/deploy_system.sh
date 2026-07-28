@@ -135,8 +135,8 @@ resolve_snapshot() {
 # ── Deploy ──────────────────────────────────────────────────────────────────
 
 deploy() {
-	local src="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
 	local dest="zbereshit/systems/${SYSTEM_NAME}"
+	local system_mount="/zbereshit/systems/${SYSTEM_NAME}"
 
 	progress "Deploying ${SYSTEM_NAME} to zbereshit"
 
@@ -145,25 +145,27 @@ deploy() {
 		die "Dataset ${dest} already exists. Use update_system (future) for re-deploy."
 	fi
 
-	# Ensure foundation.zfs is mounted
+	# Ensure foundation.zfs is mounted (archive source for materialization)
 	run zmount zbamidbar/foundation.zfs /zbamidbar/foundation.zfs
 
-	# Full send (new system)
-	progress "ZFS send → ${dest}"
+	# Materialize the foundation on zbereshit (the "available foundations"
+	# mirror), then shallow-clone it: systems are CoW clones of a foundation
+	# snapshot, not independent full copies.
+	ensure_foundation_on_zbereshit "$FOUNDATION_NAME" "$ARTIFACT_NAME"
+
+	progress "Cloning foundation ${FOUNDATION_NAME}@${ARTIFACT_NAME} → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "$src" | zfs recv -F "$dest"
+		zfs clone -o mountpoint="$system_mount" -o canmount=on \
+			"zbereshit/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}" "$dest"
+		zfs mount "$dest" 2>/dev/null || true
 	else
-		printf "  [dry] zfs send -R %s | zfs recv -F %s\n" "$src" "$dest" >&2
+		printf "  [dry] zfs clone zbereshit/foundations/%s@%s %s\n" \
+			"$FOUNDATION_NAME" "$ARTIFACT_NAME" "$dest" >&2
 	fi
 
-	# Apply system branch via git checkout
+	# Apply the system branch (recipe content) on top of the clone.
 	progress "Applying system branch"
-	local system_mount="/zbereshit/systems/${SYSTEM_NAME}"
-	run zmount "$dest" "$system_mount"
-
 	if ! $DRY_RUN; then
-		# The recv'd dataset includes .git from the foundation build.
-		# Fetch the system branch and check it out.
 		git -C "$system_mount" fetch origin "systems/${SYSTEM_NAME}"
 		git -C "$system_mount" checkout "systems/${SYSTEM_NAME}"
 	else
