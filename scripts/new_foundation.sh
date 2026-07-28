@@ -471,15 +471,39 @@ main() {
 		confirm "Proceed with foundation build?" || exit 0
 	fi
 
-	# Phase 2: Preparation
-	create_recipe_conf
-	ensure_src_tree
-	prepare_workspace
-	prepare_workspace_git
+	# Check for a recoverable workspace from a previous build whose
+	# commit/archive phase failed. If /bin/sh exists, the build completed.
+	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
+	if zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}" && \
+	   [ -x "${workspace}/bin/sh" ]; then
+		progress "Found completed build at ${workspace}"
+		if [ "$QUIET" -gt 0 ] || confirm "Resume commit/archive from previous build?"; then
+			BUILD_COMPLETE=true
+			create_recipe_conf
+			ensure_src_tree
+			if [ ! -d "${workspace}/.git" ]; then
+				prepare_workspace_git
+			fi
+		else
+			confirm "Destroy previous build and start fresh?" || exit 0
+			create_recipe_conf
+			ensure_src_tree
+			prepare_workspace
+			prepare_workspace_git
+			run_build
+			BUILD_COMPLETE=true
+		fi
+	else
+		# Phase 2: Preparation
+		create_recipe_conf
+		ensure_src_tree
+		prepare_workspace
+		prepare_workspace_git
 
-	# Phase 3: Build
-	run_build
-	BUILD_COMPLETE=true
+		# Phase 3: Build
+		run_build
+		BUILD_COMPLETE=true
+	fi
 
 	# Phase 4: Track
 	commit_build
