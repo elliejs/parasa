@@ -383,6 +383,9 @@ run_build() {
 commit_build() {
 	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
 
+	# Re-mount foundation.git — may have been lost during long build
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
+
 	progress "Committing build to git"
 
 	# Stage everything first (including base var/ files)
