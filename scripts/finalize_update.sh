@@ -129,9 +129,13 @@ main() {
 	fi
 	printf "==> Finalizing %s onto %s@%s\n" "$WS_NAME" "$target_foundation" "$new_artifact" >&2
 
-	# Step 2: Stop old container if running
+	# Step 2: Stop the old container AND the -new test jail (the admin may have
+	# started -new to verify it before finalizing; both must be down so the
+	# datasets aren't busy for the swap).
 	case "$WS_KIND" in
 		container)
+			printf "==> Stopping test jail %s-new (if running)...\n" "$WS_NAME" >&2
+			run jail -r "${WS_NAME}-new" 2>/dev/null || true
 			printf "==> Stopping old container %s...\n" "$WS_NAME" >&2
 			run jail -r "$WS_NAME"
 			;;
