@@ -137,10 +137,42 @@ collect_foundation_name() {
 	if [ "$QUIET" -gt 0 ]; then
 		die "Foundation name required in quiet mode (-s NAME)."
 	fi
+
+	# List existing foundation recipes that haven't been built yet
+	local recipes_dir="${PARASA_DIR}/recipes/foundations"
+	local idx=0 name
+	for d in "$recipes_dir"/*/; do
+		[ -d "$d" ] || continue
+		name=$(basename "$d")
+		# Skip already-archived foundations
+		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
+		idx=$((idx + 1))
+		[ "$idx" -eq 1 ] && printf "Unbuilt foundation recipes:\n" >&2
+		printf "  %d) %s\n" "$idx" "$name" >&2
+	done
+
 	local resp
 	while true; do
-		printf "Foundation name: " >&2
+		printf "Foundation name or number: " >&2
 		read -r resp || die "EOF reading foundation name"
+		# If numeric, resolve to unbuilt recipe name
+		case "$resp" in
+			[0-9]|[0-9][0-9])
+				local cur=0
+				for d in "$recipes_dir"/*/; do
+					[ -d "$d" ] || continue
+					name=$(basename "$d")
+					zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
+					cur=$((cur + 1))
+					if [ "$cur" -eq "$resp" ]; then
+						FOUNDATION_NAME="$name"
+						return
+					fi
+				done
+				printf "  Invalid number.\n" >&2
+				continue
+				;;
+		esac
 		if validate_name "$resp" "Foundation name"; then
 			FOUNDATION_NAME="$resp"
 			return
@@ -149,10 +181,8 @@ collect_foundation_name() {
 }
 
 check_foundation_available() {
-	local recipes="${PARASA_DIR}/recipes/foundations/${FOUNDATION_NAME}"
-	if [ -d "$recipes" ]; then
-		die "Foundation '${FOUNDATION_NAME}' already exists in recipes. Use destroy_foundation (future) or pick a new name."
-	fi
+	# Recipe dir may already exist (pre-created build.conf) — that's fine.
+	# Only block if the foundation has already been built.
 	if zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"; then
 		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/foundation.zfs. Use destroy_foundation (future) or pick a new name."
 	fi
