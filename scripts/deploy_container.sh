@@ -164,15 +164,18 @@ deploy() {
 
 	if ! $DRY_RUN; then
 		if [ ! -d "${container_mount}/.git" ]; then
-			# New archive (no .git child dataset) — fresh init
+			# New archive (no .git) — create .git as child dataset so
+			# future zfs send -R of this container excludes git state.
+			zfs create -o mountpoint="${container_mount}/.git" -o canmount=on \
+				"${dest}/.git"
 			git -C "$container_mount" init -b main
 			git -C "$container_mount" remote add origin /zbamidbar/foundation.git
 		fi
 		git -C "$container_mount" fetch origin
 		git -C "$container_mount" checkout -f "containers/${CONTAINER_NAME}"
 	else
-		printf "  [dry] git -C %s init + fetch + checkout -f containers/%s\n" \
-			"$container_mount" "$CONTAINER_NAME" >&2
+		printf "  [dry] zfs create %s/.git + git init + fetch + checkout -f containers/%s\n" \
+			"$dest" "$CONTAINER_NAME" >&2
 	fi
 
 	# Create mountpoint directories referenced by mount.fstab.

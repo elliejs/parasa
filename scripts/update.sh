@@ -269,6 +269,9 @@ main() {
 	if ! $DRY_RUN; then
 		# Set up git in -new tree (new archives lack .git)
 		if [ ! -d "${new_root}/.git" ]; then
+			# Create .git as child dataset so future zfs send -R excludes it
+			zfs create -o mountpoint="${new_root}/.git" -o canmount=on \
+				"zbereshit/${WS_KIND}s/${WS_NAME}-new/.git"
 			git -C "$new_root" init -b main
 			git -C "$new_root" remote add origin "$foundation_git"
 		fi
