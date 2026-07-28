@@ -316,8 +316,21 @@ check_recipes_repo() {
 		pass "recipes repo is a git repository"
 	else
 		fail "recipes repo at ${RECIPES_DIR} is not a git repository"
-		warn "Clone parasa-recipes to ${RECIPES_DIR}."
-		return
+		if offer_fix "clone parasa-recipes into ${RECIPES_DIR}"; then
+			zmount zshemot/recipes.git "${RECIPES_DIR}" 2>/dev/null || true
+			mkdir -p "${RECIPES_DIR}"
+			if git -C "${RECIPES_DIR}" init -b trunk && \
+			   git -C "${RECIPES_DIR}" remote add origin https://github.com/elliejs/parasa-recipes.git && \
+			   git -C "${RECIPES_DIR}" fetch origin && \
+			   git -C "${RECIPES_DIR}" checkout trunk; then
+				fixed "recipes repo"
+			else
+				warn "Failed to clone parasa-recipes."
+				return
+			fi
+		else
+			return
+		fi
 	fi
 
 	# Required directories
