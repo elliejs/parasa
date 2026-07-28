@@ -62,7 +62,9 @@ zmount() {
 	local dataset="${1:?zmount: dataset required}"
 	local dest="${2:-/${1}}"
 	zfs set mountpoint="$dest" "$dataset"
-	zfs mount "$dataset"
+	if ! yesish "$(zfs get -H -o value mounted "$dataset" 2>/dev/null)"; then
+		zfs mount "$dataset"
+	fi
 }
 
 # Unmount a ZFS dataset and clear its mountpoint.

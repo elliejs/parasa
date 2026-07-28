@@ -250,8 +250,10 @@ ws_begin() {
 		local snap
 		snap=$(get_current_artifact "$foundation_archive")
 		[ -n "$snap" ] || die "No snapshots found on ${foundation_archive}"
-		zfs send -R "${foundation_archive}@${snap}" | zfs recv "zshemot/buildspace/${WS_NAME}"
-		zfs mount "zshemot/buildspace/${WS_NAME}"
+		zfs send -R "${foundation_archive}@${snap}" | \
+			zfs recv -o mountpoint="/zshemot/buildspace/${WS_NAME}" -o canmount=on \
+				"zshemot/buildspace/${WS_NAME}"
+		zfs mount "zshemot/buildspace/${WS_NAME}" 2>/dev/null || true
 		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
 		# Record artifact name in .foundation file
 		printf "%s\n" "$snap" > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"

@@ -306,8 +306,10 @@ exec.stop  = "/bin/sh /etc/rc.shutdown";
 exec.clean;
 mount.devfs;
 devfs_ruleset = 4;
+ip4 = inherit;
+ip6 = inherit;
 
-.include "/zshemot/parasa.git/recipes/containers/*/jail.conf";
+.include "/zshemot/parasa/recipes/containers/*/jail.conf";
 JAILCONF
 			fixed "recipes/jail.conf"
 		fi

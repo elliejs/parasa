@@ -51,9 +51,9 @@ Home and tmp are optional (asked in interactive mode).
 
 Examples:
   new_system                                     Interactive
-  new_system -s wonderland -f stable15           Semi-interactive
-  new_system -s testbox -f stable15 -qbb         Quiet, deploy + nextboot
-  new_system -s dev -f stable15 -o home_dataset=no -o user_homes=alice,bob
+  new_system -s wonderland -f 15stable            Semi-interactive
+  new_system -s testbox -f 15stable -qbb          Quiet, deploy + nextboot
+  new_system -s dev -f 15stable -o home_dataset=no -o user_homes=alice,bob
 
 Execution flow:
   1. Collect system name and foundation
