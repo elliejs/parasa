@@ -95,15 +95,39 @@ run() {
 main() {
 	local old_ds="zbereshit/${WS_KIND}s/${WS_NAME}"
 	local new_ds="zbereshit/${WS_KIND}s/${WS_NAME}-new"
+	local data_root="zbamidbar/${WS_KIND}-data/${WS_NAME}"
+	local new_data_root="${data_root}-new"
+	local tree_root
+	tree_root=$(get_tree_root "$WS_KIND" "$WS_NAME")
 
-	# Step 1: Verify -new exists
+	# Step 1: Verify -new (OS clone + data clone) exists
 	if ! $DRY_RUN; then
 		zfs_dataset_exists "$new_ds" || die "${new_ds} does not exist. Run update.sh first."
 		zfs_dataset_exists "$old_ds" || die "${old_ds} does not exist. Nothing to replace."
 	else
-		printf "  [dry] verify %s exists\n" "$new_ds" >&2
-		printf "  [dry] verify %s exists\n" "$old_ds" >&2
+		printf "  [dry] verify %s + %s exist\n" "$new_ds" "$new_data_root" >&2
 	fi
+
+	# Derive the target foundation + artifact from the -new clone's origin
+	# (zbereshit/foundations/<foundation>@<artifact>). This is what makes a
+	# cross-version finalize update the .foundation correctly.
+	local target_foundation new_artifact
+	if ! $DRY_RUN; then
+		local origin
+		origin=$(zfs get -H -o value origin "$new_ds")
+		case "$origin" in
+			zbereshit/foundations/*@*)
+				target_foundation="${origin#zbereshit/foundations/}"
+				target_foundation="${target_foundation%@*}"
+				new_artifact="${origin##*@}"
+				;;
+			*) die "Cannot derive target foundation from ${new_ds} origin: ${origin}" ;;
+		esac
+	else
+		target_foundation="$FOUNDATION_NAME"
+		new_artifact="<latest>"
+	fi
+	printf "==> Finalizing %s onto %s@%s\n" "$WS_NAME" "$target_foundation" "$new_artifact" >&2
 
 	# Step 2: Stop old container if running
 	case "$WS_KIND" in
@@ -116,31 +140,43 @@ main() {
 			;;
 	esac
 
-	# Step 3: Destroy old clone
-	printf "==> Destroying old clone %s...\n" "$old_ds" >&2
+	# Step 3: Destroy old OS clone + old data
+	printf "==> Destroying old clone + data...\n" >&2
 	run zfs destroy -r "$old_ds"
+	run zfs destroy -r "$data_root"
 
-	# Step 4: Rename -new to plain
-	printf "==> Renaming %s → %s...\n" "$new_ds" "$old_ds" >&2
+	# Step 4: Rename -new (OS + data) into place, remount at the live tree
+	printf "==> Renaming -new into place...\n" >&2
 	run zfs rename "$new_ds" "$old_ds"
+	run zfs rename "$new_data_root" "$data_root"
 
-	# Step 5: Update .foundation file
+	run zfs set mountpoint="$tree_root" "$old_ds"
+	run zfs mount "$old_ds" 2>/dev/null || true
+	run zfs set mountpoint="${tree_root}/var" "${data_root}/var"
+	run zfs mount "${data_root}/var" 2>/dev/null || true
+	run zfs set mountpoint="${tree_root}/usr/local" "${data_root}/usr-local"
+	run zfs mount "${data_root}/usr-local" 2>/dev/null || true
+	if zfs_dataset_exists "${data_root}/home"; then
+		run zfs set mountpoint="${tree_root}/home" "${data_root}/home"
+		run zfs mount "${data_root}/home" 2>/dev/null || true
+	fi
+	if zfs_dataset_exists "${data_root}/tmp"; then
+		run zfs set mountpoint="${tree_root}/tmp" "${data_root}/tmp"
+		run zfs mount "${data_root}/tmp" 2>/dev/null || true
+	fi
+
+	# Step 5: Update .foundation → target foundation + new artifact
 	printf "==> Updating .foundation artifact...\n" >&2
 	if ! $DRY_RUN; then
-		# Read the new artifact from the -new tree's git state
-		local new_root
-		new_root=$(get_tree_root "$WS_KIND" "$WS_NAME")
-		local new_artifact
-		new_artifact=$(get_current_artifact "zbereshit/foundations/${FOUNDATION_NAME}")
-		[ -n "$new_artifact" ] || die "Cannot determine new artifact name."
-		printf "%s\n" "$new_artifact" > "${RECIPE_DIR}/${FOUNDATION_NAME}.foundation"
+		rm -f "${RECIPE_DIR}"/*.foundation
+		printf "%s\n" "$new_artifact" > "${RECIPE_DIR}/${target_foundation}.foundation"
 	else
-		printf "  [dry] update %s/%s.foundation\n" "$RECIPE_DIR" "$FOUNDATION_NAME" >&2
+		printf "  [dry] write %s/%s.foundation = %s\n" "$RECIPE_DIR" "$target_foundation" "$new_artifact" >&2
 	fi
 
 	# Step 6: Save state
 	printf "==> Saving state...\n" >&2
-	run "${SCRIPT_DIR}/save.sh" -s "$WS_NAME" -k "$WS_KIND" -q -m "finalize update to ${NEW_ARTIFACT:-new artifact}"
+	run "${SCRIPT_DIR}/save.sh" -s "$WS_NAME" -k "$WS_KIND" -q -m "finalize update to ${target_foundation}@${new_artifact}"
 
 	# Step 7: Start / nextboot
 	case "$WS_KIND" in
@@ -156,7 +192,7 @@ main() {
 			;;
 	esac
 
-	printf "==> Finalize complete. %s is now at the new artifact.\n" "$WS_NAME" >&2
+	printf "==> Finalize complete. %s is now %s@%s.\n" "$WS_NAME" "$target_foundation" "$new_artifact" >&2
 }
 
 main

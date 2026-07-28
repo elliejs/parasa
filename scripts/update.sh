@@ -122,8 +122,9 @@ run() {
 
 update_cleanup() {
 	if [ -n "${_UPDATE_STARTED:-}" ]; then
-		printf "WARNING: Partial update at %ss/%s-new\n" "$WS_KIND" "$WS_NAME" >&2
-		printf "To rollback: zfs destroy -r zbereshit/%ss/%s-new\n" "$WS_KIND" "$WS_NAME" >&2
+		printf "WARNING: Partial update at %ss/%s-new (live %s untouched)\n" "$WS_KIND" "$WS_NAME" "$WS_KIND" >&2
+		printf "To rollback: zfs destroy -r zbereshit/%ss/%s-new; zfs destroy -r zbamidbar/%s-data/%s-new\n" \
+			"$WS_KIND" "$WS_NAME" "$WS_KIND" "$WS_NAME" >&2
 	fi
 	# Stop -new jail if running
 	case "$WS_KIND" in
@@ -195,36 +196,50 @@ main() {
 		"zbereshit/foundations/${TARGET_FOUNDATION}@${NEW_ARTIFACT}" "$new_ds"
 	run zfs mount "$new_ds" 2>/dev/null || true
 
-	# ── Step 3: Start + mount the -new clone (data-lake over the clone) ──
-	printf "==> Mounting -new clone...\n" >&2
-
-	# Data-lake mounts (var/usr-local/home/tmp) layer over the clone.
-	mount_data_lake() {
-		run zfs set mountpoint="${new_root}/var" "${data_root}/var"
-		run zfs mount "${data_root}/var"
-		run zfs set mountpoint="${new_root}/usr/local" "${data_root}/usr-local"
-		run zfs mount "${data_root}/usr-local"
-		if zfs_dataset_exists "${data_root}/home"; then
-			run mkdir -p "${new_root}/home"
-			run zfs set mountpoint="${new_root}/home" "${data_root}/home"
-			run zfs mount "${data_root}/home"
+	# ── Step 3: Clone the workspace data + start/mount -new ──────────────
+	# CRITICAL: the live workspace keeps running, so its data (var/usr-local/
+	# home/tmp) must stay mounted and untouched. Snapshot it and clone into a
+	# -new data root; -new mounts the CLONES. finalize_update swaps them in.
+	local new_data_root="${data_root}-new"
+	local data_snap="update-$(date +%Y%m%d%H%M%S)"
+	printf "==> Cloning workspace data (%s@%s) for -new...\n" "$data_root" "$data_snap" >&2
+	run zfs snapshot -r "${data_root}@${data_snap}"
+	run ztouch "$new_data_root" -o mountpoint=none -o canmount=noauto
+	local _child
+	for _child in var usr-local home tmp; do
+		if zfs_dataset_exists "${data_root}/${_child}"; then
+			run zfs clone "${data_root}/${_child}@${data_snap}" "${new_data_root}/${_child}"
 		fi
-		if zfs_dataset_exists "${data_root}/tmp"; then
-			run zfs set mountpoint="${new_root}/tmp" "${data_root}/tmp"
-			run zfs mount "${data_root}/tmp"
+	done
+
+	printf "==> Mounting -new clone...\n" >&2
+	# Mount the -new data clones over the -new OS clone.
+	mount_new_data() {
+		run zfs set mountpoint="${new_root}/var" "${new_data_root}/var"
+		run zfs mount "${new_data_root}/var"
+		run zfs set mountpoint="${new_root}/usr/local" "${new_data_root}/usr-local"
+		run zfs mount "${new_data_root}/usr-local"
+		if zfs_dataset_exists "${new_data_root}/home"; then
+			run mkdir -p "${new_root}/home"
+			run zfs set mountpoint="${new_root}/home" "${new_data_root}/home"
+			run zfs mount "${new_data_root}/home"
+		fi
+		if zfs_dataset_exists "${new_data_root}/tmp"; then
+			run zfs set mountpoint="${new_root}/tmp" "${new_data_root}/tmp"
+			run zfs mount "${new_data_root}/tmp"
 		fi
 	}
 
 	case "$WS_KIND" in
 		system)
-			mount_data_lake
+			mount_new_data
 			;;
 		container)
 			# Start temporary jail for -new (shares host network stack)
 			run jail -c name="${WS_NAME}-new" path="$new_root" \
 				host.hostname="${WS_NAME}-new" ip4=inherit ip6=inherit \
 				mount.devfs persist
-			mount_data_lake
+			mount_new_data
 			;;
 	esac
 
@@ -387,11 +402,11 @@ main() {
 			run jail -r "${WS_NAME}-new"
 			;;
 		system)
-			# Unmount data datasets from -new tree
-			run zunmount "${data_root}/var" 2>/dev/null
-			run zunmount "${data_root}/usr-local" 2>/dev/null
-			run zunmount "${data_root}/home" 2>/dev/null
-			run zunmount "${data_root}/tmp" 2>/dev/null
+			# Unmount the -new data clones from the -new tree
+			run zunmount "${new_data_root}/var" 2>/dev/null
+			run zunmount "${new_data_root}/usr-local" 2>/dev/null
+			run zunmount "${new_data_root}/home" 2>/dev/null
+			run zunmount "${new_data_root}/tmp" 2>/dev/null
 			;;
 	esac
 
