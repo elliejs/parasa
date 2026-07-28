@@ -108,22 +108,14 @@ progress() {
 
 # ── Cleanup trap ────────────────────────────────────────────────────────────
 
-# Set to true after run_build completes. If the build finished but a
-# later step (commit/archive) fails, destroying hours of work is worse
-# than leaving the workspace for manual recovery.
-BUILD_COMPLETE=false
-
 cleanup() {
 	if [ -n "$FOUNDATION_NAME" ] && zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}"; then
-		if $BUILD_COMPLETE; then
-			printf "\nWARNING: Build completed but a later step failed.\n" >&2
-			printf "Workspace preserved at zshemot/buildspace/%s for manual recovery.\n" >&2
-			printf "To retry the commit/archive phase, re-run with the same name.\n" >&2
-			printf "To discard: zfs destroy -r zshemot/buildspace/%s\n" "$FOUNDATION_NAME" >&2
-		else
-			printf "Cleaning up transient zshemot/buildspace/%s...\n" "$FOUNDATION_NAME" >&2
-			zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
+		printf "Cleaning up transient zshemot/buildspace/%s...\n" "$FOUNDATION_NAME" >&2
+		# Clear schg flags before destroy
+		if [ -d "/zshemot/buildspace/${FOUNDATION_NAME}" ]; then
+			clear_mtree "/zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
 		fi
+		zfs destroy -r "zshemot/buildspace/${FOUNDATION_NAME}" 2>/dev/null || true
 	fi
 }
 
@@ -471,39 +463,14 @@ main() {
 		confirm "Proceed with foundation build?" || exit 0
 	fi
 
-	# Check for a recoverable workspace from a previous build whose
-	# commit/archive phase failed. If /bin/sh exists, the build completed.
-	local workspace="/zshemot/buildspace/${FOUNDATION_NAME}"
-	if zfs_dataset_exists "zshemot/buildspace/${FOUNDATION_NAME}" && \
-	   [ -x "${workspace}/bin/sh" ]; then
-		progress "Found completed build at ${workspace}"
-		if [ "$QUIET" -gt 0 ] || confirm "Resume commit/archive from previous build?"; then
-			BUILD_COMPLETE=true
-			create_recipe_conf
-			ensure_src_tree
-			if [ ! -d "${workspace}/.git" ]; then
-				prepare_workspace_git
-			fi
-		else
-			confirm "Destroy previous build and start fresh?" || exit 0
-			create_recipe_conf
-			ensure_src_tree
-			prepare_workspace
-			prepare_workspace_git
-			run_build
-			BUILD_COMPLETE=true
-		fi
-	else
-		# Phase 2: Preparation
-		create_recipe_conf
-		ensure_src_tree
-		prepare_workspace
-		prepare_workspace_git
+	# Phase 2: Preparation
+	create_recipe_conf
+	ensure_src_tree
+	prepare_workspace
+	prepare_workspace_git
 
-		# Phase 3: Build
-		run_build
-		BUILD_COMPLETE=true
-	fi
+	# Phase 3: Build
+	run_build
 
 	# Phase 4: Track
 	commit_build
