@@ -135,9 +135,9 @@ main() {
 	case "$WS_KIND" in
 		container)
 			printf "==> Stopping test jail %s-new (if running)...\n" "$WS_NAME" >&2
-			run jail -r "${WS_NAME}-new" 2>/dev/null || true
+			run jail -r "${WS_NAME}-new" || true
 			printf "==> Stopping old container %s...\n" "$WS_NAME" >&2
-			run jail -r "$WS_NAME" 2>/dev/null || true
+			run jail -r "$WS_NAME" || true
 			;;
 		system)
 			printf "==> System %s: assuming not the running root.\n" "$WS_NAME" >&2
