@@ -151,9 +151,10 @@ deploy() {
 	# Full send (new system)
 	progress "ZFS send → ${dest}"
 	if ! $DRY_RUN; then
-		zfs send -R "$src" | zfs recv -F "$dest"
+		zfs send -R "$src" | \
+			zfs recv -F -o mountpoint=none -o canmount=noauto "$dest"
 	else
-		printf "  [dry] zfs send -R %s | zfs recv -F %s\n" "$src" "$dest" >&2
+		printf "  [dry] zfs send -R %s | zfs recv -F -o mountpoint=none %s\n" "$src" "$dest" >&2
 	fi
 
 	# Apply system branch via git checkout
