@@ -29,6 +29,22 @@ for live status.
 | [14](14-save-sh-never-mounts-foundation-git.md) | `save.sh` never mounts `zbamidbar/foundation.git` before pushing to it | Bug — fix proposed |
 | [15](15-foundation-builds-share-obj-tree-cross-branch-contamination.md) | Foundation builds share one `/usr/obj` tree → cross-branch stale-object link failures | Bug — fix proposed & validated |
 | [16](16-zunmount-unguarded-masks-successful-build.md) | Transient busy-unmount at end of build masks a fully-successful build (exit 255) | Bug — fix proposed |
+| [17](17-schg-flags-cleared-not-restored.md) | `schg` flags cleared for the rebase but never restored — update drops immutability | Bug — open |
+| [18](18-parasa-git-recipe-mirror-unwired.md) | The `parasa.git` recipe mirror is never wired (parallel config stream is a stub) | Ideological gap — open |
+| [19](19-system-path-unvalidated.md) | System half is code-complete-by-analogy but never run | Untested — open |
+| [20](20-no-teardown-lifecycle.md) | No `destroy_*` — the lifecycle is create/forward only | Missing feature — open |
+| [21](21-update-rebase-not-pushed-to-foundation-git.md) | `update.sh` replays the delta locally but never pushes it — foundation.git lags | Consistency gap — open |
+| [22](22-untested-paths-and-cruft.md) | Untested branches (rebase conflict, incremental send) + migration cruft | Housekeeping — open |
+
+## Remaining ideological leaps (post-rework assessment)
+
+After the clone-model deploy+update rework (branch `foundation-in-repo-layout`),
+findings 17–22 capture what's still owed to fully realize the "everything
+mirrors everything" design. The biggest three: **17** (mtree flag
+round-trip is half-open — a silent security regression), **18** (the recipe
+mirror plane is unbuilt), and **19** (the entire system half is unproven).
+**20** (no teardown) and **21** (git mirror lags the update) round out the
+architectural gaps; **22** is housekeeping.
 
 ## What worked
 
