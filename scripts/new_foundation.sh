@@ -291,11 +291,11 @@ prepare_workspace_git() {
 	# Ensure foundation.git is mounted and initialized
 	run zmount zbamidbar/foundation.git "$foundation_git"
 	if [ ! -d "${foundation_git}/refs" ] && ! $DRY_RUN; then
-		run git init --bare "$foundation_git"
+		run git init --bare -b main "$foundation_git"
 	fi
 
 	# Initialize git in workspace
-	run git -C "$workspace" init
+	run git -C "$workspace" init -b main
 	run git -C "$workspace" remote add origin "$foundation_git"
 
 	# Fetch existing refs (needed for ref awareness, even on first run)

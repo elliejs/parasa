@@ -81,7 +81,6 @@ warn() {
 
 fixed() {
 	_FIXED=$((_FIXED + 1))
-	_FAIL=$((_FAIL - 1))
 	printf "  → fixed: %s\n" "$1" >&2
 }
 
@@ -183,7 +182,7 @@ check_bare_repo() {
 			zfs create -o mountpoint=none -o canmount=noauto "$ds" || { warn "Failed to create $ds"; return; }
 			zfs set mountpoint="$mnt" "$ds"
 			zfs mount "$ds"
-			git init --bare "$mnt" || { warn "Failed to init bare repo at $mnt"; return; }
+			git init --bare -b main "$mnt" || { warn "Failed to init bare repo at $mnt"; return; }
 			zfs set mountpoint=none "$ds"
 			zfs unmount "$ds" 2>/dev/null || true
 			fixed "$desc"
@@ -364,7 +363,7 @@ check_dataset_props() {
 		if [ "$actual" = "none" ]; then
 			pass "$ds mountpoint=none"
 		else
-			warn "$ds has mountpoint=$actual (expected none)"
+			fail "$ds has mountpoint=$actual (expected none)"
 			if offer_fix "set $ds mountpoint=none"; then
 				zfs set mountpoint=none "$ds" && fixed "$ds mountpoint" || \
 					warn "Failed to set mountpoint on $ds"
@@ -378,7 +377,7 @@ check_dataset_props() {
 		if [ "$actual" = "/containers" ]; then
 			pass "zbereshit/containers mountpoint=/containers"
 		elif [ "$actual" = "none" ]; then
-			warn "zbereshit/containers has mountpoint=none (expected /containers)"
+			fail "zbereshit/containers has mountpoint=none (expected /containers)"
 			if offer_fix "set zbereshit/containers mountpoint=/containers"; then
 				zfs set mountpoint=/containers "zbereshit/containers" && \
 					fixed "zbereshit/containers mountpoint" || \
@@ -417,11 +416,12 @@ print_summary() {
 	printf "  Warnings:%d\n" "$_WARN" >&2
 	printf "══════════════════════════════════════════\n" >&2
 
-	if [ "$_FAIL" -eq 0 ]; then
+	local remaining=$((_FAIL - _FIXED))
+	if [ "$remaining" -le 0 ]; then
 		printf "\n  System layout is ready for parasa.\n" >&2
 		return 0
 	else
-		printf "\n  %d problem(s) remain. Fix them before using parasa.\n" "$_FAIL" >&2
+		printf "\n  %d problem(s) remain. Fix them before using parasa.\n" "$remaining" >&2
 		return 1
 	fi
 }
