@@ -236,6 +236,11 @@ main() {
 	# The recipe (below) reinstalls packages, which needs the admin's tracked
 	# config (e.g. /etc/resolv.conf) already in place, so the rebase must run
 	# before the recipe, not after.
+	#
+	# Clear schg flags first: the cloned base carries system-immutable flags
+	# on libc/ld-elf/init/setuid binaries (from installworld), which git
+	# cannot modify during checkout/rebase ("Operation not permitted").
+	run clear_mtree "$new_root"
 	printf "==> Rebasing admin delta chain...\n" >&2
 
 	local foundation_git="/zbamidbar/foundation.git"
