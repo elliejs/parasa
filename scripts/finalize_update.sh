@@ -137,20 +137,51 @@ main() {
 			printf "==> Stopping test jail %s-new (if running)...\n" "$WS_NAME" >&2
 			run jail -r "${WS_NAME}-new" 2>/dev/null || true
 			printf "==> Stopping old container %s...\n" "$WS_NAME" >&2
-			run jail -r "$WS_NAME"
+			run jail -r "$WS_NAME" 2>/dev/null || true
 			;;
 		system)
 			printf "==> System %s: assuming not the running root.\n" "$WS_NAME" >&2
 			;;
 	esac
 
-	# Step 3: Destroy old OS clone + old data
+	# Step 3: Destroy old OS clone + old data.
+	# The -new data was CoW-cloned from the old data's update snapshot, so
+	# promote the -new data clones first -- otherwise the old data can't be
+	# destroyed (its snapshot still has dependent clones).
+	printf "==> Promoting -new data clones...\n" >&2
+	if ! $DRY_RUN; then
+		for _c in var usr-local home tmp; do
+			zfs_dataset_exists "${new_data_root}/${_c}" && \
+				zfs promote "${new_data_root}/${_c}" 2>/dev/null || true
+		done
+	fi
+
+	# Unmount the old data-lake datasets + devfs first, or the old OS dataset
+	# is busy with submounts and can't be destroyed.
+	if ! $DRY_RUN; then
+		umount "${tree_root}/dev" 2>/dev/null || true
+		for _c in var usr-local home tmp; do
+			zfs unmount "${data_root}/${_c}" 2>/dev/null || true
+		done
+	fi
+
 	printf "==> Destroying old clone + data...\n" >&2
 	run zfs destroy -r "$old_ds"
 	run zfs destroy -r "$data_root"
 
-	# Step 4: Rename -new (OS + data) into place, remount at the live tree
+	# Step 4: Rename -new (OS + data) into place, remount at the live tree.
+	# Unmount the -new tree's submounts + OS first, or the OS dataset is busy
+	# with submounts and can't be renamed.
 	printf "==> Renaming -new into place...\n" >&2
+	if ! $DRY_RUN; then
+		local new_tree
+		new_tree=$(zfs get -H -o value mountpoint "$new_ds")
+		umount "${new_tree}/dev" 2>/dev/null || true
+		for _c in var usr-local home tmp; do
+			zfs unmount "${new_data_root}/${_c}" 2>/dev/null || true
+		done
+		zfs unmount "$new_ds" 2>/dev/null || true
+	fi
 	run zfs rename "$new_ds" "$old_ds"
 	run zfs rename "$new_data_root" "$data_root"
 
