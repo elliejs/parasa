@@ -24,7 +24,7 @@ which is exactly the case here: `zshemot/buildspace/<foundation>` was
 originally created by `new_foundation.sh`'s `prepare_workspace()` with
 `-o mountpoint=... -o canmount=on`, and `zfs send -R` propagates those
 properties down through every subsequent replication (the foundation
-archive in `zbamidbar/foundation.zfs/foundations/<name>`, and now this
+archive in `zbamidbar/foundation.zfs/<name>`, and now this
 receive into `zshemot/buildspace/<container-or-system-name>`). So the
 `zfs recv` on line 253 already mounts the dataset as a side effect, and
 the explicit `zfs mount` on line 254 immediately after collides with it:

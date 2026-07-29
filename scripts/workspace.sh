@@ -95,7 +95,7 @@ collect_foundation() {
 	if [ -n "$FOUNDATION_NAME" ]; then
 		local frecipes="${RECIPES_DIR}/foundations/${FOUNDATION_NAME}.conf"
 		[ -f "$frecipes" ] || die "Foundation '${FOUNDATION_NAME}' not found in recipes."
-		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}" || \
+		zfs_dataset_exists "zbamidbar/foundation.zfs/${FOUNDATION_NAME}" || \
 			die "Foundation '${FOUNDATION_NAME}' not archived in zbamidbar/foundation.zfs."
 		return
 	fi
@@ -170,7 +170,7 @@ COMPOSE
 # Sets WS_DATA_ROOT.
 create_data_datasets() {
 	WS_DATA_ROOT="zbamidbar/${WS_DATA_POOL}/${WS_NAME}"
-	local foundation_var="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}/var"
+	local foundation_var="zbamidbar/foundation.zfs/${FOUNDATION_NAME}/var"
 
 	progress "Creating data datasets"
 
@@ -228,7 +228,7 @@ create_data_datasets() {
 # Sets WS_PATH.
 ws_begin() {
 	local foundation_git="/zbamidbar/foundation.git"
-	local foundation_archive="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+	local foundation_archive="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
 	WS_PATH="/zshemot/buildspace/${WS_NAME}"
 
 	progress "Creating inaugural commit"

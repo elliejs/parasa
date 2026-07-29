@@ -13,7 +13,7 @@ every freshly-bootstrapped system.
 ## The bug
 
 `stage0-bootstrap.sh`'s `create_datasets()` creates `zbamidbar/foundation.zfs`
-directly but never creates a `zbamidbar/foundation.zfs/foundations` child:
+directly but never creates a `zbamidbar/foundation.zfs` child:
 
 ```sh
 # -- zbamidbar --
@@ -30,7 +30,7 @@ foundation's archive dataset two levels below that:
 ```sh
 archive_to_zbamidbar() {
 	local workspace="zshemot/buildspace/${FOUNDATION_NAME}"
-	local dest="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+	local dest="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
 	...
 	run ztouch "$dest" -o mountpoint=none -o canmount=noauto
 ```
@@ -46,14 +46,14 @@ ztouch() {
 ```
 
 `zfs create` (without `-p`) requires every ancestor dataset to already
-exist. `zbamidbar/foundation.zfs/foundations` is never created by anything
+exist. `zbamidbar/foundation.zfs` is never created by anything
 — not by `stage0-bootstrap.sh`, not by `new_foundation.sh` itself before
 this call — so this fails on a completely fresh, correctly-bootstrapped
 system every single time a foundation build reaches this step:
 
 ```
 ==> Archiving to zbamidbar
-cannot create 'zbamidbar/foundation.zfs/foundations/stable15': parent does not exist
+cannot create 'zbamidbar/foundation.zfs/stable15': parent does not exist
 ```
 
 Combined with the [04](04-cleanup-trap-destroys-completed-build-on-late-failure.md)
@@ -88,7 +88,7 @@ Either:
   "create if missing" — a missing parent is just a deeper case of
   "missing"), or
 - Have `stage0-bootstrap.sh`'s `create_datasets()` create
-  `zbamidbar/foundation.zfs/foundations` explicitly, matching the
+  `zbamidbar/foundation.zfs` explicitly, matching the
   `zbamidbar/container-data` / `zbamidbar/system-data` pattern used for the
   other per-name parent datasets.
 

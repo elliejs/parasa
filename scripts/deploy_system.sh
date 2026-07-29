@@ -90,7 +90,7 @@ resolve_snapshot() {
 	progress "Foundation: ${FOUNDATION_NAME}"
 
 	# Validate foundation archive exists
-	local archive="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+	local archive="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
 	zfs_dataset_exists "$archive" || \
 		die "Foundation archive not found: ${archive}"
 
@@ -135,7 +135,7 @@ resolve_snapshot() {
 # ── Deploy ──────────────────────────────────────────────────────────────────
 
 deploy() {
-	local src="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
+	local src="zbamidbar/foundation.zfs/${FOUNDATION_NAME}@${ARTIFACT_NAME}"
 	local dest="zbereshit/systems/${SYSTEM_NAME}"
 
 	progress "Deploying ${SYSTEM_NAME} to zbereshit"

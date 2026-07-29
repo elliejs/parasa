@@ -168,7 +168,6 @@ check_datasets() {
 
 	# zbamidbar
 	check_dataset "zbamidbar/foundation.zfs" "zbamidbar/foundation.zfs"
-	check_dataset "zbamidbar/foundation.zfs/foundations" "zbamidbar/foundation.zfs/foundations"
 	check_dataset "zbamidbar/system-data" "zbamidbar/system-data"
 	check_dataset "zbamidbar/container-data" "zbamidbar/container-data"
 }
@@ -394,7 +393,6 @@ check_dataset_props() {
 		zbereshit/foundations \
 		zbereshit/systems \
 		zbamidbar/foundation.zfs \
-		zbamidbar/foundation.zfs/foundations \
 		zbamidbar/system-data \
 		zbamidbar/container-data \
 		zshemot/buildspace; do

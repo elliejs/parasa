@@ -37,7 +37,7 @@ Trace the chain:
    `zshemot/buildspace/<foundation>` with an explicit
    `-o mountpoint=/zshemot/buildspace/<foundation> -o canmount=on`.
 2. `archive_to_zbamidbar()` does `zfs send -R ...@snap | zfs recv -F
-   zbamidbar/foundation.zfs/foundations/<foundation>`. The `-F` (force)
+   zbamidbar/foundation.zfs/<foundation>`. The `-F` (force)
    receive overwrites whatever `ztouch` pre-set (`mountpoint=none
    canmount=noauto`) with the stream's actual properties — so the
    archived foundation dataset ends up with `mountpoint=/zshemot/

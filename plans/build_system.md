@@ -122,7 +122,7 @@ Mode detection:
 2. **`collect_foundation_name`** — prompt if interactive; validate
 3. **`check_name_available`** — must NOT exist in:
    - `recipes/foundations/<name>/`
-   - `zbamidbar/foundation.zfs/foundations/<name>`
+   - `zbamidbar/foundation.zfs/<name>`
    - `foundation.git` branch `<name>` (orphan branch)
    If exists, error suggesting `destroy_foundation` (future) or pick a new name.
 4. **`resolve_build_config`** — collect SRC_BRANCH (default `stable/15`), KERNCONF (default `GENERIC`), MAKE_JOBS (default `hw.ncpu`). In semi mode, `-o` values become pre-filled defaults; still ask every question. Enter = accept default.
@@ -158,8 +158,8 @@ Mode detection:
 
 13. **`archive_to_zbamidbar`**:
     1. `zfs snapshot -r zshemot/tablets@$ARTIFACT_NAME`
-    2. `ztouch zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME`
-    3. Full send to `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME`
+    2. `ztouch zbamidbar/foundation.zfs/$FOUNDATION_NAME`
+    3. Full send to `zbamidbar/foundation.zfs/$FOUNDATION_NAME`
 
 14. **`wipe_tablets`** — `zfs destroy -r zshemot/tablets`
 
@@ -207,7 +207,7 @@ The standard data-lake mounts (var, usr/local) are always auto-included in the s
 3. **`check_name_available`** — must NOT exist in:
    - `recipes/systems/<name>/`
    - `zbereshit/systems/<name>`
-4. **`collect_foundation`** — if `-f` provided, validate it exists in `recipes/foundations/<name>/` AND `zbamidbar/foundation.zfs/foundations/<name>`. If not provided, list available foundations and prompt.
+4. **`collect_foundation`** — if `-f` provided, validate it exists in `recipes/foundations/<name>/` AND `zbamidbar/foundation.zfs/<name>`. If not provided, list available foundations and prompt.
 5. **`collect_build_options`** — boilerplate dataset questions + custom mounts. For each mount, ask if recipe-related (default: no). Defaults use `zbamidbar/system-data/<name>/<stem>`, user can override.
 6. Print summary, confirm
 
@@ -221,10 +221,10 @@ The standard data-lake mounts (var, usr/local) are always auto-included in the s
    - `mtree.dist` (empty, populated later by parasa-diff)
 8. **`create_system_datasets`** — on zbamidbar:
    - `ztouch zbamidbar/system-data/$SYSTEM_NAME`
-   - Full `zfs send | recv` from `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME/var` to `zbamidbar/system-data/$SYSTEM_NAME/var` (independent copy of pristine var)
+   - Full `zfs send | recv` from `zbamidbar/foundation.zfs/$FOUNDATION_NAME/var` to `zbamidbar/system-data/$SYSTEM_NAME/var` (independent copy of pristine var)
    - `ztouch` for home, tmp, roothome, user homes per collected options
 9. **`create_inaugural_commit`** — the core operation:
-   1. Recv foundation from `zbamidbar/foundation.zfs/foundations/$FOUNDATION_NAME` to `zshemot/tablets` (temporarily — we need the filesystem to modify and commit)
+   1. Recv foundation from `zbamidbar/foundation.zfs/$FOUNDATION_NAME` to `zshemot/tablets` (temporarily — we need the filesystem to modify and commit)
    2. Set up git: the recv'd dataset includes `.git` from the foundation build. Verify remote points to `foundation.git`. `git fetch origin`.
    3. Create branch: `git checkout -b systems/$SYSTEM_NAME $FOUNDATION_NAME`
    4. Write non-recipe fstab entries into `/etc/fstab` inside tablets (append the generated mount lines in fstab format with `zfs` type and `late` option)
@@ -259,17 +259,17 @@ getopts ":hs:a:nd" opt
 
 ### How deploy finds the right ZFS snapshot
 
-The system branch forks from a foundation orphan branch commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/foundations/<name>`. So:
+The system branch forks from a foundation orphan branch commit. The artifact name is the commit message of that foundation commit. This artifact name is the ZFS snapshot tag on `zbamidbar/foundation.zfs/<name>`. So:
 
 1. Read the system's foundation from `recipes/systems/<name>/*.foundation`
 2. In `foundation.git`, find which foundation commit `systems/<name>` forks from (the merge base or first parent on the foundation branch)
 3. Read that commit's message — it IS the artifact name
-4. Use that artifact name to locate `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`
+4. Use that artifact name to locate `zbamidbar/foundation.zfs/<foundation>@<artifact>`
 
 ### Flow
 1. Look up foundation and resolve the ZFS snapshot (as above)
 2. Validate archive exists
-3. `zfs send | recv` from `zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>` to `zbereshit/systems/<name>`. For a new system this is always a full send (we verified it doesn't exist on zbereshit in `check_name_available`). For `update_system` (future), incremental sends apply.
+3. `zfs send | recv` from `zbamidbar/foundation.zfs/<foundation>@<artifact>` to `zbereshit/systems/<name>`. For a new system this is always a full send (we verified it doesn't exist on zbereshit in `check_name_available`). For `update_system` (future), incremental sends apply.
 4. Mount `zbamidbar/foundation.git`
 5. Temporarily mount `zbereshit/systems/<name>`. The recv'd dataset includes `.git` from the foundation build. Fetch the system branch: `git fetch origin systems/<name>`. Checkout: `git checkout systems/<name>`. This applies the inaugural commit (fstab entries, etc.) on top of the foundation.
 6. Unmount `zbereshit/systems/<name>`

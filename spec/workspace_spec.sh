@@ -427,7 +427,7 @@ Describe "workspace.sh"
 
       It "mentions var copy from foundation"
         When call create_data_datasets
-        The error should include "foundation.zfs/foundations/base15/var"
+        The error should include "foundation.zfs/base15/var"
       End
 
       It "mentions usr-local"

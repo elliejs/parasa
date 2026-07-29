@@ -40,8 +40,8 @@ naming convention.
 |---------|-------------|---------|
 | `zbamidbar/foundation.git` | `mountpoint=none`, mounted on demand | Bare git repo. All branches (foundations, systems, containers). |
 | `zbamidbar/foundation.zfs/` | `mountpoint=none` | Parent for foundation archives. |
-| `zbamidbar/foundation.zfs/foundations/` | `mountpoint=none` | Parent for per-foundation archives. |
-| `zbamidbar/foundation.zfs/foundations/${FOUNDATION}` | `mountpoint=none` | Pristine build archive with snapshot chain (`@${ARTIFACT}`). |
+| `zbamidbar/foundation.zfs/` | `mountpoint=none` | Parent for per-foundation archives. |
+| `zbamidbar/foundation.zfs/${FOUNDATION}` | `mountpoint=none` | Pristine build archive with snapshot chain (`@${ARTIFACT}`). |
 | `zbamidbar/system-data/` | `mountpoint=none` | Parent for per-system data. |
 | `zbamidbar/system-data/${NAME}/` | `mountpoint=none` | Per-system data root. |
 | `zbamidbar/system-data/${NAME}/var` | `mountpoint=none` | System's /var. Copied from foundation's pristine var. |

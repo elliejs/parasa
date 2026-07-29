@@ -51,7 +51,7 @@ Execution flow:
   4. Create transient build workspace (zshemot/buildspace/<name>)
   5. Build world + kernel (five make targets)
   6. Commit to <name> orphan branch on zbamidbar/foundation.git
-  7. Archive ZFS snapshot to zbamidbar/foundation.zfs/foundations/<name>
+  7. Archive ZFS snapshot to zbamidbar/foundation.zfs/<name>
   8. Destroy transient build workspace
 
 DANGER: This runs 'make buildworld' and 'make buildkernel', which are
@@ -137,7 +137,7 @@ collect_foundation_name() {
 		[ -f "$f" ] || continue
 		name=$(basename "$f" .conf)
 		# Skip already-archived foundations
-		zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
+		zfs_dataset_exists "zbamidbar/foundation.zfs/${name}" && continue
 		idx=$((idx + 1))
 		[ "$idx" -eq 1 ] && printf "Unbuilt foundation recipes:\n" >&2
 		printf "  %d) %s\n" "$idx" "$name" >&2
@@ -154,7 +154,7 @@ collect_foundation_name() {
 				for f in "$recipes_dir"/*.conf; do
 					[ -f "$f" ] || continue
 					name=$(basename "$f" .conf)
-					zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${name}" && continue
+					zfs_dataset_exists "zbamidbar/foundation.zfs/${name}" && continue
 					cur=$((cur + 1))
 					if [ "$cur" -eq "$resp" ]; then
 						FOUNDATION_NAME="$name"
@@ -175,7 +175,7 @@ collect_foundation_name() {
 check_foundation_available() {
 	# Recipe dir may already exist (pre-created build.conf) — that's fine.
 	# Only block if the foundation has already been built.
-	if zfs_dataset_exists "zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"; then
+	if zfs_dataset_exists "zbamidbar/foundation.zfs/${FOUNDATION_NAME}"; then
 		die "Foundation '${FOUNDATION_NAME}' already archived in zbamidbar/foundation.zfs. Use destroy_foundation (future) or pick a new name."
 	fi
 	# foundation.git is mounted by main() before we get here
@@ -411,7 +411,7 @@ commit_build() {
 
 archive_to_zbamidbar() {
 	local workspace="zshemot/buildspace/${FOUNDATION_NAME}"
-	local dest="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+	local dest="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
 
 	progress "Archiving to zbamidbar"
 
@@ -490,7 +490,7 @@ main() {
 	progress "Foundation '${FOUNDATION_NAME}' created successfully."
 	printf "  Artifact: %s\n" "$ARTIFACT_NAME" >&2
 	printf "  Branch:   %s\n" "$FOUNDATION_NAME" >&2
-	printf "  Archive:  zbamidbar/foundation.zfs/foundations/%s\n" "$FOUNDATION_NAME" >&2
+	printf "  Archive:  zbamidbar/foundation.zfs/%s\n" "$FOUNDATION_NAME" >&2
 
 	if [ "$QUIET" -eq 0 ] && [ -t 0 ]; then
 		printf "\nCreate a workspace from this foundation?\n" >&2

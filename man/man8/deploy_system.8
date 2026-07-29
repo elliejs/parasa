@@ -41,7 +41,7 @@ That commit's message is the artifact name and ZFS snapshot tag.
 Send the foundation archive using
 .Xr zfs-send 8
 from
-.Pa zbamidbar/foundation.zfs/foundations/ Ns Ao Ar foundation Ac Ns @ Ns Ao Ar artifact Ac
+.Pa zbamidbar/foundation.zfs/ Ns Ao Ar foundation Ac Ns @ Ns Ao Ar artifact Ac
 and receive it into
 .Pa zbereshit/systems/ Ns Ao Ar name Ac
 using
@@ -88,7 +88,7 @@ nextboot -e vfs.root.mountfrom="zfs:zbereshit/systems/<name>"
 If the session is interactive, the user is prompted to reboot.
 .El
 .Sh FILES
-.Bl -tag -width "zbamidbar/foundation.zfs/foundations/<foundation>"
+.Bl -tag -width "zbamidbar/foundation.zfs/<foundation>"
 .It Pa recipes/systems/ Ns Ao Ar name Ac Ns Pa /*.foundation
 Foundation descriptor for the named system.
 .It Pa zbamidbar/foundation.git
@@ -97,7 +97,7 @@ Git repository containing
 and
 .Ao Ar foundation Ac
 branches.
-.It Pa zbamidbar/foundation.zfs/foundations/ Ns Ao Ar foundation Ac
+.It Pa zbamidbar/foundation.zfs/ Ns Ao Ar foundation Ac
 ZFS archive of the named foundation.
 .It Pa zbereshit/systems/ Ns Ao Ar name Ac
 Target dataset where the system is deployed for boot.

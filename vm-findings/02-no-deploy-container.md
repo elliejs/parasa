@@ -78,7 +78,7 @@ plan is to hand-run the equivalent of `deploy_system.sh`'s `deploy()`,
 substituting `zbereshit/containers/<name>` for `zbereshit/systems/<name>`:
 
 ```sh
-zfs send -R "zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>" \
+zfs send -R "zbamidbar/foundation.zfs/<foundation>@<artifact>" \
   | zfs recv -F "zbereshit/containers/<name>"
 zfs set mountpoint="/containers/<name>" zbereshit/containers/<name>
 zfs mount zbereshit/containers/<name>

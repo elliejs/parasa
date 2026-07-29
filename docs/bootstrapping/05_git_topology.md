@@ -26,7 +26,7 @@ generic_stable15  (orphan)
 ```
 
 **The commit message IS the artifact name**, which is also the ZFS
-snapshot tag on `zbamidbar/foundation.zfs/foundations/${FOUNDATION}`.
+snapshot tag on `zbamidbar/foundation.zfs/${FOUNDATION}`.
 
 Artifact name format: `<branch>_<ISO-date>_<short-sha>[_<suffix>]`,
 built by `get_artifact_name()` in `helpers.sh`.

@@ -247,7 +247,7 @@ foundation's `build.conf`. These are not mutually exclusive.
 
 Each foundation exists in two places:
 
-- `zbamidbar/foundation.zfs/foundations/<name>@<artifact>` — canonical archive
+- `zbamidbar/foundation.zfs/<name>@<artifact>` — canonical archive
 - `zbereshit/foundations/<name>@<artifact>` — deployment clone source
   (replicated from zbamidbar via `zfs send | recv`)
 
@@ -308,7 +308,7 @@ world+kernel), then create **systems** or **containers** on top of it.
 `new_foundation` creates a transient `zshemot/buildspace/<name>` workspace,
 builds from `zshemot/src.git`, commits to an orphan `<foundation-name>`
 branch on `zbamidbar/foundation.git`, snapshots and archives to
-`zbamidbar/foundation.zfs/foundations/<name>`, then destroys the workspace.
+`zbamidbar/foundation.zfs/<name>`, then destroys the workspace.
 
 The foundation .gitignore covers `var/`, `usr/local/`, `tmp/` only — NOT
 `home/`. Whether to gitignore home is per-system/container, decided during
@@ -328,7 +328,7 @@ The core operation is the **inaugural commit** — a commit on `systems/<name>`
 branching from the foundation branch that writes data-lake mount entries into
 `/etc/fstab` (var, tmp, usr/local are always included; home is optional).
 
-The ZFS flow: `zbamidbar/foundation.zfs/foundations/<name>` recv to
+The ZFS flow: `zbamidbar/foundation.zfs/<name>` recv to
 `zshemot/buildspace/<system-name>` (temporarily), branch and commit, push,
 destroy workspace. If there are no fstab changes, the branch is created
 on the bare repo without recv'ing.
@@ -393,7 +393,7 @@ pkg.list, plus a jail.conf and mount.fstab.
 
 To appropriate the resources for a container, the foundation artifact
 is found via the container's `.foundation` file and resolved through
-`zbamidbar/foundation.zfs/foundations/<foundation>@<artifact>`. The foundation
+`zbamidbar/foundation.zfs/<foundation>@<artifact>`. The foundation
 is replicated to `zbereshit/foundations/<foundation>@<artifact>` if not
 already present, and the container is created as a ZFS **clone** from
 that snapshot. This gives block-level deduplication: containers at the

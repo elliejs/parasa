@@ -90,7 +90,7 @@ FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
 OLD_ARTIFACT=$(read_artifact_name "$RECIPE_DIR")
 
 # Foundation archive dataset
-FOUNDATION_ARCHIVE="zbamidbar/foundation.zfs/foundations/${FOUNDATION_NAME}"
+FOUNDATION_ARCHIVE="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
 
 # ── Dry-run wrapper ─────────────────────────────────────────────────────────
 
