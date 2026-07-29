@@ -207,6 +207,15 @@ get_foundation() {
 	basename "$found" .foundation
 }
 
+# Check if a foundation recipe has SRC_BRANCH set in the file itself
+# (not via msysrc fallback to parasa.conf). Returns 0 if complete, 1 if partial.
+# Usage: recipe_is_complete /path/to/recipe.conf
+recipe_is_complete() {
+	local conf="${1:?recipe_is_complete: conf path required}"
+	[ -f "$conf" ] || return 1
+	sysrc -f "$conf" -qn SRC_BRANCH >/dev/null 2>&1
+}
+
 # ── Name validation ──────────────────────────────────────────────────────────
 
 # Validate a name for use as a dataset/branch component.
@@ -530,7 +539,7 @@ get_foundation_version() {
 # Prints the db file path to stdout. Returns 1 if none found.
 resolve_derivations_db() {
 	local target="${1:?resolve_derivations_db: version required}"
-	local db_dir="${PARASA_DIR}/etc/derivations"
+	local db_dir="${RECIPES_DIR}/derivations"
 	local best="" best_ver="" f ver
 
 	# Handle "main" — use the newest available db

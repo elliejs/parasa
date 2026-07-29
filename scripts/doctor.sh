@@ -271,27 +271,6 @@ check_parasa_repo() {
 		fi
 	fi
 
-	# etc/derivations/ with at least one .db
-	if [ -d "${PARASA_DIR}/etc/derivations" ]; then
-		local db_count=0 f
-		for f in "${PARASA_DIR}/etc/derivations"/*.db; do
-			[ -f "$f" ] && db_count=$((db_count + 1))
-		done
-		if [ "$db_count" -gt 0 ]; then
-			pass "etc/derivations/ has ${db_count} db file(s)"
-		else
-			fail "etc/derivations/ exists but has no .db files"
-			warn "At least one derivation db (e.g. 15.0.db) is needed."
-		fi
-	else
-		fail "etc/derivations/ directory missing"
-		if offer_fix "create etc/derivations/"; then
-			mkdir -p "${PARASA_DIR}/etc/derivations"
-			fixed "etc/derivations/ directory"
-			warn "You still need a derivation db file (e.g. 15.0.db)."
-		fi
-	fi
-
 	# parasa.conf
 	if [ -f "${PARASA_DIR}/parasa.conf" ]; then
 		pass "parasa.conf exists"
@@ -309,7 +288,7 @@ CONF
 
 	# scripts/ directory with key scripts
 	local script
-	for script in helpers.sh workspace.sh new_foundation.sh new_system.sh new_container.sh deploy_system.sh deploy_container.sh diff.sh save.sh update.sh finalize_update.sh doctor.sh menu.sh; do
+	for script in helpers.sh workspace.sh new_foundation.sh update_foundation.sh new_system.sh new_container.sh deploy_system.sh deploy_container.sh diff.sh save.sh update.sh finalize_update.sh doctor.sh menu.sh; do
 		if [ -f "${PARASA_DIR}/scripts/${script}" ]; then
 			pass "scripts/${script}"
 		else
@@ -358,6 +337,27 @@ check_recipes_repo() {
 			fi
 		fi
 	done
+
+	# derivations/ with at least one .db
+	if [ -d "${RECIPES_DIR}/derivations" ]; then
+		local db_count=0 f
+		for f in "${RECIPES_DIR}/derivations"/*.db; do
+			[ -f "$f" ] && db_count=$((db_count + 1))
+		done
+		if [ "$db_count" -gt 0 ]; then
+			pass "derivations/ has ${db_count} db file(s)"
+		else
+			fail "derivations/ exists but has no .db files"
+			warn "At least one derivation db (e.g. 15.0.db) is needed."
+		fi
+	else
+		fail "derivations/ directory missing in recipes"
+		if offer_fix "create ${RECIPES_DIR}/derivations/"; then
+			mkdir -p "${RECIPES_DIR}/derivations"
+			fixed "derivations/"
+			warn "You still need a derivation db file (e.g. 15.0.db)."
+		fi
+	fi
 
 	# jail.conf
 	if [ -f "${RECIPES_DIR}/jail.conf" ]; then

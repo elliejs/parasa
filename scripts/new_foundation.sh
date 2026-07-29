@@ -216,25 +216,41 @@ resolve_build_config() {
 	KERNCONF=$(prompt_from_list "Kernel config" "$def_kernconf" "$QUIET" "$kernconf_list")
 	MAKE_JOBS=$(prompt_or_default "Parallel jobs" "$def_jobs" "$QUIET")
 
-	# Recipe change detection: if an existing recipe's key values changed,
-	# prompt the user to rename or confirm overwrite.
-	if [ -n "$orig_branch" ] && [ "$QUIET" -eq 0 ]; then
-		local changed=false
-		[ "$SRC_BRANCH" != "$orig_branch" ] && changed=true
-		[ -n "$orig_kernconf" ] && [ "$KERNCONF" != "$orig_kernconf" ] && changed=true
+	# Recipe completeness and change detection.
+	# Complete recipes stay untouched when values change — a new recipe is created.
+	# Partial/template recipes always require a new name for the fleshed-out version.
+	if [ -f "$build_conf" ]; then
+		local resp
+		if recipe_is_complete "$build_conf"; then
+			# Complete recipe — check for changes
+			local changed=false
+			[ "$SRC_BRANCH" != "$orig_branch" ] && changed=true
+			[ -n "$orig_kernconf" ] && [ "$KERNCONF" != "$orig_kernconf" ] && changed=true
 
-		if $changed; then
-			printf "\nWARNING: Build config differs from existing recipe '%s'.\n" "$FOUNDATION_NAME" >&2
-			printf "  Original: SRC_BRANCH=%s  KERNCONF=%s\n" "$orig_branch" "${orig_kernconf:-GENERIC}" >&2
-			printf "  New:      SRC_BRANCH=%s  KERNCONF=%s\n" "$SRC_BRANCH" "$KERNCONF" >&2
-			printf "Enter a new foundation name (or 'keep' to overwrite): " >&2
-			local resp
-			read -r resp || resp="keep"
-			if [ "$resp" != "keep" ] && [ -n "$resp" ]; then
+			if $changed; then
+				[ "$QUIET" -gt 0 ] && \
+					die "Config differs from recipe '${FOUNDATION_NAME}'. Run interactively to create a new recipe."
+				printf "\nConfig differs from existing recipe '%s'.\n" "$FOUNDATION_NAME" >&2
+				printf "  Original: SRC_BRANCH=%s  KERNCONF=%s\n" "$orig_branch" "${orig_kernconf:-GENERIC}" >&2
+				printf "  New:      SRC_BRANCH=%s  KERNCONF=%s\n" "$SRC_BRANCH" "$KERNCONF" >&2
+				printf "Enter a new foundation name: " >&2
+				read -r resp || die "EOF reading foundation name"
+				[ -n "$resp" ] || die "Foundation name required."
 				validate_name "$resp" "Foundation name" || die "Invalid name."
 				FOUNDATION_NAME="$resp"
 				check_foundation_available
 			fi
+		else
+			# Partial template — always require new name
+			[ "$QUIET" -gt 0 ] && \
+				die "Recipe '${FOUNDATION_NAME}' is a template (missing SRC_BRANCH). Run interactively."
+			printf "\nRecipe '%s' is a template. A complete recipe will be created.\n" "$FOUNDATION_NAME" >&2
+			printf "Enter a foundation name for this build: " >&2
+			read -r resp || die "EOF reading foundation name"
+			[ -n "$resp" ] || die "Foundation name required."
+			validate_name "$resp" "Foundation name" || die "Invalid name."
+			FOUNDATION_NAME="$resp"
+			check_foundation_available
 		fi
 	fi
 }
