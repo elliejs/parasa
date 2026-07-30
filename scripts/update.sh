@@ -225,13 +225,13 @@ main() {
 		system)
 			if [ -f "$compose" ]; then
 				run cp "$compose" "${new_root}/tmp/_compose.sh"
-				run chroot "$new_root" sh -c '. /tmp/_compose.sh && pre_pkg'
+				run chroot "$new_root" sh -ec '. /tmp/_compose.sh; pre_pkg'
 			fi
 			;;
 		container)
 			if [ -f "$compose" ]; then
 				run cp "$compose" "${new_root}/tmp/_compose.sh"
-				run jexec "${WS_NAME}-new" sh -c '. /tmp/_compose.sh && pre_pkg'
+				run jexec "${WS_NAME}-new" sh -ec '. /tmp/_compose.sh; pre_pkg'
 			fi
 			;;
 	esac
@@ -253,12 +253,12 @@ main() {
 	case "$WS_KIND" in
 		system)
 			if [ -f "$compose" ]; then
-				run chroot "$new_root" sh -c '. /tmp/_compose.sh && post_pkg'
+				run chroot "$new_root" sh -ec '. /tmp/_compose.sh; post_pkg'
 			fi
 			;;
 		container)
 			if [ -f "$compose" ]; then
-				run jexec "${WS_NAME}-new" sh -c '. /tmp/_compose.sh && post_pkg'
+				run jexec "${WS_NAME}-new" sh -ec '. /tmp/_compose.sh; post_pkg'
 			fi
 			;;
 	esac

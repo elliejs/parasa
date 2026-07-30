@@ -348,6 +348,7 @@ COMPOSE
 			printf "# source\tdestination\tfstype\toptions\tdump\tpass\n"
 			printf "%s/var\t%s/var\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
 			printf "%s/usr-local\t%s/usr/local\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
+			printf "%s/root\t%s/root\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
 			if yesish "$WANT_HOME"; then
 				printf "%s/home\t%s/home\tzfs\trw\t0\t0\n" "$data_root" "$cpath"
 			fi
@@ -540,6 +541,9 @@ create_data_datasets() {
 	# usr-local: always
 	run ztouch "${data_root}/usr-local" -o mountpoint=none -o canmount=noauto
 
+	# root: always (keeps build caches, dotfiles off the clone)
+	run ztouch "${data_root}/root" -o mountpoint=none -o canmount=noauto
+
 	# Optional datasets
 	if yesish "$WANT_HOME"; then
 		run ztouch "${data_root}/home" -o mountpoint=none -o canmount=noauto
@@ -573,6 +577,8 @@ mount_and_start() {
 	run zfs mount "${data_root}/var"
 	run zfs set mountpoint="${cpath}/usr/local" "${data_root}/usr-local"
 	run zfs mount "${data_root}/usr-local"
+	run zfs set mountpoint="${cpath}/root" "${data_root}/root"
+	run zfs mount "${data_root}/root"
 	if zfs_dataset_exists "${data_root}/home"; then
 		run zfs set mountpoint="${cpath}/home" "${data_root}/home"
 		run zfs mount "${data_root}/home"
@@ -618,7 +624,7 @@ run_recipe() {
 	progress "Running recipe (pre_pkg)"
 	if [ -f "$compose" ]; then
 		run cp "$compose" "/containers/${CONTAINER_NAME}/tmp/_compose.sh"
-		run jexec "$CONTAINER_NAME" sh -c '. /tmp/_compose.sh && pre_pkg'
+		run jexec "$CONTAINER_NAME" sh -ec '. /tmp/_compose.sh; pre_pkg'
 	fi
 
 	progress "Installing packages"
@@ -628,7 +634,7 @@ run_recipe() {
 
 	progress "Running recipe (post_pkg)"
 	if [ -f "$compose" ]; then
-		run jexec "$CONTAINER_NAME" sh -c '. /tmp/_compose.sh && post_pkg'
+		run jexec "$CONTAINER_NAME" sh -ec '. /tmp/_compose.sh; post_pkg'
 		rm -f "/containers/${CONTAINER_NAME}/tmp/_compose.sh"
 	fi
 }
@@ -734,6 +740,7 @@ print_summary() {
 	printf "  Foundation:  %s\n" "$FOUNDATION_NAME" >&2
 	printf "  var:         %s/var (always)\n" "$data_root" >&2
 	printf "  usr/local:   %s/usr-local (always)\n" "$data_root" >&2
+	printf "  root:        %s/root (always)\n" "$data_root" >&2
 	printf "  home:        %s\n" "$(yesish "$WANT_HOME" && echo "${data_root}/home" || echo "no")" >&2
 	printf "  tmp:         %s\n" "$(yesish "$WANT_TMP" && echo "${data_root}/tmp" || echo "no")" >&2
 	if [ -n "$USER_HOMES" ]; then
