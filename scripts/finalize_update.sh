@@ -32,9 +32,8 @@ This command:
   2. Stops the old container if running
   3. Destroys the old clone: zfs destroy -r zbereshit/{kind}s/${NAME}
   4. Renames -new to plain: zfs rename {kind}s/${NAME}-new {kind}s/${NAME}
-  5. Updates .foundation file with new artifact name
-  6. Saves state (delegates to save.sh)
-  7. Optionally starts container or sets nextboot for system
+  5. Saves state (delegates to save.sh)
+  6. Optionally starts container or sets nextboot for system
 
 Rollback (if -new is bad, BEFORE finalizing):
   zfs destroy -r zbereshit/{kind}s/${NAME}-new
@@ -78,7 +77,8 @@ fi
 RECIPE_DIR=$(get_recipes_dir "$WS_KIND" "$WS_NAME")
 [ -d "$RECIPE_DIR" ] || die "Recipe directory not found: ${RECIPE_DIR}"
 
-FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
+WS_DATASET=$(get_ws_dataset "$WS_KIND" "$WS_NAME")
+FOUNDATION_NAME=$(get_foundation "$WS_DATASET")
 
 # ── Dry-run wrapper ─────────────────────────────────────────────────────────
 
@@ -124,21 +124,7 @@ main() {
 	printf "==> Renaming %s → %s...\n" "$new_ds" "$old_ds" >&2
 	run zfs rename "$new_ds" "$old_ds"
 
-	# Step 5: Update .foundation file
-	printf "==> Updating .foundation artifact...\n" >&2
-	if ! $DRY_RUN; then
-		# Read the new artifact from the -new tree's git state
-		local new_root
-		new_root=$(get_tree_root "$WS_KIND" "$WS_NAME")
-		local new_artifact
-		new_artifact=$(get_current_artifact "zbereshit/foundations/${FOUNDATION_NAME}")
-		[ -n "$new_artifact" ] || die "Cannot determine new artifact name."
-		printf "%s\n" "$new_artifact" > "${RECIPE_DIR}/${FOUNDATION_NAME}.foundation"
-	else
-		printf "  [dry] update %s/%s.foundation\n" "$RECIPE_DIR" "$FOUNDATION_NAME" >&2
-	fi
-
-	# Step 6: Save state
+	# Step 5: Save state
 	printf "==> Saving state...\n" >&2
 	run "${SCRIPT_DIR}/save.sh" -s "$WS_NAME" -k "$WS_KIND" -q -m "finalize update to ${NEW_ARTIFACT:-new artifact}"
 

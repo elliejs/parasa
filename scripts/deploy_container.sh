@@ -28,7 +28,7 @@ Options:
   -s NAME   Container name (required)
 
 This command:
-  1. Reads the container's foundation from recipes/containers/<name>/*.foundation
+  1. Reads the container's foundation from its ZFS clone origin
   2. Resolves the foundation's ZFS snapshot via foundation.git commit history
   3. Sends the foundation archive to zbereshit/containers/<name>
   4. Applies the container branch (git checkout) for container-specific state
@@ -79,10 +79,19 @@ progress() {
 # ── Resolve foundation and snapshot ─────────────────────────────────────────
 
 resolve_snapshot() {
-	local recipes="${RECIPES_DIR}/containers/${CONTAINER_NAME}"
-	[ -d "$recipes" ] || die "Container recipes dir not found: ${recipes}"
+	# Mount foundation.git to derive foundation name from branch ancestry
+	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
 
-	FOUNDATION_NAME=$(get_foundation "$recipes")
+	local foundation_git="/zbamidbar/foundation.git"
+	local container_branch="containers/${CONTAINER_NAME}"
+
+	if ! $DRY_RUN; then
+		git_branch_exists "$foundation_git" "$container_branch" || \
+			die "Container branch '${container_branch}' not found in foundation.git."
+		FOUNDATION_NAME=$(get_foundation_from_git "$foundation_git" "$container_branch")
+	else
+		FOUNDATION_NAME="${FOUNDATION_NAME:-unknown}"
+	fi
 	progress "Foundation: ${FOUNDATION_NAME}"
 
 	# Validate foundation archive exists
@@ -90,20 +99,10 @@ resolve_snapshot() {
 	zfs_dataset_exists "$archive" || \
 		die "Foundation archive not found: ${archive}"
 
-	# Mount foundation.git to read commit history
-	run zmount zbamidbar/foundation.git /zbamidbar/foundation.git
-
-	local foundation_git="/zbamidbar/foundation.git"
-	local container_branch="containers/${CONTAINER_NAME}"
 	local foundation_branch="${FOUNDATION_NAME}"
 
 	# Find the foundation commit this container forks from
 	if ! $DRY_RUN; then
-		git_branch_exists "$foundation_git" "$container_branch" || \
-			die "Container branch '${container_branch}' not found in foundation.git."
-		git_branch_exists "$foundation_git" "$foundation_branch" || \
-			die "Foundation branch '${foundation_branch}' not found in foundation.git."
-
 		# The merge-base between the container branch and the foundation
 		# branch gives us the foundation commit the container forked from.
 		local fork_commit

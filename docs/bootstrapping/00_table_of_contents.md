@@ -42,3 +42,7 @@ understanding.
 
 12. [Naming Conventions and Terminology](12_naming_and_terminology.md) --
     Glossary of project-specific terms and naming rules.
+
+13. [Inter-Jail Communication Patterns](13_inter_jail_patterns.md) --
+    How multiple containers work together: reverse proxy pattern,
+    shared datasets, startup ordering.

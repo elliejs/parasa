@@ -140,7 +140,6 @@ create_recipe_boilerplate() {
 	run mkdir -p "$WS_RECIPE_DIR"
 
 	if ! $DRY_RUN; then
-		: > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"  # artifact written by ws_begin
 		cat > "${WS_RECIPE_DIR}/compose.sh" <<'COMPOSE'
 #!/bin/sh
 # compose.sh -- recipe actions for this workspace.
@@ -159,8 +158,8 @@ COMPOSE
 		: > "${WS_RECIPE_DIR}/pkg.list"
 		: > "${WS_RECIPE_DIR}/mtree.dist"
 	else
-		printf "  [dry] create %s/{%s.foundation,compose.sh,derivations.local,pkg.list,mtree.dist}\n" \
-			"$WS_RECIPE_DIR" "$FOUNDATION_NAME" >&2
+		printf "  [dry] create %s/{compose.sh,derivations.local,pkg.list,mtree.dist}\n" \
+			"$WS_RECIPE_DIR" >&2
 	fi
 }
 
@@ -255,7 +254,6 @@ ws_begin() {
 				"zshemot/buildspace/${WS_NAME}"
 		zfs mount "zshemot/buildspace/${WS_NAME}" 2>/dev/null || true
 		zfs mount "zshemot/buildspace/${WS_NAME}/var" 2>/dev/null || true
-		printf "%s\n" "$snap" > "${WS_RECIPE_DIR}/${FOUNDATION_NAME}.foundation"
 	else
 		printf "  [dry] zfs send -R %s@<snap> | zfs recv zshemot/buildspace/%s\n" \
 			"$foundation_archive" "$WS_NAME" >&2

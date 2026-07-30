@@ -193,18 +193,54 @@ git_branch_exists() {
 
 # ── Foundation helpers ───────────────────────────────────────────────────────
 
-# Read foundation name from a system/container recipes dir.
-# Returns the name via stdout. Dies if zero or multiple .foundation files.
+# Derive foundation name and artifact from a deployed workspace's ZFS origin.
+# Usage: get_foundation dataset
+#   e.g. get_foundation zbereshit/containers/nginx
+# Prints the foundation name to stdout.
 get_foundation() {
-	local dir="${1:?get_foundation: recipes dir required}"
-	local found="" count=0 f
-	for f in "$dir"/*.foundation; do
-		[ -e "$f" ] || die "get_foundation: no .foundation file in ${dir}"
-		count=$((count + 1))
-		found="$f"
+	local ds="${1:?get_foundation: dataset required}"
+	local origin
+	origin=$(zfs get -H -o value origin "$ds" 2>/dev/null) || \
+		die "get_foundation: cannot read origin of ${ds}"
+	[ -n "$origin" ] && [ "$origin" != "-" ] || \
+		die "get_foundation: ${ds} is not a clone (no origin)"
+	# origin = zbereshit/foundations/<name>@<artifact>
+	local without_snap="${origin%%@*}"
+	basename "$without_snap"
+}
+
+# Derive foundation name from a git branch in foundation.git.
+# Finds which foundation branch is an ancestor of the given workspace branch.
+# Usage: get_foundation_from_git repo_path workspace_branch
+#   e.g. get_foundation_from_git /zbamidbar/foundation.git containers/nginx
+# Prints the foundation name to stdout.
+get_foundation_from_git() {
+	local repo="${1:?get_foundation_from_git: repo path required}"
+	local ws_branch="${2:?get_foundation_from_git: workspace branch required}"
+	local branch name
+	# Foundation branches are top-level (not under containers/ or systems/)
+	for branch in $(git -C "$repo" for-each-ref --format='%(refname:short)' refs/heads/); do
+		case "$branch" in containers/*|systems/*) continue ;; esac
+		if git -C "$repo" merge-base --is-ancestor "$branch" "$ws_branch" 2>/dev/null; then
+			printf "%s" "$branch"
+			return 0
+		fi
 	done
-	[ "$count" -eq 1 ] || die "get_foundation: expected 1 .foundation file in ${dir}, found ${count}"
-	basename "$found" .foundation
+	die "get_foundation_from_git: no foundation branch is ancestor of ${ws_branch}"
+}
+
+# Read the artifact name from a deployed workspace's ZFS origin.
+# Usage: read_artifact_name dataset
+# Prints the artifact (snapshot) name to stdout.
+read_artifact_name() {
+	local ds="${1:?read_artifact_name: dataset required}"
+	local origin
+	origin=$(zfs get -H -o value origin "$ds" 2>/dev/null) || \
+		die "read_artifact_name: cannot read origin of ${ds}"
+	[ -n "$origin" ] && [ "$origin" != "-" ] || \
+		die "read_artifact_name: ${ds} is not a clone (no origin)"
+	# origin = zbereshit/foundations/<name>@<artifact>
+	printf "%s" "${origin#*@}"
 }
 
 # Check if a foundation recipe has SRC_BRANCH set in the file itself
@@ -471,6 +507,18 @@ get_tree_root() {
 	esac
 }
 
+# Get the ZFS dataset name for a deployed system or container.
+# Usage: get_ws_dataset kind name
+get_ws_dataset() {
+	local kind="${1:?get_ws_dataset: kind required}"
+	local name="${2:?get_ws_dataset: name required}"
+	case "$kind" in
+		system)    printf "zbereshit/systems/%s" "$name" ;;
+		container) printf "zbereshit/containers/%s" "$name" ;;
+		*) die "get_ws_dataset: unknown kind: $kind" ;;
+	esac
+}
+
 # Get the recipes directory for a system or container.
 # Usage: get_recipes_dir kind name
 get_recipes_dir() {
@@ -647,21 +695,6 @@ lookup_derivation() {
 	return 1
 }
 
-# Read the artifact name from a recipes directory's .foundation file.
-# Usage: read_artifact_name recipes_dir
-# Prints the artifact name to stdout. Dies if file missing or empty.
-read_artifact_name() {
-	local dir="${1:?read_artifact_name: recipes dir required}"
-	local f artifact
-	for f in "$dir"/*.foundation; do
-		[ -e "$f" ] || die "read_artifact_name: no .foundation file in ${dir}"
-		artifact=$(cat "$f")
-		[ -n "$artifact" ] || die "read_artifact_name: .foundation file is empty in ${dir}"
-		printf "%s" "$artifact"
-		return 0
-	done
-	die "read_artifact_name: no .foundation file in ${dir}"
-}
 
 # ── Git / artifact helpers ────────────────────────────────────────────────────
 

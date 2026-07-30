@@ -86,8 +86,9 @@ RECIPE_DIR=$(get_recipes_dir "$WS_KIND" "$WS_NAME")
 
 [ -d "$RECIPE_DIR" ] || die "Recipe directory not found: ${RECIPE_DIR}"
 
-FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
-OLD_ARTIFACT=$(read_artifact_name "$RECIPE_DIR")
+WS_DATASET=$(get_ws_dataset "$WS_KIND" "$WS_NAME")
+FOUNDATION_NAME=$(get_foundation "$WS_DATASET")
+OLD_ARTIFACT=$(read_artifact_name "$WS_DATASET")
 
 # Foundation archive dataset
 FOUNDATION_ARCHIVE="zbamidbar/foundation.zfs/${FOUNDATION_NAME}"
@@ -195,8 +196,10 @@ main() {
 		container)
 			new_root="/containers/${WS_NAME}-new"
 			# Start temporary jail for -new
+			# TODO: update.sh uses -new name; need a temp jail.conf or inline params
 			run jail -c name="${WS_NAME}-new" path="$new_root" \
-				host.hostname="${WS_NAME}-new" persist
+				host.hostname="${WS_NAME}-new" ip4=inherit ip6=inherit \
+				mount.devfs persist
 			# Mount data-lake datasets
 			local data_root="zbamidbar/container-data/${WS_NAME}"
 			run zfs set mountpoint="${new_root}/var" "${data_root}/var"

@@ -58,7 +58,7 @@ Examples:
 Execution flow:
   1. Collect system name and foundation
   2. Ask dataset/mount questions
-  3. Create recipes/systems/<name>/ with .foundation, boilerplate files
+  3. Create recipes/systems/<name>/ with boilerplate files
   4. Create data datasets on zbamidbar/system-data/<name>/
   5. Create inaugural commit on systems/<name> branch (writes /etc/fstab)
   6. Optionally deploy to zbereshit (via deploy_system)

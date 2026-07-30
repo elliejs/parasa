@@ -81,8 +81,9 @@ RECIPE_DIR=$(get_recipes_dir "$WS_KIND" "$WS_NAME")
 
 [ -d "$RECIPE_DIR" ] || die "Recipe directory not found: ${RECIPE_DIR}"
 
-FOUNDATION_NAME=$(get_foundation "$RECIPE_DIR")
-ARTIFACT=$(read_artifact_name "$RECIPE_DIR")
+WS_DATASET=$(get_ws_dataset "$WS_KIND" "$WS_NAME")
+FOUNDATION_NAME=$(get_foundation "$WS_DATASET")
+ARTIFACT=$(read_artifact_name "$WS_DATASET")
 
 # ── Dry-run wrapper ─────────────────────────────────────────────────────────
 

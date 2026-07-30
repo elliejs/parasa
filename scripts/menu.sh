@@ -23,23 +23,28 @@ print_menu() {
   Build
     2)  new_foundation      Build FreeBSD world+kernel, archive as a foundation
                             Run when you need a new base image (new release, patch level).
+    3)  update_foundation   Check for upstream changes and rebuild a foundation
 
   Create
-    3)  new_container       Create a container (jail) recipe on top of a foundation
-    4)  new_system          Create a system recipe on top of a foundation
+    4)  new_container       Create a container (jail) on top of a foundation
+    5)  new_system          Create a system recipe on top of a foundation
 
   Deploy
-    5)  deploy_container    Send a foundation archive to zbereshit, apply container branch
-    6)  deploy_system       Send a foundation archive to zbereshit, apply system branch
+    6)  deploy_container    Send a foundation archive to zbereshit, apply container branch
+    7)  deploy_system       Send a foundation archive to zbereshit, apply system branch
 
   Operate
-    7)  diff                Detect drift between a live workspace and its recipe
-    8)  save                Capture packages, mtree, and commit workspace state
-    9)  update              Rebase a workspace onto a new foundation (non-destructive)
-   10)  finalize_update     Swap the -new clone into place (destructive, completes update)
+    8)  diff                Detect drift between a live workspace and its recipe
+    9)  save                Capture packages, mtree, and commit workspace state
+   10)  update              Rebase a workspace onto a new foundation (non-destructive)
+   11)  finalize_update     Swap the -new clone into place (destructive, completes update)
+
+  Destroy
+   12)  destroy_container   Remove all traces of a container (partial or full)
+   13)  destroy_foundation  Remove all traces of a foundation (refuses if in use)
 
   Maintain
-   11)  doctor              Check and repair the parasa system layout
+   14)  doctor              Check and repair the parasa system layout
 
    h)  Help — show this menu again
    q)  Quit
@@ -61,15 +66,18 @@ while true; do
 	case "$choice" in
 		1)  run_script "${SCRIPT_DIR}/stage0-bootstrap.sh" ;;
 		2)  run_script "${SCRIPT_DIR}/new_foundation.sh" ;;
-		3)  run_script "${SCRIPT_DIR}/new_container.sh" ;;
-		4)  run_script "${SCRIPT_DIR}/new_system.sh" ;;
-		5)  run_script "${SCRIPT_DIR}/deploy_container.sh" ;;
-		6)  run_script "${SCRIPT_DIR}/deploy_system.sh" ;;
-		7)  run_script "${SCRIPT_DIR}/diff.sh" ;;
-		8)  run_script "${SCRIPT_DIR}/save.sh" ;;
-		9)  run_script "${SCRIPT_DIR}/update.sh" ;;
-		10) run_script "${SCRIPT_DIR}/finalize_update.sh" ;;
-		11) run_script "${SCRIPT_DIR}/doctor.sh" ;;
+		3)  run_script "${SCRIPT_DIR}/update_foundation.sh" ;;
+		4)  run_script "${SCRIPT_DIR}/new_container.sh" ;;
+		5)  run_script "${SCRIPT_DIR}/new_system.sh" ;;
+		6)  run_script "${SCRIPT_DIR}/deploy_container.sh" ;;
+		7)  run_script "${SCRIPT_DIR}/deploy_system.sh" ;;
+		8)  run_script "${SCRIPT_DIR}/diff.sh" ;;
+		9)  run_script "${SCRIPT_DIR}/save.sh" ;;
+		10) run_script "${SCRIPT_DIR}/update.sh" ;;
+		11) run_script "${SCRIPT_DIR}/finalize_update.sh" ;;
+		12) run_script "${SCRIPT_DIR}/destroy_container.sh" ;;
+		13) run_script "${SCRIPT_DIR}/destroy_foundation.sh" ;;
+		14) run_script "${SCRIPT_DIR}/doctor.sh" ;;
 		h|H|help) print_menu ;;
 		q|Q|quit|exit) exit 0 ;;
 		"") ;;

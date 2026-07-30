@@ -141,9 +141,8 @@ parasa_finalize_update -s wonderland -n
 1. Stop old system
 2. Destroy old clone
 3. Rename `wonderland-new` to `wonderland`
-4. Update .foundation file with new artifact
-5. Save state
-6. Set nextboot
+4. Save state
+5. Set nextboot
 
 This is the only destructive step. After this, the system is running on
 the new base with all customizations preserved.

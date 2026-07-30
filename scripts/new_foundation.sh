@@ -406,6 +406,7 @@ commit_build() {
 		var/
 		usr/local/
 		tmp/
+		dev/
 		GITIGNORE
 	fi
 	run git -C "$workspace" add .gitignore
