@@ -697,9 +697,15 @@ inaugural_commit() {
 		git -C "$cpath" remote add origin "$foundation_git"
 		git -C "$cpath" fetch origin
 
-		# Create branch from foundation commit
-		git -C "$cpath" checkout -f -b "containers/${CONTAINER_NAME}" \
+		# Create branch from foundation commit — use update-ref + read-tree
+		# instead of checkout -f, which would overwrite working-tree files
+		# modified by the recipe (e.g. /etc/master.passwd from pw useradd).
+		git -C "$cpath" update-ref \
+			"refs/heads/containers/${CONTAINER_NAME}" \
 			"origin/${FOUNDATION_NAME}"
+		git -C "$cpath" symbolic-ref HEAD \
+			"refs/heads/containers/${CONTAINER_NAME}"
+		git -C "$cpath" read-tree HEAD
 
 		# Append gitignore entries for foreign mounts outside standard paths
 		local fstab="${RECIPE_DIR}/mount.fstab"
@@ -714,7 +720,7 @@ inaugural_commit() {
 				relpath="${dest#${cpath}/}"
 				# Skip if already covered by foundation .gitignore
 				case "$relpath" in
-					var|var/*|usr/local|usr/local/*|tmp|tmp/*|dev|dev/*) continue ;;
+					var|var/*|usr/local|usr/local/*|tmp|tmp/*|dev|dev/*|root|root/*) continue ;;
 				esac
 				# Append to .gitignore
 				printf "%s/\n" "$relpath" >> "${cpath}/.gitignore"
