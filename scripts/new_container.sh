@@ -428,8 +428,11 @@ ensure_foreign_datasets() {
 				fi
 				;;
 			nullfs)
-				if [ ! -d "$src" ]; then
-					printf "  Host path does not exist: %s\n" "$src" >&2
+				# Check for a ZFS dataset mounted at this path (not just dir existence)
+				local backing_ds
+				backing_ds=$(zfs list -H -o name,mountpoint 2>/dev/null | awk -v mp="$src" '$2 == mp {print $1; exit}')
+				if [ -z "$backing_ds" ]; then
+					printf "  No ZFS dataset mounted at: %s\n" "$src" >&2
 					if [ "$QUIET" -eq 0 ]; then
 						printf "  Create a ZFS dataset mounted at %s?\n" "$src" >&2
 						printf "  Dataset name: " >&2
@@ -437,7 +440,7 @@ ensure_foreign_datasets() {
 						[ -n "$ds_name" ] || die "Dataset name required."
 						run zfs create -o mountpoint="$src" "$ds_name"
 					else
-						die "Host path '${src}' does not exist."
+						die "No ZFS dataset at '${src}'."
 					fi
 				fi
 				;;
@@ -818,11 +821,18 @@ main() {
 			umount "$mnt" 2>/dev/null || umount -f "$mnt" 2>/dev/null || true
 		done
 	fi
-	# Reset data dataset mountpoints to none
+	# Reset data dataset mountpoints to none — but only those mounted under
+	# the container path. Foreign datasets (backing nullfs mounts at host
+	# paths like /zbamidbar/web) must keep their mountpoints.
 	local data_root="zbamidbar/container-data/${CONTAINER_NAME}"
 	if ! $DRY_RUN && zfs_dataset_exists "$data_root"; then
-		zfs list -r -H -o name "$data_root" 2>/dev/null | while read -r ds; do
-			zfs set mountpoint=none "$ds" 2>/dev/null || true
+		local _ds _mp
+		zfs list -r -H -o name,mountpoint "$data_root" 2>/dev/null | while read -r _ds _mp; do
+			case "$_mp" in
+				none) ;;
+				"$cpath"|"$cpath"/*)
+					zfs set mountpoint=none "$_ds" 2>/dev/null || true ;;
+			esac
 		done
 	fi
 
