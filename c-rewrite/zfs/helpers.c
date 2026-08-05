@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/nvpair.h>
 #include <libzfs_core.h>
+#include <errno.h>
 
 #include "../parasa_helpers.h"
 #include "zfs_helpers.h"
@@ -37,7 +38,7 @@ int create_dataset(char const * name) {
 	int err = lzc_create(name, LZC_DATSET_TYPE_ZFS, props, NULL, 0);
 	if (!err) {
 		// lzc_create returns standard errno values (e.g., EEXIST, ENOENT)
-		fprintf(stderr, "[ZFS]: Failed to create dataset. Error code: %d\n", err);
+		fprintf(stderr, "[ZFS]: Failed to create dataset. Error: %s\n", strerror(err));
 	} else {
 		printf("[ZFS]: Dataset '%s' created successfully.\n", name);
 	}

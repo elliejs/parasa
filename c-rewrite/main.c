@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "parasa.h"
-#include "foundations.h"
+#include "foundations/actions.h"
 #include "parasa_helpers.h"
 
 typedef void (* menu_func_f)(void *);
@@ -24,7 +24,6 @@ menu_listing_t;
  menu_listing_t menu_listing[] = {
 	{"NEW", (menu_item_t []) {
 		{"FOUNDATION", new_foundation},
-		{"CONTAINER", new_container},
 	}},
 };
 
